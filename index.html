@@ -1,0 +1,1297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Supy — Inbox Intelligence Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+  <style>
+    :root {
+      --p50:  #faf5ff;
+      --p100: #f3e8ff;
+      --p200: #e9d5ff;
+      --p300: #d8b4fe;
+      --p400: #c084fc;
+      --p500: #a855f7;
+      --p600: #9333ea;
+      --p700: #7e22ce;
+      --p800: #6b21a8;
+      --p900: #4c1d95;
+      --p950: #2e1065;
+
+      --ink:       #1a0a2e;
+      --ink2:      #3d1f6b;
+      --muted:     #6b5b8a;
+      --faint:     #9d8fbf;
+      --border:    #e5daf5;
+      --border2:   #d0c4eb;
+      --surface:   #ffffff;
+      --surface2:  #faf7ff;
+      --surface3:  #f3eeff;
+
+      --green:  #10b981;
+      --amber:  #f59e0b;
+      --red:    #ef4444;
+      --blue:   #6366f1;
+
+      --sidebar: 228px;
+      --r4: 4px; --r8: 8px; --r12: 12px; --r16: 16px; --r20: 20px;
+      --sh1: 0 1px 4px rgba(88,28,135,0.07);
+      --sh2: 0 4px 16px rgba(88,28,135,0.10);
+      --sh3: 0 8px 32px rgba(88,28,135,0.14);
+
+      --font: 'Montserrat', sans-serif;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: var(--font);
+      background: var(--surface2);
+      color: var(--ink);
+      min-height: 100vh;
+      font-size: 13px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Sidebar ─────────────────────────────────────────── */
+    .sidebar {
+      position: fixed; top: 0; left: 0; bottom: 0;
+      width: var(--sidebar);
+      background: var(--p950);
+      display: flex; flex-direction: column;
+      z-index: 200;
+      border-right: 1px solid rgba(255,255,255,0.05);
+    }
+
+    .sidebar-top {
+      padding: 24px 18px 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .logo-row { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+
+    .logo-gem {
+      width: 32px; height: 32px;
+      background: linear-gradient(135deg, var(--p400), var(--p600));
+      border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; flex-shrink: 0;
+      box-shadow: 0 2px 8px rgba(168,85,247,0.4);
+    }
+
+    .logo-name {
+      font-size: 15px; font-weight: 700; color: #fff;
+      letter-spacing: 0.5px;
+    }
+    .logo-sub {
+      font-size: 9.5px; font-weight: 500; color: rgba(255,255,255,0.35);
+      letter-spacing: 1.2px; text-transform: uppercase; margin-top: 2px;
+      padding-left: 42px;
+    }
+
+    .sidebar-nav { flex: 1; padding: 14px 10px; overflow-y: auto; }
+
+    .nav-section {
+      font-size: 9px; font-weight: 700; color: rgba(255,255,255,0.25);
+      letter-spacing: 1.4px; text-transform: uppercase;
+      padding: 14px 8px 5px;
+    }
+
+    .nav-item {
+      display: flex; align-items: center; gap: 9px;
+      padding: 8px 10px; border-radius: var(--r8);
+      cursor: pointer; color: rgba(255,255,255,0.5);
+      font-size: 12.5px; font-weight: 500;
+      transition: all 0.15s;
+      border: none; background: none; width: 100%; text-align: left;
+      position: relative;
+    }
+    .nav-item:hover { background: rgba(168,85,247,0.12); color: rgba(255,255,255,0.85); }
+    .nav-item.active { background: rgba(168,85,247,0.22); color: #fff; }
+    .nav-item .ni-icon { font-size: 14px; width: 18px; text-align: center; flex-shrink: 0; }
+    .nav-badge {
+      margin-left: auto; background: var(--p500); color: #fff;
+      font-size: 9.5px; font-weight: 700; padding: 1px 6px;
+      border-radius: 99px; min-width: 18px; text-align: center;
+    }
+    .nav-badge.red { background: var(--red); }
+    .nav-badge.amber { background: var(--amber); color: var(--ink); }
+
+    .sidebar-bottom {
+      padding: 12px 10px 16px;
+      border-top: 1px solid rgba(255,255,255,0.06);
+    }
+    .live-pill {
+      display: flex; align-items: center; gap: 8px;
+      padding: 7px 10px; border-radius: var(--r8);
+      background: rgba(16,185,129,0.12); font-size: 11px; color: rgba(255,255,255,0.55);
+      font-weight: 500;
+    }
+    .live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); animation: blink 2s infinite; }
+    @keyframes blink { 0%,100%{opacity:1}50%{opacity:0.4} }
+
+    /* ── Main ────────────────────────────────────────────── */
+    .main { margin-left: var(--sidebar); min-height: 100vh; display: flex; flex-direction: column; }
+
+    .topbar {
+      padding: 16px 28px;
+      display: flex; align-items: center; justify-content: space-between;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; z-index: 100;
+      gap: 16px;
+    }
+
+    .topbar-left { display: flex; flex-direction: column; }
+    .topbar-title { font-size: 16px; font-weight: 700; color: var(--ink); }
+    .topbar-sub { font-size: 11px; color: var(--muted); font-weight: 400; margin-top: 1px; }
+
+    .topbar-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+    .ctrl-group { display: flex; align-items: center; gap: 6px; }
+    .ctrl-label { font-size: 10.5px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+
+    select, input[type="date"] {
+      font-family: var(--font);
+      font-size: 12px; font-weight: 500; color: var(--ink);
+      background: var(--surface); border: 1.5px solid var(--border2);
+      border-radius: var(--r8); padding: 6px 10px;
+      outline: none; cursor: pointer;
+      transition: border-color 0.15s;
+    }
+    select:hover, input[type="date"]:hover { border-color: var(--p400); }
+    select:focus, input[type="date"]:focus { border-color: var(--p500); box-shadow: 0 0 0 3px rgba(168,85,247,0.1); }
+
+    .btn {
+      font-family: var(--font); font-size: 12px; font-weight: 600;
+      padding: 7px 16px; border-radius: var(--r8);
+      border: none; cursor: pointer; transition: all 0.15s;
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    .btn-primary { background: var(--p600); color: #fff; }
+    .btn-primary:hover { background: var(--p700); box-shadow: var(--sh2); }
+    .btn-outline { background: transparent; color: var(--p600); border: 1.5px solid var(--p300); }
+    .btn-outline:hover { background: var(--p50); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* ── Sections ────────────────────────────────────────── */
+    .section { display: none; padding: 24px 28px; flex-direction: column; gap: 20px; }
+    .section.active { display: flex; }
+
+    .section-header { display: flex; align-items: center; justify-content: space-between; }
+    .section-title {
+      font-size: 14px; font-weight: 700; color: var(--ink);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .section-title .stag {
+      font-size: 10px; font-weight: 700; color: var(--p600);
+      background: var(--p100); padding: 2px 8px; border-radius: 99px;
+    }
+
+    /* ── KPI Cards ───────────────────────────────────────── */
+    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+
+    .kpi-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r16);
+      padding: 18px 16px;
+      position: relative; overflow: hidden;
+      transition: box-shadow 0.15s, transform 0.15s;
+    }
+    .kpi-card:hover { box-shadow: var(--sh2); transform: translateY(-1px); }
+    .kpi-card::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0; height: 3px;
+      background: linear-gradient(90deg, var(--p400), var(--p600));
+      border-radius: var(--r16) var(--r16) 0 0;
+    }
+    .kpi-card.green::before { background: linear-gradient(90deg, #34d399, var(--green)); }
+    .kpi-card.red::before { background: linear-gradient(90deg, #f87171, var(--red)); }
+    .kpi-card.amber::before { background: linear-gradient(90deg, #fcd34d, var(--amber)); }
+    .kpi-card.blue::before { background: linear-gradient(90deg, #818cf8, var(--blue)); }
+
+    .kpi-icon { font-size: 18px; margin-bottom: 10px; opacity: 0.85; }
+    .kpi-value { font-size: 26px; font-weight: 800; color: var(--ink); line-height: 1; }
+    .kpi-label { font-size: 10.5px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px; }
+    .kpi-sub { font-size: 10px; color: var(--faint); margin-top: 3px; }
+
+    /* ── Charts grid ─────────────────────────────────────── */
+    .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .charts-grid.cols3 { grid-template-columns: 1fr 1fr 1fr; }
+    @media (max-width: 1100px) { .charts-grid { grid-template-columns: 1fr; } }
+
+    .chart-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r16);
+      padding: 18px 20px;
+    }
+    .chart-title {
+      font-size: 12px; font-weight: 700; color: var(--ink);
+      margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between;
+    }
+    .chart-wrap { position: relative; height: 180px; }
+    .chart-wrap.tall { height: 220px; }
+
+    /* ── Agent Table ─────────────────────────────────────── */
+    .table-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r16);
+      overflow: hidden;
+    }
+    .table-head {
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .table-title { font-size: 12.5px; font-weight: 700; color: var(--ink); }
+
+    table { width: 100%; border-collapse: collapse; }
+    thead th {
+      font-size: 10px; font-weight: 700; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.6px;
+      padding: 10px 14px; background: var(--surface2);
+      border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap;
+    }
+    tbody td {
+      padding: 11px 14px; font-size: 12px; font-weight: 400; color: var(--ink);
+      border-bottom: 1px solid var(--border); vertical-align: middle;
+    }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover td { background: var(--surface2); }
+
+    .agent-row td:first-child { font-weight: 600; }
+
+    /* ── Badges ──────────────────────────────────────────── */
+    .badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 10px; font-weight: 700; padding: 2px 8px;
+      border-radius: 99px; white-space: nowrap;
+    }
+    .badge.open     { background: rgba(99,102,241,0.1); color: var(--blue); }
+    .badge.closed   { background: rgba(16,185,129,0.1); color: var(--green); }
+    .badge.archived { background: rgba(156,163,175,0.1); color: #6b7280; }
+    .badge.done     { background: rgba(16,185,129,0.1); color: var(--green); }
+    .badge.escalated{ background: rgba(239,68,68,0.1); color: var(--red); }
+    .badge.call     { background: rgba(168,85,247,0.12); color: var(--p600); }
+    .badge.sla      { background: rgba(239,68,68,0.15); color: var(--red); }
+    .badge.unassign { background: rgba(245,158,11,0.12); color: #b45309; }
+    .badge.replied  { background: rgba(16,185,129,0.12); color: #047857; }
+    .badge.pending  { background: rgba(245,158,11,0.1); color: var(--amber); }
+    .badge.unknown  { background: var(--surface3); color: var(--muted); }
+
+    /* ── Ticket list ─────────────────────────────────────── */
+    .ticket-filters {
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 16px; background: var(--surface2);
+      border: 1px solid var(--border); border-radius: var(--r12);
+      flex-wrap: wrap;
+    }
+    .filter-btn {
+      font-family: var(--font); font-size: 11px; font-weight: 600;
+      padding: 5px 12px; border-radius: 99px; border: 1.5px solid var(--border2);
+      background: var(--surface); color: var(--muted); cursor: pointer;
+      transition: all 0.15s;
+    }
+    .filter-btn:hover { border-color: var(--p400); color: var(--p600); }
+    .filter-btn.active { border-color: var(--p500); background: var(--p100); color: var(--p700); }
+
+    .search-input {
+      font-family: var(--font); font-size: 12px; font-weight: 500; color: var(--ink);
+      background: var(--surface); border: 1.5px solid var(--border2);
+      border-radius: var(--r8); padding: 6px 12px 6px 32px;
+      outline: none; width: 200px; transition: border-color 0.15s;
+    }
+    .search-input:focus { border-color: var(--p500); box-shadow: 0 0 0 3px rgba(168,85,247,0.1); }
+    .search-wrap { position: relative; }
+    .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font-size: 13px; color: var(--faint); pointer-events: none; }
+
+    /* Ticket rows */
+    .ticket-row {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--r12); padding: 14px 18px;
+      display: grid; grid-template-columns: 60px 1fr auto;
+      gap: 12px; align-items: start;
+      transition: box-shadow 0.15s, border-color 0.15s;
+    }
+    .ticket-row:hover { box-shadow: var(--sh1); border-color: var(--p300); }
+    .ticket-row.escalated-row { border-left: 3px solid var(--red); }
+    .ticket-row.call-row { border-left: 3px solid var(--p500); }
+
+    .ticket-id { font-size: 11px; font-weight: 700; color: var(--p600); }
+    .ticket-date { font-size: 10px; color: var(--faint); margin-top: 2px; }
+
+    .ticket-title { font-size: 12.5px; font-weight: 600; color: var(--ink); margin-bottom: 5px; }
+    .ticket-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .ticket-person { font-size: 11px; color: var(--muted); }
+    .ticket-company { font-size: 11px; font-weight: 600; color: var(--ink2); }
+    .ticket-comment { font-size: 11px; color: var(--muted); margin-top: 6px; font-style: italic; line-height: 1.4; }
+    .ticket-phones { font-size: 11px; color: var(--ink2); font-weight: 600; }
+
+    .ticket-right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+    .gleap-link {
+      font-size: 10.5px; font-weight: 600; color: var(--p600);
+      text-decoration: none; padding: 4px 10px; border-radius: 99px;
+      background: var(--p100); transition: all 0.15s;
+      display: inline-flex; align-items: center; gap: 4px;
+    }
+    .gleap-link:hover { background: var(--p200); color: var(--p800); }
+    .timing-row { display: flex; gap: 10px; flex-wrap: wrap; }
+    .timing-chip {
+      font-size: 10px; font-weight: 500; color: var(--muted);
+      background: var(--surface2); padding: 2px 7px; border-radius: 4px;
+      border: 1px solid var(--border);
+    }
+
+    /* ── Loading / Empty ─────────────────────────────────── */
+    .loader {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 60px; gap: 16px; color: var(--muted);
+    }
+    .spinner {
+      width: 36px; height: 36px; border: 3px solid var(--p200);
+      border-top-color: var(--p500); border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loader-text { font-size: 12px; font-weight: 500; }
+    .loader-sub { font-size: 11px; color: var(--faint); }
+
+    .empty-state {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 50px; gap: 10px; color: var(--muted);
+    }
+    .empty-icon { font-size: 36px; }
+    .empty-text { font-size: 13px; font-weight: 600; }
+    .empty-sub { font-size: 11px; color: var(--faint); }
+
+    /* ── AI Report ───────────────────────────────────────── */
+    .ai-report-box {
+      background: var(--surface);
+      border: 1.5px solid var(--p300);
+      border-radius: var(--r16);
+      padding: 24px;
+      line-height: 1.7;
+    }
+    .ai-report-box h2, .ai-report-box strong {
+      font-weight: 700; color: var(--p800);
+    }
+    .ai-report-box p { margin: 8px 0; font-size: 13px; color: var(--ink); }
+    .ai-report-box ul { padding-left: 20px; }
+    .ai-report-box li { margin: 5px 0; font-size: 13px; }
+
+    /* ── Call detail cards ───────────────────────────────── */
+    .call-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px,1fr)); gap: 12px; }
+    .call-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--r16); padding: 16px 18px;
+      border-left: 4px solid var(--p500);
+      transition: box-shadow 0.15s;
+    }
+    .call-card:hover { box-shadow: var(--sh2); }
+    .call-card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+    .call-card-id { font-size: 11px; font-weight: 700; color: var(--p600); }
+    .call-card-name { font-size: 13px; font-weight: 700; color: var(--ink); margin-bottom: 4px; }
+    .call-card-company { font-size: 11px; color: var(--muted); margin-bottom: 10px; }
+    .call-card-details { display: flex; flex-direction: column; gap: 5px; }
+    .call-detail-row { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); }
+    .call-detail-row strong { color: var(--ink); font-weight: 600; }
+    .call-card-footer { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+
+    /* ── Progress bars ───────────────────────────────────── */
+    .progress-bar { height: 4px; background: var(--border); border-radius: 99px; overflow: hidden; margin-top: 4px; }
+    .progress-fill { height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--p400), var(--p600)); transition: width 0.6s; }
+    .progress-fill.green { background: var(--green); }
+    .progress-fill.red { background: var(--red); }
+
+    /* ── Alert bar ───────────────────────────────────────── */
+    .alert-bar {
+      padding: 10px 16px; border-radius: var(--r8);
+      display: flex; align-items: center; gap: 10px;
+      font-size: 12px; font-weight: 500;
+    }
+    .alert-bar.warning { background: rgba(245,158,11,0.1); color: #92400e; border: 1px solid rgba(245,158,11,0.25); }
+    .alert-bar.danger  { background: rgba(239,68,68,0.08); color: #991b1b; border: 1px solid rgba(239,68,68,0.2); }
+    .alert-bar.success { background: rgba(16,185,129,0.08); color: #065f46; border: 1px solid rgba(16,185,129,0.2); }
+
+    /* ── Pagination ──────────────────────────────────────── */
+    .pagination { display: flex; align-items: center; gap: 6px; }
+    .page-btn {
+      font-family: var(--font); font-size: 11px; font-weight: 600;
+      width: 30px; height: 30px; border-radius: var(--r8);
+      border: 1.5px solid var(--border2); background: var(--surface); color: var(--muted);
+      cursor: pointer; transition: all 0.15s; display: flex; align-items: center; justify-content: center;
+    }
+    .page-btn.active { border-color: var(--p500); background: var(--p600); color: #fff; }
+    .page-btn:hover:not(.active) { border-color: var(--p400); color: var(--p600); }
+
+    /* ── Scrollbar ───────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--p200); border-radius: 99px; }
+
+    /* ── Error ───────────────────────────────────────────── */
+    .error-box {
+      background: rgba(239,68,68,0.06); border: 1px solid rgba(239,68,68,0.2);
+      border-radius: var(--r12); padding: 16px 20px; color: #991b1b; font-size: 12px;
+    }
+
+    /* ── Ticket list container ───────────────────────────── */
+    .ticket-list { display: flex; flex-direction: column; gap: 8px; }
+
+    /* ── Last refresh ─────────────────────────────────────── */
+    #refreshTime { font-size: 10.5px; color: var(--faint); font-weight: 500; }
+
+    /* ── Agent performance metric cells ───────────────────── */
+    .perf-bar { display: flex; align-items: center; gap: 8px; }
+    .perf-val { min-width: 60px; font-size: 11.5px; font-weight: 600; color: var(--ink); }
+    .mini-bar { flex: 1; height: 3px; background: var(--border); border-radius: 99px; overflow: hidden; }
+    .mini-fill { height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--p300), var(--p600)); }
+
+    /* ── Responsive ──────────────────────────────────────── */
+    @media (max-width: 900px) {
+      :root { --sidebar: 0px; }
+      .sidebar { transform: translateX(-100%); }
+      .main { margin-left: 0; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Sidebar ─────────────────────────────────────────────── -->
+<aside class="sidebar">
+  <div class="sidebar-top">
+    <div class="logo-row">
+      <div class="logo-gem">📊</div>
+      <div class="logo-name">Supy Intel</div>
+    </div>
+    <div class="logo-sub">Inbox Analytics</div>
+  </div>
+
+  <nav class="sidebar-nav">
+    <div class="nav-section">Dashboards</div>
+    <button class="nav-item active" onclick="showSection('overview')">
+      <span class="ni-icon">🏠</span> Overview
+    </button>
+    <button class="nav-item" onclick="showSection('inbox')">
+      <span class="ni-icon">📥</span> Inbox
+      <span class="nav-badge" id="badgeOpen">—</span>
+    </button>
+    <button class="nav-item" onclick="showSection('agents')">
+      <span class="ni-icon">👥</span> Agent Performance
+    </button>
+    <button class="nav-item" onclick="showSection('calls')">
+      <span class="ni-icon">📞</span> Call Requests
+      <span class="nav-badge" id="badgeCalls">—</span>
+    </button>
+    <button class="nav-item" onclick="showSection('escalations')">
+      <span class="ni-icon">🚨</span> Escalations
+      <span class="nav-badge red" id="badgeEscalated">—</span>
+    </button>
+
+    <div class="nav-section">Analytics</div>
+    <button class="nav-item" onclick="showSection('charts')">
+      <span class="ni-icon">📈</span> Trends & Charts
+    </button>
+    <button class="nav-item" onclick="showSection('ai')">
+      <span class="ni-icon">🤖</span> AI Report
+    </button>
+  </nav>
+
+  <div class="sidebar-bottom">
+    <div class="live-pill">
+      <span class="live-dot"></span>
+      <span id="refreshTime">Not loaded</span>
+    </div>
+  </div>
+</aside>
+
+<!-- ── Main ───────────────────────────────────────────────── -->
+<main class="main">
+
+  <!-- Topbar -->
+  <div class="topbar">
+    <div class="topbar-left">
+      <div class="topbar-title" id="pageTitle">Overview</div>
+      <div class="topbar-sub" id="pageSub">Loading data…</div>
+    </div>
+    <div class="topbar-controls">
+      <div class="ctrl-group">
+        <label class="ctrl-label">From</label>
+        <input type="date" id="dateFrom" />
+      </div>
+      <div class="ctrl-group">
+        <label class="ctrl-label">To</label>
+        <input type="date" id="dateTo" />
+      </div>
+      <button class="btn btn-primary" onclick="loadData()">
+        ↻ Refresh
+      </button>
+    </div>
+  </div>
+
+  <!-- ── SECTION: Overview ─────────────────────────────────── -->
+  <div id="section-overview" class="section active">
+    <div id="overviewContent">
+      <div class="loader"><div class="spinner"></div><div class="loader-text">Fetching inbox data…</div><div class="loader-sub">This may take 30–60 seconds on first load</div></div>
+    </div>
+  </div>
+
+  <!-- ── SECTION: Inbox ───────────────────────────────────── -->
+  <div id="section-inbox" class="section">
+    <div class="section-header">
+      <div class="section-title">📥 Inbox Conversations <span class="stag" id="inboxCount">—</span></div>
+    </div>
+    <div class="ticket-filters" id="inboxFilters">
+      <div class="search-wrap">
+        <span class="search-icon">🔍</span>
+        <input type="text" class="search-input" id="ticketSearch" placeholder="Search name, company, email…" oninput="filterTickets()" />
+      </div>
+      <button class="filter-btn active" onclick="setFilter('all',this)">All</button>
+      <button class="filter-btn" onclick="setFilter('open',this)">Open</button>
+      <button class="filter-btn" onclick="setFilter('closed',this)">Closed</button>
+      <button class="filter-btn" onclick="setFilter('unassigned',this)">Unassigned</button>
+      <button class="filter-btn" onclick="setFilter('escalated',this)">🚨 Escalated</button>
+      <button class="filter-btn" onclick="setFilter('call',this)">📞 Call</button>
+      <button class="filter-btn" onclick="setFilter('sla',this)">⚠ SLA</button>
+      <button class="filter-btn" onclick="setFilter('archived',this)">Archived</button>
+    </div>
+    <div id="ticketList" class="ticket-list">
+      <div class="loader"><div class="spinner"></div><div class="loader-text">Loading conversations…</div></div>
+    </div>
+    <div id="ticketPagination" class="pagination"></div>
+  </div>
+
+  <!-- ── SECTION: Agents ──────────────────────────────────── -->
+  <div id="section-agents" class="section">
+    <div class="section-header">
+      <div class="section-title">👥 Agent Performance</div>
+    </div>
+    <div id="agentContent">
+      <div class="loader"><div class="spinner"></div></div>
+    </div>
+  </div>
+
+  <!-- ── SECTION: Calls ───────────────────────────────────── -->
+  <div id="section-calls" class="section">
+    <div class="section-header">
+      <div class="section-title">📞 Call Requests <span class="stag" id="callCount">—</span></div>
+    </div>
+    <div id="callContent">
+      <div class="loader"><div class="spinner"></div></div>
+    </div>
+  </div>
+
+  <!-- ── SECTION: Escalations ─────────────────────────────── -->
+  <div id="section-escalations" class="section">
+    <div class="section-header">
+      <div class="section-title">🚨 Escalated Tickets <span class="stag" id="escalationCount">—</span></div>
+    </div>
+    <div id="escalationContent">
+      <div class="loader"><div class="spinner"></div></div>
+    </div>
+  </div>
+
+  <!-- ── SECTION: Charts ──────────────────────────────────── -->
+  <div id="section-charts" class="section">
+    <div class="section-title">📈 Trends & Volume</div>
+    <div class="charts-grid">
+      <div class="chart-card">
+        <div class="chart-title">Daily Volume</div>
+        <div class="chart-wrap tall"><canvas id="chartDaily"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Day of Week</div>
+        <div class="chart-wrap tall"><canvas id="chartDow"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Hour of Day (UTC)</div>
+        <div class="chart-wrap tall"><canvas id="chartHourly"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Top Companies</div>
+        <div class="chart-wrap tall"><canvas id="chartCompanies"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SECTION: AI ──────────────────────────────────────── -->
+  <div id="section-ai" class="section">
+    <div class="section-header">
+      <div class="section-title">🤖 AI Team Lead Report</div>
+      <button class="btn btn-primary" id="aiBtn" onclick="generateAI()">Generate Report</button>
+    </div>
+    <div id="aiContent">
+      <div class="empty-state">
+        <div class="empty-icon">🤖</div>
+        <div class="empty-text">AI Report</div>
+        <div class="empty-sub">Click "Generate Report" to get AI-powered insights on your team's inbox performance.</div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+// ── State ─────────────────────────────────────────────────
+let globalStats = null;
+let allTickets  = [];
+let filteredTickets = [];
+let currentFilter = 'all';
+let currentPage   = 1;
+const PAGE_SIZE   = 30;
+
+const charts = {};
+
+// ── Init ──────────────────────────────────────────────────
+(function init() {
+  const now   = new Date();
+  const first = new Date(now.getFullYear(), now.getMonth(), 1);
+  document.getElementById('dateFrom').value = first.toISOString().slice(0,10);
+  document.getElementById('dateTo').value   = now.toISOString().slice(0,10);
+  loadData();
+})();
+
+// ── Navigation ────────────────────────────────────────────
+const titles = {
+  overview: ['Overview', 'Key metrics at a glance'],
+  inbox: ['Inbox Conversations', 'All INQUIRY type tickets'],
+  agents: ['Agent Performance', 'Response times, resolution rates, and team metrics'],
+  calls: ['Call Requests', 'Tickets with call_flow = true'],
+  escalations: ['Escalations', 'Tickets with linked tickets attached'],
+  charts: ['Trends & Charts', 'Volume by day, time, and company'],
+  ai: ['AI Team Lead Report', 'AI-powered analysis and recommendations'],
+};
+
+function showSection(id) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('section-' + id).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => {
+    if (n.getAttribute('onclick') === `showSection('${id}')`) n.classList.add('active');
+  });
+  const [title, sub] = titles[id] || ['', ''];
+  document.getElementById('pageTitle').textContent = title;
+  document.getElementById('pageSub').textContent   = sub;
+}
+
+// ── Load data ─────────────────────────────────────────────
+async function loadData() {
+  const from = document.getElementById('dateFrom').value;
+  const to   = document.getElementById('dateTo').value;
+  if (!from || !to) { alert('Please set both dates'); return; }
+
+  document.getElementById('overviewContent').innerHTML = `<div class="loader"><div class="spinner"></div><div class="loader-text">Scanning inbox…</div><div class="loader-sub">Fetching all INQUIRY tickets in range. Please wait 30–90 seconds.</div></div>`;
+  document.getElementById('pageSub').textContent = 'Fetching data…';
+
+  try {
+    const resp = await fetch(`/api/analytics?start=${from}T00:00:00.000Z&end=${to}T23:59:59.999Z`);
+    const data = await resp.json();
+    if (!data.ok) throw new Error(data.error);
+
+    globalStats = data.stats;
+    allTickets  = data.stats.tickets || [];
+    filteredTickets = [...allTickets];
+
+    renderOverview(data.stats);
+    renderAgents(data.stats);
+    renderCalls(data.stats);
+    renderEscalations(data.stats);
+    renderCharts(data.stats);
+    renderTicketList();
+
+    // Update badges
+    document.getElementById('badgeOpen').textContent      = data.stats.openCount || 0;
+    document.getElementById('badgeCalls').textContent     = data.stats.callRequestCount || 0;
+    document.getElementById('badgeEscalated').textContent = data.stats.escalatedCount || 0;
+    document.getElementById('inboxCount').textContent     = data.stats.total + ' total';
+    document.getElementById('callCount').textContent      = data.stats.callRequestCount + ' tickets';
+    document.getElementById('escalationCount').textContent= data.stats.escalatedCount + ' tickets';
+
+    const gen = new Date(data.generatedAt);
+    document.getElementById('refreshTime').textContent = 'Updated ' + gen.toLocaleTimeString();
+    document.getElementById('pageSub').textContent = `${from} → ${to} · ${data.stats.total} conversations`;
+  } catch(e) {
+    document.getElementById('overviewContent').innerHTML = `<div class="error-box">❌ Failed to load data: ${e.message}<br><small>Check your .env credentials and that the server is running.</small></div>`;
+    document.getElementById('pageSub').textContent = 'Error loading data';
+  }
+}
+
+// ── Overview ──────────────────────────────────────────────
+function renderOverview(s) {
+  const resolveRate = s.total ? Math.round((s.closedCount/s.total)*100) : 0;
+  const replyRate   = s.total ? Math.round((s.withReply/s.total)*100) : 0;
+  const assignRate  = s.total ? Math.round((s.assignedCount/s.total)*100) : 0;
+
+  let alerts = '';
+  if (s.slaBreached > 0)     alerts += `<div class="alert-bar danger">⚠ ${s.slaBreached} ticket${s.slaBreached>1?'s':''} with SLA breached — review immediately</div>`;
+  if (s.unassignedCount > 0) alerts += `<div class="alert-bar warning">⚡ ${s.unassignedCount} unassigned ticket${s.unassignedCount>1?'s':''} — assign now to avoid delays</div>`;
+  if (s.openCount === 0)     alerts += `<div class="alert-bar success">✅ All conversations are resolved — great work!</div>`;
+
+  document.getElementById('overviewContent').innerHTML = `
+    ${alerts ? `<div style="display:flex;flex-direction:column;gap:6px">${alerts}</div>` : ''}
+
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-icon">💬</div>
+        <div class="kpi-value">${s.total}</div>
+        <div class="kpi-label">Total Conversations</div>
+        <div class="kpi-sub">INQUIRY type tickets</div>
+      </div>
+      <div class="kpi-card ${s.openCount>0?'amber':'green'}">
+        <div class="kpi-icon">📬</div>
+        <div class="kpi-value">${s.openCount}</div>
+        <div class="kpi-label">Open / Active</div>
+        <div class="kpi-sub">${s.closedCount} closed · ${s.archivedCount} archived</div>
+      </div>
+      <div class="kpi-card ${s.escalatedCount>0?'red':'green'}">
+        <div class="kpi-icon">🚨</div>
+        <div class="kpi-value">${s.escalatedCount}</div>
+        <div class="kpi-label">Escalated</div>
+        <div class="kpi-sub">Tickets with linked tickets</div>
+      </div>
+      <div class="kpi-card ${s.slaBreached>0?'red':''}">
+        <div class="kpi-icon">⏱</div>
+        <div class="kpi-value">${s.slaBreached}</div>
+        <div class="kpi-label">SLA Breached</div>
+        <div class="kpi-sub">${s.total - s.slaBreached} within SLA</div>
+      </div>
+      <div class="kpi-card ${s.unassignedCount>0?'amber':''}">
+        <div class="kpi-icon">👤</div>
+        <div class="kpi-value">${s.unassignedCount}</div>
+        <div class="kpi-label">Unassigned</div>
+        <div class="kpi-sub">${s.assignedCount} assigned to agents</div>
+      </div>
+      <div class="kpi-card blue">
+        <div class="kpi-icon">📞</div>
+        <div class="kpi-value">${s.callRequestCount}</div>
+        <div class="kpi-label">Call Requests</div>
+        <div class="kpi-sub">call_flow = true tickets</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon">🏢</div>
+        <div class="kpi-value">${s.withCompany}</div>
+        <div class="kpi-label">With Company</div>
+        <div class="kpi-sub">${s.withPhone} have phone number</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon">✉️</div>
+        <div class="kpi-value">${s.withEmail}</div>
+        <div class="kpi-label">With Email</div>
+        <div class="kpi-sub">Contact info available</div>
+      </div>
+    </div>
+
+    <div class="charts-grid cols3">
+      <div class="chart-card">
+        <div class="chart-title">⏱ Response Timings</div>
+        <div style="display:flex;flex-direction:column;gap:12px;padding-top:4px">
+          ${metricRow('Avg Time to Assign', s.avgAssignFmt, s.avgAssign, 60)}
+          ${metricRow('Avg First Response', s.avgFirstRespFmt, s.avgFirstResponse, 30)}
+          ${metricRow('Avg Time to Close', s.avgCloseFmt, s.avgClose, 1440)}
+        </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">📊 Resolution Rates</div>
+        <div style="display:flex;flex-direction:column;gap:12px;padding-top:4px">
+          ${rateRow('Resolve Rate', resolveRate, 'green')}
+          ${rateRow('Reply Rate', replyRate, 'purple')}
+          ${rateRow('Assignment Rate', assignRate, 'blue')}
+        </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">🏢 Top Companies</div>
+        <div style="display:flex;flex-direction:column;gap:6px;padding-top:4px;overflow:auto;max-height:180px">
+          ${(s.topCompanies||[]).slice(0,8).map((c,i)=>`
+            <div style="display:flex;align-items:center;justify-content:space-between;font-size:11.5px">
+              <span style="color:var(--ink);font-weight:${i<3?'700':'500'}">${escHtml(c.name)}</span>
+              <span style="background:var(--p100);color:var(--p700);font-weight:700;font-size:10px;padding:1px 7px;border-radius:99px">${c.count}</span>
+            </div>`).join('')}
+        </div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div class="chart-card">
+        <div class="chart-title">Status Breakdown</div>
+        <div class="chart-wrap"><canvas id="chartStatusDonut"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Volume by Day of Week</div>
+        <div class="chart-wrap"><canvas id="chartDowSmall"></canvas></div>
+      </div>
+    </div>
+  `;
+
+  // Mini charts
+  setTimeout(() => {
+    renderStatusDonut(s);
+    renderDowSmall(s);
+  }, 50);
+}
+
+function metricRow(label, value, raw, benchmark) {
+  const over = raw !== null && raw > benchmark;
+  const pct  = raw !== null ? Math.min((raw/benchmark)*100, 100) : 0;
+  return `<div>
+    <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+      <span style="font-size:11px;font-weight:600;color:var(--muted)">${label}</span>
+      <span style="font-size:12px;font-weight:700;color:${over?'var(--red)':'var(--green)'}">${value}</span>
+    </div>
+    <div class="progress-bar"><div class="progress-fill ${over?'red':'green'}" style="width:${pct}%"></div></div>
+    <div style="font-size:9.5px;color:var(--faint);margin-top:2px">Benchmark: ${formatMins(benchmark)}</div>
+  </div>`;
+}
+
+function rateRow(label, pct, color) {
+  const colorMap = { green:'var(--green)', blue:'var(--blue)', purple:'var(--p500)' };
+  const c = colorMap[color] || 'var(--p500)';
+  return `<div>
+    <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+      <span style="font-size:11px;font-weight:600;color:var(--muted)">${label}</span>
+      <span style="font-size:12px;font-weight:700;color:${c}">${pct}%</span>
+    </div>
+    <div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${c}"></div></div>
+  </div>`;
+}
+
+function renderStatusDonut(s) {
+  const ctx = document.getElementById('chartStatusDonut');
+  if (!ctx) return;
+  if (charts.statusDonut) charts.statusDonut.destroy();
+  const labels = (s.statusBreakdown||[]).map(x=>x.status);
+  const values = (s.statusBreakdown||[]).map(x=>x.count);
+  charts.statusDonut = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        backgroundColor: ['#10b981','#6366f1','#9333ea','#f59e0b','#ef4444','#6b7280'],
+        borderWidth: 0,
+      }]
+    },
+    options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom', labels:{ font:{ family:'Montserrat', size:10 }, boxWidth:10, padding:8 } } } }
+  });
+}
+
+function renderDowSmall(s) {
+  const ctx = document.getElementById('chartDowSmall');
+  if (!ctx) return;
+  if (charts.dowSmall) charts.dowSmall.destroy();
+  const days = (s.dow||[]).map(d=>d.day);
+  const vals = (s.dow||[]).map(d=>d.count);
+  charts.dowSmall = new Chart(ctx, {
+    type: 'bar',
+    data: { labels:days, datasets:[{ data:vals, backgroundColor:'rgba(147,51,234,0.7)', borderRadius:4 }] },
+    options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false} }, scales:{ x:{ticks:{font:{family:'Montserrat',size:10}}}, y:{ticks:{font:{family:'Montserrat',size:10}}} } }
+  });
+}
+
+// ── Agents ────────────────────────────────────────────────
+function renderAgents(s) {
+  const agents = s.agents || [];
+  if (!agents.length) {
+    document.getElementById('agentContent').innerHTML = '<div class="empty-state"><div class="empty-icon">👥</div><div class="empty-text">No agent data</div></div>';
+    return;
+  }
+
+  const maxHandled = Math.max(...agents.map(a=>a.handled), 1);
+
+  const rows = agents.map(a => {
+    const replyColor = a.replyRate >= 80 ? 'var(--green)' : a.replyRate >= 50 ? 'var(--amber)' : 'var(--red)';
+    return `<tr class="agent-row">
+      <td>${escHtml(a.name)}</td>
+      <td>
+        <div class="perf-bar">
+          <span class="perf-val">${a.handled}</span>
+          <div class="mini-bar"><div class="mini-fill" style="width:${Math.round((a.handled/maxHandled)*100)}%"></div></div>
+        </div>
+      </td>
+      <td><span class="badge open">${a.open}</span></td>
+      <td><span class="badge closed">${a.closed}</span></td>
+      <td>${a.archived}</td>
+      <td style="color:${replyColor};font-weight:700">${a.replyRate}%</td>
+      <td>${a.avgAssignFmt}</td>
+      <td>${a.avgFirstRespFmt}</td>
+      <td>${a.avgCloseFmt}</td>
+      <td>${a.slaBreached > 0 ? `<span class="badge sla">${a.slaBreached}</span>` : '<span style="color:var(--green)">✓</span>'}</td>
+      <td>${a.escalated > 0 ? `<span class="badge escalated">${a.escalated}</span>` : '—'}</td>
+      <td>${a.callRequests > 0 ? `<span class="badge call">${a.callRequests}</span>` : '—'}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('agentContent').innerHTML = `
+    <div class="table-card">
+      <div class="table-head">
+        <div class="table-title">Team Performance — All Agents</div>
+        <div style="font-size:11px;color:var(--muted)">${agents.length} agents</div>
+      </div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead>
+            <tr>
+              <th>Agent</th>
+              <th>Handled</th>
+              <th>Open</th>
+              <th>Closed</th>
+              <th>Archived</th>
+              <th>Reply Rate</th>
+              <th>Avg Assign</th>
+              <th>Avg 1st Resp</th>
+              <th>Avg Close</th>
+              <th>SLA Breached</th>
+              <th>Escalated</th>
+              <th>Call Reqs</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="charts-grid">
+      <div class="chart-card">
+        <div class="chart-title">Tickets Handled per Agent</div>
+        <div class="chart-wrap tall"><canvas id="chartAgentHandled"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Avg Close Time per Agent</div>
+        <div class="chart-wrap tall"><canvas id="chartAgentClose"></canvas></div>
+      </div>
+    </div>
+  `;
+
+  setTimeout(() => {
+    const ctx1 = document.getElementById('chartAgentHandled');
+    if (ctx1 && !charts.agentHandled) {
+      charts.agentHandled = new Chart(ctx1, {
+        type: 'bar',
+        data: { labels: agents.map(a=>a.name), datasets: [{ label:'Handled', data: agents.map(a=>a.handled), backgroundColor:'rgba(147,51,234,0.75)', borderRadius:4 }, { label:'Open', data: agents.map(a=>a.open), backgroundColor:'rgba(99,102,241,0.5)', borderRadius:4 }] },
+        options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{labels:{font:{family:'Montserrat',size:10}}}}, scales:{x:{ticks:{font:{family:'Montserrat',size:10}}},y:{ticks:{font:{family:'Montserrat',size:10}}}} }
+      });
+    }
+    const ctx2 = document.getElementById('chartAgentClose');
+    if (ctx2 && !charts.agentClose) {
+      charts.agentClose = new Chart(ctx2, {
+        type: 'bar',
+        data: { labels: agents.map(a=>a.name), datasets: [{ label:'Avg Close (hrs)', data: agents.map(a=>a.avgClose?+(a.avgClose/60).toFixed(1):null), backgroundColor:'rgba(16,185,129,0.65)', borderRadius:4 }] },
+        options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{labels:{font:{family:'Montserrat',size:10}}}}, scales:{x:{ticks:{font:{family:'Montserrat',size:10}}},y:{ticks:{font:{family:'Montserrat',size:10}}}} }
+      });
+    }
+  }, 50);
+}
+
+// ── Calls ─────────────────────────────────────────────────
+function renderCalls(s) {
+  const calls = s.callTickets || [];
+  if (!calls.length) {
+    document.getElementById('callContent').innerHTML = '<div class="empty-state"><div class="empty-icon">📞</div><div class="empty-text">No call requests found</div><div class="empty-sub">No tickets with call_flow=true in this date range.</div></div>';
+    return;
+  }
+
+  // Stats summary
+  const open    = calls.filter(c=>c.isOpen).length;
+  const closed  = calls.filter(c=>c.isClosed).length;
+  const noPhone = calls.filter(c=>!c.phone).length;
+  const noReply = calls.filter(c=>!c.hasAgentReply).length;
+
+  const cards = calls.map(c => `
+    <div class="call-card">
+      <div class="call-card-head">
+        <span class="call-card-id">#${escHtml(c.bugId)}</span>
+        ${statusBadge(c.status)}
+      </div>
+      <div class="call-card-name">${escHtml(c.contact)}</div>
+      <div class="call-card-company">${escHtml(c.company||'—')}</div>
+      <div class="call-card-details">
+        <div class="call-detail-row">📧 <strong>${escHtml(c.email||'—')}</strong></div>
+        <div class="call-detail-row">📱 <strong>${c.phone ? escHtml(c.phone) : '<span style="color:var(--red)">⚠ No phone</span>'}</strong></div>
+        <div class="call-detail-row">👤 <strong>${escHtml(c.agent)}</strong></div>
+        <div class="call-detail-row">🗓 <strong>${c.createdAt?c.createdAt.slice(0,10):'—'}</strong></div>
+        ${c.assignMins!==null?`<div class="call-detail-row">⚡ Assigned in <strong>${formatMins(c.assignMins)}</strong></div>`:''}
+        ${c.closeMins!==null?`<div class="call-detail-row">✅ Closed in <strong>${formatMins(c.closeMins)}</strong></div>`:''}
+      </div>
+      <div class="call-card-footer">
+        <div style="display:flex;gap:6px">
+          ${c.hasAgentReply?'<span class="badge replied">Replied</span>':'<span class="badge danger" style="background:rgba(239,68,68,0.1);color:var(--red)">No Reply</span>'}
+          ${c.slaBreached?'<span class="badge sla">SLA ⚠</span>':''}
+        </div>
+        <a href="${c.gleapLink}" target="_blank" class="gleap-link">Open ↗</a>
+      </div>
+    </div>
+  `).join('');
+
+  document.getElementById('callContent').innerHTML = `
+    <div class="kpi-grid">
+      <div class="kpi-card blue"><div class="kpi-icon">📞</div><div class="kpi-value">${calls.length}</div><div class="kpi-label">Total Call Requests</div></div>
+      <div class="kpi-card ${open>0?'amber':'green'}"><div class="kpi-icon">📬</div><div class="kpi-value">${open}</div><div class="kpi-label">Still Open</div></div>
+      <div class="kpi-card green"><div class="kpi-icon">✅</div><div class="kpi-value">${closed}</div><div class="kpi-label">Closed</div></div>
+      <div class="kpi-card ${noPhone>0?'red':''}"><div class="kpi-icon">📱</div><div class="kpi-value">${noPhone}</div><div class="kpi-label">Missing Phone</div></div>
+      <div class="kpi-card ${noReply>0?'amber':''}"><div class="kpi-icon">💬</div><div class="kpi-value">${noReply}</div><div class="kpi-label">No Agent Reply</div></div>
+    </div>
+    <div class="call-grid">${cards}</div>
+  `;
+}
+
+// ── Escalations ───────────────────────────────────────────
+function renderEscalations(s) {
+  const esc = s.escalatedTickets || [];
+  if (!esc.length) {
+    document.getElementById('escalationContent').innerHTML = '<div class="empty-state"><div class="empty-icon">🟢</div><div class="empty-text">No escalated tickets</div><div class="empty-sub">No tickets have linked tickets attached in this period.</div></div>';
+    return;
+  }
+
+  const rows = esc.map(t => `
+    <tr>
+      <td><a href="${t.gleapLink}" target="_blank" style="color:var(--p600);font-weight:700;text-decoration:none">#${escHtml(t.bugId)}</a></td>
+      <td style="max-width:220px;font-size:12px">${escHtml(t.title)}</td>
+      <td>${escHtml(t.contact)}</td>
+      <td>${escHtml(t.company||'—')}</td>
+      <td>${escHtml(t.agent)}</td>
+      <td>${statusBadge(t.status)}</td>
+      <td><span class="badge escalated">${t.linkedCount} linked</span></td>
+      <td>${t.slaBreached?'<span class="badge sla">SLA ⚠</span>':'<span style="color:var(--green);font-size:11px">✓ OK</span>'}</td>
+      <td style="font-size:11px;color:var(--muted)">${t.createdAt?t.createdAt.slice(0,10):'—'}</td>
+      <td>${t.closeMins!==null?formatMins(t.closeMins):'—'}</td>
+      <td><a href="${t.gleapLink}" target="_blank" class="gleap-link">Open ↗</a></td>
+    </tr>
+  `).join('');
+
+  document.getElementById('escalationContent').innerHTML = `
+    <div class="alert-bar danger" style="margin-bottom:4px">
+      🚨 ${esc.length} escalated ticket${esc.length>1?'s':''} detected (tickets with linked tickets attached). These require immediate attention.
+    </div>
+    <div class="table-card">
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr><th>#</th><th>Title</th><th>Contact</th><th>Company</th><th>Agent</th><th>Status</th><th>Linked</th><th>SLA</th><th>Created</th><th>Close Time</th><th>Link</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+// ── Ticket List ───────────────────────────────────────────
+let currentTypeFilter = 'all';
+
+function setFilter(type, btn) {
+  currentTypeFilter = type;
+  currentPage = 1;
+  document.querySelectorAll('#inboxFilters .filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  applyFilters();
+}
+
+function filterTickets() { applyFilters(); }
+
+function applyFilters() {
+  const search = (document.getElementById('ticketSearch')?.value || '').toLowerCase();
+  let rows = [...allTickets];
+
+  if (currentTypeFilter === 'open')       rows = rows.filter(r=>r.isOpen);
+  else if (currentTypeFilter === 'closed') rows = rows.filter(r=>r.isClosed);
+  else if (currentTypeFilter === 'unassigned') rows = rows.filter(r=>r.agent==='Unassigned');
+  else if (currentTypeFilter === 'escalated')  rows = rows.filter(r=>r.isEscalated);
+  else if (currentTypeFilter === 'call')        rows = rows.filter(r=>r.isCallRequest);
+  else if (currentTypeFilter === 'sla')         rows = rows.filter(r=>r.slaBreached);
+  else if (currentTypeFilter === 'archived')    rows = rows.filter(r=>r.isArchived);
+
+  if (search) {
+    rows = rows.filter(r =>
+      (r.contact||'').toLowerCase().includes(search) ||
+      (r.company||'').toLowerCase().includes(search) ||
+      (r.email||'').toLowerCase().includes(search) ||
+      (r.title||'').toLowerCase().includes(search) ||
+      String(r.bugId||'').includes(search)
+    );
+  }
+
+  filteredTickets = rows;
+  currentPage = 1;
+  renderTicketList();
+}
+
+function renderTicketList() {
+  const total = filteredTickets.length;
+  const pages = Math.ceil(total / PAGE_SIZE);
+  const start = (currentPage - 1) * PAGE_SIZE;
+  const slice = filteredTickets.slice(start, start + PAGE_SIZE);
+
+  document.getElementById('inboxCount').textContent = `${total} shown`;
+
+  if (!slice.length) {
+    document.getElementById('ticketList').innerHTML = '<div class="empty-state"><div class="empty-icon">📭</div><div class="empty-text">No conversations match</div><div class="empty-sub">Try adjusting the filters or date range.</div></div>';
+    document.getElementById('ticketPagination').innerHTML = '';
+    return;
+  }
+
+  const html = slice.map(t => {
+    const rowClass = t.isEscalated ? 'ticket-row escalated-row' : t.isCallRequest ? 'ticket-row call-row' : 'ticket-row';
+    const badges = [
+      statusBadge(t.status),
+      t.isEscalated ? '<span class="badge escalated">🚨 Escalated</span>' : '',
+      t.isCallRequest ? '<span class="badge call">📞 Call</span>' : '',
+      t.slaBreached ? '<span class="badge sla">⚠ SLA</span>' : '',
+      !t.hasAgentReply ? '<span class="badge unassign">No Reply</span>' : '',
+      t.agent === 'Unassigned' ? '<span class="badge unassign">Unassigned</span>' : '',
+    ].filter(Boolean).join('');
+
+    return `<div class="${rowClass}">
+      <div>
+        <div class="ticket-id">#${escHtml(t.bugId)}</div>
+        <div class="ticket-date">${t.createdAt?t.createdAt.slice(0,10):'—'}</div>
+      </div>
+      <div>
+        <div class="ticket-title">${escHtml(t.title)}</div>
+        <div class="ticket-meta">
+          <span class="ticket-person">👤 ${escHtml(t.contact)}</span>
+          ${t.company?`<span class="ticket-company">🏢 ${escHtml(t.company)}</span>`:''}
+          ${t.email?`<span class="ticket-person">✉ ${escHtml(t.email)}</span>`:''}
+          ${t.phone?`<span class="ticket-phones">📱 ${escHtml(t.phone)}</span>`:''}
+        </div>
+        <div class="ticket-meta" style="margin-top:5px">
+          <span style="font-size:11px;color:var(--muted)">👤 ${escHtml(t.agent)}</span>
+          ${badges}
+        </div>
+        ${t.latestComment?`<div class="ticket-comment">"${escHtml(t.latestComment)}"</div>`:''}
+        <div class="timing-row" style="margin-top:6px">
+          ${t.assignMins!==null?`<span class="timing-chip">⚡ Assign: ${formatMins(t.assignMins)}</span>`:''}
+          ${t.firstResponseMins!==null?`<span class="timing-chip">💬 1st Resp: ${formatMins(t.firstResponseMins)}</span>`:''}
+          ${t.closeMins!==null?`<span class="timing-chip">✅ Close: ${formatMins(t.closeMins)}</span>`:''}
+        </div>
+      </div>
+      <div class="ticket-right">
+        <a href="${t.gleapLink}" target="_blank" class="gleap-link">Open ↗</a>
+        ${t.aiSummary?`<div style="font-size:10px;color:var(--faint);max-width:160px;text-align:right;margin-top:4px">${escHtml(t.aiSummary.slice(0,80))}…</div>`:''}
+      </div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('ticketList').innerHTML = html;
+
+  // Pagination
+  if (pages <= 1) { document.getElementById('ticketPagination').innerHTML = ''; return; }
+  let paginationHtml = '';
+  if (currentPage > 1) paginationHtml += `<button class="page-btn" onclick="goPage(${currentPage-1})">‹</button>`;
+  for (let i=1; i<=pages; i++) {
+    if (i===1||i===pages||Math.abs(i-currentPage)<=1) {
+      paginationHtml += `<button class="page-btn${i===currentPage?' active':''}" onclick="goPage(${i})">${i}</button>`;
+    } else if (Math.abs(i-currentPage)===2) {
+      paginationHtml += `<span style="color:var(--faint);padding:0 4px">…</span>`;
+    }
+  }
+  if (currentPage < pages) paginationHtml += `<button class="page-btn" onclick="goPage(${currentPage+1})">›</button>`;
+  paginationHtml += `<span style="font-size:10.5px;color:var(--faint);margin-left:6px">${total} total</span>`;
+  document.getElementById('ticketPagination').innerHTML = paginationHtml;
+}
+
+function goPage(p) { currentPage = p; renderTicketList(); window.scrollTo({top:0,behavior:'smooth'}); }
+
+// ── Charts section ────────────────────────────────────────
+function renderCharts(s) {
+  setTimeout(() => {
+    destroyChart('chartDaily');
+    destroyChart('chartDow');
+    destroyChart('chartHourly');
+    destroyChart('chartCompanies');
+
+    if (document.getElementById('chartDaily')) {
+      charts.daily = new Chart(document.getElementById('chartDaily'), {
+        type:'bar',
+        data:{labels:(s.daily||[]).map(d=>d.day),datasets:[{label:'Conversations',data:(s.daily||[]).map(d=>d.count),backgroundColor:'rgba(147,51,234,0.72)',borderRadius:4}]},
+        options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{font:{family:'Montserrat',size:9},maxRotation:45}},y:{ticks:{font:{family:'Montserrat',size:10}}}}}
+      });
+    }
+    if (document.getElementById('chartDow')) {
+      charts.dow = new Chart(document.getElementById('chartDow'), {
+        type:'bar',
+        data:{labels:(s.dow||[]).map(d=>d.day),datasets:[{label:'Conversations',data:(s.dow||[]).map(d=>d.count),backgroundColor:['rgba(147,51,234,0.5)','rgba(147,51,234,0.6)','rgba(147,51,234,0.7)','rgba(147,51,234,0.8)','rgba(147,51,234,0.9)','rgba(147,51,234,0.4)','rgba(147,51,234,0.3)'],borderRadius:4}]},
+        options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{font:{family:'Montserrat',size:10}}},y:{ticks:{font:{family:'Montserrat',size:10}}}}}
+      });
+    }
+    if (document.getElementById('chartHourly')) {
+      const hourLabels = (s.hourly||[]).map(h=>`${String(h.hour).padStart(2,'0')}:00`);
+      charts.hourly = new Chart(document.getElementById('chartHourly'), {
+        type:'line',
+        data:{labels:hourLabels,datasets:[{label:'Volume',data:(s.hourly||[]).map(h=>h.count),borderColor:'var(--p500)',backgroundColor:'rgba(147,51,234,0.08)',fill:true,tension:0.4,pointRadius:3}]},
+        options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{font:{family:'Montserrat',size:9},maxRotation:45}},y:{ticks:{font:{family:'Montserrat',size:10}}}}}
+      });
+    }
+    if (document.getElementById('chartCompanies')) {
+      const top = (s.topCompanies||[]).slice(0,10);
+      charts.companies = new Chart(document.getElementById('chartCompanies'), {
+        type:'bar',
+        data:{labels:top.map(c=>c.name.slice(0,18)),datasets:[{label:'Tickets',data:top.map(c=>c.count),backgroundColor:'rgba(99,102,241,0.7)',borderRadius:4}]},
+        options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{font:{family:'Montserrat',size:10}}},y:{ticks:{font:{family:'Montserrat',size:9}}}}}
+      });
+    }
+  }, 100);
+}
+
+function destroyChart(id) {
+  const key = id.replace('chart','').charAt(0).toLowerCase() + id.replace('chart','').slice(1);
+  if (charts[key]) { charts[key].destroy(); delete charts[key]; }
+}
+
+// ── AI Report ─────────────────────────────────────────────
+async function generateAI() {
+  if (!globalStats) { alert('Load data first'); return; }
+  const btn = document.getElementById('aiBtn');
+  btn.disabled = true; btn.textContent = '⏳ Generating…';
+  document.getElementById('aiContent').innerHTML = '<div class="loader"><div class="spinner"></div><div class="loader-text">Generating AI insights…</div></div>';
+
+  try {
+    const resp = await fetch('/api/ai-report', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({stats:globalStats}) });
+    const data = await resp.json();
+    if (!data.ok) throw new Error(data.error);
+
+    // Render markdown-ish
+    const html = data.report
+      .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+      .replace(/\n\n/g,'</p><p>')
+      .replace(/\n/g,'<br>');
+
+    document.getElementById('aiContent').innerHTML = `<div class="ai-report-box"><p>${html}</p></div>`;
+  } catch(e) {
+    document.getElementById('aiContent').innerHTML = `<div class="error-box">❌ AI report failed: ${e.message}</div>`;
+  }
+  btn.disabled = false; btn.textContent = '↻ Regenerate';
+}
+
+// ── Helpers ───────────────────────────────────────────────
+function statusBadge(status) {
+  const s = (status||'UNKNOWN').toUpperCase();
+  if (['CLOSED','DONE','RESOLVED','COMPLETED'].includes(s)) return `<span class="badge closed">${s}</span>`;
+  if (['OPEN','ACTIVE'].includes(s)) return `<span class="badge open">${s}</span>`;
+  if (['IN_PROGRESS','INPROGRESS'].includes(s)) return `<span class="badge open">IN PROGRESS</span>`;
+  if (['PENDING'].includes(s)) return `<span class="badge pending">PENDING</span>`;
+  if (['ARCHIVED'].includes(s)) return `<span class="badge archived">ARCHIVED</span>`;
+  return `<span class="badge unknown">${s}</span>`;
+}
+
+function formatMins(m) {
+  if (m===null||m===undefined||isNaN(m)) return 'N/A';
+  if (m<1) return '<1 min';
+  if (m<60) return `${Math.round(m)} min`;
+  if (m<1440) return `${(m/60).toFixed(1)} hrs`;
+  return `${(m/1440).toFixed(1)} days`;
+}
+
+function escHtml(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>

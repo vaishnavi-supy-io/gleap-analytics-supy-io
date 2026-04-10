@@ -1,0 +1,440 @@
+require('dotenv').config();
+const express = require('express');
+const path    = require('path');
+const fetch   = require('node-fetch');
+
+const app  = express();
+const PORT = process.env.PORT || 3000;
+
+app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
+
+// ── Config ──────────────────────────────────────────────────
+const GLEAP_API_KEY  = process.env.GLEAP_API_KEY;
+const PROJECT_ID     = process.env.PROJECT_ID;
+const OPENROUTER_KEY = process.env.OPENROUTER_KEY;
+const AI_MODEL       = process.env.AI_MODEL || 'anthropic/claude-sonnet-4-6';
+
+const GLEAP_HEADERS = {
+  'Authorization': `Bearer ${GLEAP_API_KEY}`,
+  'Project':       PROJECT_ID,
+  'Content-Type':  'application/json'
+};
+
+const CLOSED_STATUSES   = new Set(['CLOSED','DONE','RESOLVED','COMPLETED']);
+const OPEN_STATUSES     = new Set(['OPEN','IN_PROGRESS','PENDING','ACTIVE','INPROGRESS']);
+const ARCHIVED_STATUSES = new Set(['ARCHIVED']);
+
+function gleapLink(bugId) {
+  return `https://app.gleap.io/projects/${PROJECT_ID}/inbox/${bugId}`;
+}
+
+// ── Helpers ─────────────────────────────────────────────────
+function parseDt(s) { if (!s) return null; try { return new Date(s); } catch { return null; } }
+
+function minsBetween(a, b) {
+  const ta = parseDt(a), tb = parseDt(b);
+  if (ta && tb) return Math.abs((tb - ta) / 60000);
+  return null;
+}
+
+function fmtMins(m) {
+  if (m === null || m === undefined || isNaN(m)) return 'N/A';
+  if (m < 1)    return '<1 min';
+  if (m < 60)   return `${Math.round(m)} min`;
+  if (m < 1440) return `${(m/60).toFixed(1)} hrs`;
+  return `${(m/1440).toFixed(1)} days`;
+}
+
+function avg(arr) { return arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : null; }
+
+function getAgent(t) {
+  for (const f of ['processingUser','assignedTo','assignedAgent','handledBy','agent']) {
+    const v = t[f];
+    if (v && typeof v === 'object') { const n = v.name||v.firstName||v.email; if (n) return String(n).trim(); }
+    else if (typeof v === 'string' && v.trim()) return v.trim();
+  }
+  return 'Unassigned';
+}
+
+function getContact(t) {
+  const sess = t.session || {};
+  if (typeof sess === 'object' && sess.name) return String(sess.name).trim().slice(0,60);
+  for (const f of ['contact','reporter','user','customer']) {
+    const v = t[f];
+    if (v && typeof v === 'object') {
+      const n = v.name || `${v.firstName||''} ${v.lastName||''}`.trim() || v.email;
+      if (n && n.trim()) return n.trim().slice(0,60);
+    }
+  }
+  return t.guestEmail || 'Guest';
+}
+
+function getEmail(t) {
+  const sess = t.session || {};
+  if (typeof sess === 'object' && sess.email) return String(sess.email).trim();
+  for (const f of ['contact','reporter','user','customer']) {
+    const v = t[f]; if (v && typeof v === 'object' && v.email) return String(v.email).trim();
+  }
+  return t.guestEmail || '';
+}
+
+function getCompany(t) {
+  const sess = t.session || {};
+  if (typeof sess === 'object' && sess.companyName) return String(sess.companyName).trim();
+  const cd = t.customData || {};
+  if (typeof cd === 'object') return cd['Company Name']||cd.company||cd.organization||cd.companyName||'';
+  return '';
+}
+
+function getPhone(t) {
+  const sess = t.session || {};
+  if (typeof sess === 'object') {
+    if (sess.phone) return String(sess.phone).trim();
+    const scd = sess.customData || {};
+    if (typeof scd === 'object' && scd.phone) return String(scd.phone).trim();
+  }
+  for (const f of ['contact','reporter','user','customer']) {
+    const v = t[f];
+    if (v && typeof v === 'object') { const p=v.phone||v.phoneNumber||v.mobile||''; if (p) return String(p).trim(); }
+  }
+  const cd = t.customData || {};
+  if (typeof cd === 'object') return cd.phone||cd.Phone||cd.phoneNumber||cd.mobile||'';
+  return '';
+}
+
+function getFirstResponseMins(t) {
+  const created = t.createdAt || t.createdDate;
+  const fr = t.firstAgentReplyAt||t.firstAgentResponseAt||t.firstResponseAt||t.firstReplyAt;
+  if (fr) return minsBetween(created, fr);
+  return null;
+}
+
+function isEscalated(t) {
+  const linked = t.linkedTickets||t.linkedBugs||t.links||[];
+  if (Array.isArray(linked) && linked.length > 0) return true;
+  if ((t.linkedTicketsCount||0) > 0) return true;
+  if ((t.linkedCount||0) > 0) return true;
+  return false;
+}
+
+function isCallRequest(t) {
+  if (String(t.type||'').toUpperCase() !== 'INQUIRY') return false;
+  const fd = t.formData||{};
+  if (typeof fd === 'object') {
+    const cf = fd.call_flow;
+    if (cf===true||String(cf).toLowerCase()==='true') return true;
+  }
+  const cd = t.customData||{};
+  if (typeof cd === 'object') {
+    for (const k of ['call_flow','Phone Call Flow','phone_call_flow','callFlow']) {
+      const v=cd[k]; if (v===true||String(v).toLowerCase()==='true') return true;
+    }
+  }
+  const title = String(t.title||'').toLowerCase();
+  return ['request to access new call','request a call','phone call request','call request','callback request'].some(kw=>title.includes(kw));
+}
+
+function getLatestComment(t) {
+  const lc = t.latestComment||{};
+  if (typeof lc === 'object') {
+    const paragraphs = (lc.data?.content?.content)||[];
+    if (paragraphs.length) {
+      const texts=[];
+      for (const p of paragraphs) for (const n of (p.content||[])) if (n.type==='text'&&n.text) texts.push(n.text);
+      const c=texts.join(' ').trim(); if (c) return c.slice(0,200);
+    }
+    const msg=lc.message||lc.text||''; if (msg) return String(msg).slice(0,200);
+  }
+  return '';
+}
+
+async function gleapFetch(url, params={}) {
+  const qs = new URLSearchParams(params).toString();
+  const res = await fetch(qs?`${url}?${qs}`:url, { headers: GLEAP_HEADERS });
+  if (!res.ok) throw new Error(`Gleap API ${res.status}`);
+  const d = await res.json();
+  return Array.isArray(d)?d:(d.data||d.tickets||d.items||[]);
+}
+
+async function gleapFetchOne(id) {
+  try {
+    const res = await fetch(`https://api.gleap.io/v3/tickets/${id}`, { headers: GLEAP_HEADERS });
+    if (!res.ok) return null;
+    return res.json();
+  } catch { return null; }
+}
+
+// ── Find last skip ───────────────────────────────────────────
+async function findLastSkip() {
+  let last = 55000;
+  for (let p=55000; p<=80000; p+=1000) {
+    try { const items=await gleapFetch('https://api.gleap.io/v3/tickets',{limit:50,skip:p}); if(items.length) last=p; else break; } catch { break; }
+  }
+  for (let p=last+1000; p>last-50; p-=50) {
+    try { const items=await gleapFetch('https://api.gleap.io/v3/tickets',{limit:50,skip:p}); if(items.length){last=p;break;} } catch { break; }
+  }
+  return last;
+}
+
+// ── Fetch INQUIRY tickets in date range ──────────────────────
+async function fetchInboxTickets(startDate, endDate, lastSkip) {
+  const rangeStart=new Date(startDate), rangeEnd=new Date(endDate);
+  const all=[], seen=new Set();
+  let skip=lastSkip, pages=0;
+
+  while (pages < 300) {
+    if (skip < 0) break;
+    let items;
+    try { items=await gleapFetch('https://api.gleap.io/v3/tickets',{limit:50,skip}); } catch { skip-=50; pages++; continue; }
+    if (!items.length) { skip-=50; pages++; continue; }
+
+    let oldCount=0;
+    for (const t of items) {
+      const tid=t._id||t.id||'';
+      if (seen.has(tid)) continue; seen.add(tid);
+      const dt=parseDt(t.createdAt||t.createdDate);
+      if (!dt||dt>rangeEnd) continue;
+      if (dt<rangeStart) { oldCount++; continue; }
+      if (String(t.type||t.ticketType||'').toUpperCase()==='INQUIRY') all.push(t);
+    }
+    if (oldCount===items.length) break;
+    skip-=50; pages++;
+    await new Promise(r=>setTimeout(r,150));
+  }
+  return all;
+}
+
+// ── Enrich tickets with full data ────────────────────────────
+async function enrichTickets(tickets) {
+  const out=[];
+  for (const t of tickets) {
+    const tid=t._id||t.id;
+    if (!tid) { out.push(t); continue; }
+    const full=await gleapOne(tid);
+    out.push(full?{...t,...full}:t);
+    await new Promise(r=>setTimeout(r,150));
+  }
+  return out;
+}
+
+async function gleapOne(id) {
+  try {
+    const res=await fetch(`https://api.gleap.io/v3/tickets/${id}`,{headers:GLEAP_HEADERS});
+    if (!res.ok) return null;
+    return res.json();
+  } catch { return null; }
+}
+
+// ── Process into rows ────────────────────────────────────────
+function processTickets(tickets) {
+  return tickets.map(t => {
+    const created=t.createdAt||t.createdDate;
+    const updated=t.updatedAt;
+    const firstAssign=t.firstAssignmentAt;
+    const statusRaw=String(t.status||t.bugStatus||'UNKNOWN').toUpperCase();
+    const isClosed=CLOSED_STATUSES.has(statusRaw);
+    const isArchived=ARCHIVED_STATUSES.has(statusRaw)||t.isArchived===true;
+    const closeTime=isClosed?updated:null;
+    const createdDt=parseDt(created);
+    const bugId=t.bugId||t._id||'';
+    const linked=t.linkedTickets||t.linkedBugs||t.links||[];
+
+    return {
+      id:t._id||t.id||'', bugId,
+      gleapLink:gleapLink(bugId),
+      title:t.title||'(No title)',
+      contact:getContact(t), email:getEmail(t), company:getCompany(t), phone:getPhone(t),
+      agent:getAgent(t),
+      status:statusRaw,
+      isOpen:OPEN_STATUSES.has(statusRaw), isClosed, isArchived,
+      isEscalated:isEscalated(t),
+      linkedCount:Array.isArray(linked)?linked.length:(t.linkedTicketsCount||0),
+      priority:String(t.priority||'MEDIUM').toUpperCase(),
+      sentiment:String(t.sentiment||'neutral').toLowerCase(),
+      isCallRequest:isCallRequest(t),
+      createdAt:created, updatedAt:updated, firstAssignAt:firstAssign, closeAt:closeTime,
+      assignMins:minsBetween(created,firstAssign),
+      firstResponseMins:getFirstResponseMins(t),
+      closeMins:minsBetween(created,closeTime),
+      hasAgentReply:Boolean(t.hasAgentReply),
+      slaBreached:Boolean(t.slaBreached),
+      aiSummary:t.aiSummary||'',
+      latestComment:getLatestComment(t),
+      day:createdDt?createdDt.toISOString().slice(0,10):'unknown',
+      hour:createdDt?createdDt.getUTCHours():-1,
+      dayOfWeek:createdDt?['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][createdDt.getUTCDay()]:'unknown',
+    };
+  });
+}
+
+// ── Compute stats ────────────────────────────────────────────
+function computeStats(rows) {
+  const total=rows.length;
+  const openRows=rows.filter(r=>r.isOpen);
+  const closedRows=rows.filter(r=>r.isClosed);
+  const archivedRows=rows.filter(r=>r.isArchived);
+  const escalated=rows.filter(r=>r.isEscalated);
+  const callRows=rows.filter(r=>r.isCallRequest);
+  const unassigned=rows.filter(r=>r.agent==='Unassigned');
+
+  const assignVals=rows.map(r=>r.assignMins).filter(v=>v!==null);
+  const closeVals=rows.map(r=>r.closeMins).filter(v=>v!==null);
+  const firstRespVals=rows.map(r=>r.firstResponseMins).filter(v=>v!==null);
+
+  const daily={};
+  for (const r of rows) daily[r.day]=(daily[r.day]||0)+1;
+
+  const dow={Mon:0,Tue:0,Wed:0,Thu:0,Fri:0,Sat:0,Sun:0};
+  for (const r of rows) if (r.dayOfWeek in dow) dow[r.dayOfWeek]++;
+
+  const hourly={};
+  for (const r of rows) hourly[r.hour]=(hourly[r.hour]||0)+1;
+
+  const agentMap={};
+  for (const r of rows) {
+    if (!agentMap[r.agent]) agentMap[r.agent]={
+      name:r.agent,handled:0,open:0,closed:0,archived:0,
+      replied:0,sla:0,escalated:0,callRequests:0,
+      assignMins:[],firstResponseMins:[],closeMins:[],
+    };
+    const a=agentMap[r.agent];
+    a.handled++;
+    if (r.isOpen) a.open++;
+    if (r.isClosed) a.closed++;
+    if (r.isArchived) a.archived++;
+    if (r.hasAgentReply) a.replied++;
+    if (r.slaBreached) a.sla++;
+    if (r.isEscalated) a.escalated++;
+    if (r.isCallRequest) a.callRequests++;
+    if (r.assignMins!==null) a.assignMins.push(r.assignMins);
+    if (r.firstResponseMins!==null) a.firstResponseMins.push(r.firstResponseMins);
+    if (r.closeMins!==null) a.closeMins.push(r.closeMins);
+  }
+
+  const agents=Object.values(agentMap).map(a=>({
+    name:a.name,handled:a.handled,open:a.open,closed:a.closed,archived:a.archived,
+    replied:a.replied,slaBreached:a.sla,escalated:a.escalated,callRequests:a.callRequests,
+    replyRate:a.handled?Math.round((a.replied/a.handled)*100):0,
+    avgAssign:avg(a.assignMins),avgFirstResponse:avg(a.firstResponseMins),avgClose:avg(a.closeMins),
+    avgAssignFmt:fmtMins(avg(a.assignMins)),
+    avgFirstRespFmt:fmtMins(avg(a.firstResponseMins)),
+    avgCloseFmt:fmtMins(avg(a.closeMins)),
+  })).sort((a,b)=>b.handled-a.handled);
+
+  const companyMap={};
+  for (const r of rows) if (r.company) companyMap[r.company]=(companyMap[r.company]||0)+1;
+  const topCompanies=Object.entries(companyMap).sort((a,b)=>b[1]-a[1]).slice(0,15).map(([name,count])=>({name,count}));
+
+  return {
+    total,openCount:openRows.length,closedCount:closedRows.length,archivedCount:archivedRows.length,
+    escalatedCount:escalated.length,callRequestCount:callRows.length,
+    unassignedCount:unassigned.length,assignedCount:total-unassigned.length,
+    withReply:rows.filter(r=>r.hasAgentReply).length,
+    slaBreached:rows.filter(r=>r.slaBreached).length,
+    withCompany:rows.filter(r=>r.company).length,
+    withPhone:rows.filter(r=>r.phone).length,
+    withEmail:rows.filter(r=>r.email).length,
+    avgAssign:avg(assignVals),avgFirstResponse:avg(firstRespVals),avgClose:avg(closeVals),
+    avgAssignFmt:fmtMins(avg(assignVals)),
+    avgFirstRespFmt:fmtMins(avg(firstRespVals)),
+    avgCloseFmt:fmtMins(avg(closeVals)),
+    daily:Object.entries(daily).sort((a,b)=>a[0].localeCompare(b[0])).map(([day,count])=>({day,count})),
+    dow:Object.entries(dow).map(([day,count])=>({day,count})),
+    hourly:Object.entries(hourly).sort((a,b)=>+a[0]-+b[0]).map(([hour,count])=>({hour:+hour,count})),
+    agents,topCompanies,
+    openTickets:openRows,escalatedTickets:escalated,callTickets:callRows,tickets:rows,
+  };
+}
+
+function buildAIPrompt(stats) {
+  const agentTable=(stats.agents||[]).map(a=>`${a.name}: ${a.handled} handled, ${a.open} open, reply rate ${a.replyRate}%, avg first response ${a.avgFirstRespFmt}, avg close ${a.avgCloseFmt}, escalated ${a.escalated}`).join('\n');
+  const openList=(stats.openTickets||[]).slice(0,10).map(t=>`• #${t.bugId} | ${t.contact} @ ${t.company||'?'} | Agent: ${t.agent} | SLA: ${t.slaBreached?'BREACHED':'OK'} | Escalated: ${t.isEscalated}`).join('\n');
+
+  return `You are a customer success team lead reviewing your inbox analytics.\n\nPERIOD OVERVIEW:\n- Total INQUIRY tickets: ${stats.total}\n- Open: ${stats.openCount} | Closed: ${stats.closedCount} | Archived: ${stats.archivedCount}\n- Escalated: ${stats.escalatedCount} | Unassigned: ${stats.unassignedCount} | SLA breached: ${stats.slaBreached}\n- Call requests: ${stats.callRequestCount}\n\nTIMING (benchmarks: assign <15min, first response <30min, close <4hrs):\n- Avg time to assign: ${stats.avgAssignFmt}\n- Avg first response: ${stats.avgFirstRespFmt}\n- Avg time to close: ${stats.avgCloseFmt}\n\nAGENT PERFORMANCE:\n${agentTable}\n\nOPEN TICKETS:\n${openList||'None'}\n\nTOP COMPANIES: ${(stats.topCompanies||[]).slice(0,5).map(c=>`${c.name}(${c.count})`).join(', ')}\n\nGive me a sharp team lead report:\n\n**1. INBOX HEALTH SCORE: X/10** — one sentence why.\n\n**2. TOP 3 URGENT ACTIONS** — most critical open/unassigned tickets to handle RIGHT NOW.\n\n**3. RESPONSE SPEED ANALYSIS** — vs benchmark. Who is fastest/slowest?\n\n**4. ESCALATION PATTERNS** — ${stats.escalatedCount} escalations. What does this signal?\n\n**5. AGENT COACHING NOTES** — specific feedback for each agent by name.\n\n**6. THIS WEEK'S 5-POINT ACTION PLAN** — exact steps to take now.\n\nBe direct, use real numbers, name names.`;
+}
+
+// ── Cache ────────────────────────────────────────────────────
+let cachedLastSkip=null, lastSkipTime=0;
+
+// ── Routes ───────────────────────────────────────────────────
+app.get('/api/health', (req,res) => res.json({ok:true,timestamp:new Date().toISOString(),projectId:PROJECT_ID}));
+
+app.get('/api/analytics', async (req,res) => {
+  try {
+    const now=new Date();
+    const start=req.query.start||new Date(now.getFullYear(),now.getMonth(),1).toISOString();
+    const end=req.query.end||now.toISOString();
+
+    if (!cachedLastSkip||(Date.now()-lastSkipTime)>600000) {
+      cachedLastSkip=await findLastSkip(); lastSkipTime=Date.now();
+    }
+
+    let tickets=await fetchInboxTickets(start,end,cachedLastSkip);
+    if (tickets.length<=150) tickets=await enrichTickets(tickets);
+
+    const rows=processTickets(tickets);
+    const stats=computeStats(rows);
+    res.json({ok:true,stats,generatedAt:now.toISOString()});
+  } catch(e) {
+    console.error(e);
+    res.status(500).json({ok:false,error:e.message});
+  }
+});
+
+app.get('/api/tickets', async (req,res) => {
+  try {
+    const now=new Date();
+    const start=req.query.start||new Date(now.getFullYear(),now.getMonth(),1).toISOString();
+    const end=req.query.end||now.toISOString();
+    const agentFilter=req.query.agent||'';
+    const statusFilter=req.query.status||'';
+    const typeFilter=req.query.type||'';
+    const page=parseInt(req.query.page||'1');
+    const limit=parseInt(req.query.limit||'50');
+
+    if (!cachedLastSkip||(Date.now()-lastSkipTime)>600000) {
+      cachedLastSkip=await findLastSkip(); lastSkipTime=Date.now();
+    }
+
+    let tickets=await fetchInboxTickets(start,end,cachedLastSkip);
+    if (tickets.length<=200) tickets=await enrichTickets(tickets);
+    let rows=processTickets(tickets);
+
+    if (agentFilter) rows=rows.filter(r=>r.agent.toLowerCase().includes(agentFilter.toLowerCase()));
+    if (statusFilter) rows=rows.filter(r=>r.status===statusFilter.toUpperCase());
+    if (typeFilter==='call') rows=rows.filter(r=>r.isCallRequest);
+    if (typeFilter==='escalated') rows=rows.filter(r=>r.isEscalated);
+    if (typeFilter==='open') rows=rows.filter(r=>r.isOpen);
+    if (typeFilter==='archived') rows=rows.filter(r=>r.isArchived);
+    if (typeFilter==='unassigned') rows=rows.filter(r=>r.agent==='Unassigned');
+    if (typeFilter==='sla') rows=rows.filter(r=>r.slaBreached);
+
+    const total=rows.length;
+    const paged=rows.slice((page-1)*limit,page*limit);
+    res.json({ok:true,total,page,pages:Math.ceil(total/limit),tickets:paged});
+  } catch(e) {
+    console.error(e);
+    res.status(500).json({ok:false,error:e.message});
+  }
+});
+
+app.post('/api/ai-report', async (req,res) => {
+  try {
+    const {stats}=req.body;
+    if (!stats) return res.status(400).json({ok:false,error:'stats required'});
+    const aiResp=await fetch('https://openrouter.ai/api/v1/chat/completions',{
+      method:'POST',
+      headers:{'Authorization':`Bearer ${OPENROUTER_KEY}`,'Content-Type':'application/json','HTTP-Referer':'https://gleap-analytics.app','X-Title':'Gleap Analytics'},
+      body:JSON.stringify({model:AI_MODEL,messages:[{role:'user',content:buildAIPrompt(stats)}],max_tokens:2500,temperature:0.2}),
+    });
+    if (!aiResp.ok) { const t=await aiResp.text(); return res.status(502).json({ok:false,error:`AI API ${aiResp.status}: ${t}`}); }
+    const data=await aiResp.json();
+    res.json({ok:true,report:data.choices?.[0]?.message?.content||'No report generated.'});
+  } catch(e) {
+    res.status(500).json({ok:false,error:e.message});
+  }
+});
+
+app.get('*',(req,res)=>res.sendFile(path.join(__dirname,'public','index.html')));
+app.listen(PORT,()=>console.log(`✅ Gleap Analytics v2 → http://localhost:${PORT}`));

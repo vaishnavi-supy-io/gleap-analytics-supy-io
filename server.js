@@ -152,28 +152,34 @@ function getLatestComment(t) {
 async function gleapFetch(url, params={}) {
   const qs = new URLSearchParams(params).toString();
   const res = await fetch(qs?`${url}?${qs}`:url, { headers: GLEAP_HEADERS });
-  if (!res.ok) throw new Error(`Gleap API ${res.status}`);
+  if (!res.ok) throw new Error(`Gleap API ${res.status}: ${await res.text().catch(()=>'')}`);
   const d = await res.json();
   return Array.isArray(d)?d:(d.data||d.tickets||d.items||[]);
 }
 
-async function gleapFetchOne(id) {
-  try {
-    const res = await fetch(`https://api.gleap.io/v3/tickets/${id}`, { headers: GLEAP_HEADERS });
-    if (!res.ok) return null;
-    return res.json();
-  } catch { return null; }
-}
-
-// ── Find last skip ───────────────────────────────────────────
+// ── FIX: Binary search to find actual last skip ──────────────
+// The old code hardcoded 55,000 as starting point — wrong for most projects.
+// This binary search finds the real last page in ~17 API calls regardless of project size.
 async function findLastSkip() {
-  let last = 55000;
-  for (let p=55000; p<=80000; p+=1000) {
-    try { const items=await gleapFetch('https://api.gleap.io/v3/tickets',{limit:50,skip:p}); if(items.length) last=p; else break; } catch { break; }
+  let lo = 0, hi = 200000, last = 0;
+  console.log('🔍 Binary searching for last skip...');
+  while (lo <= hi) {
+    const mid = Math.floor((lo + hi) / 2);
+    try {
+      const items = await gleapFetch('https://api.gleap.io/v3/tickets', { limit: 1, skip: mid });
+      if (items.length > 0) {
+        last = mid;
+        lo = mid + 1;
+      } else {
+        hi = mid - 1;
+      }
+    } catch (e) {
+      console.warn(`Binary search error at skip=${mid}:`, e.message);
+      hi = mid - 1;
+    }
+    await new Promise(r => setTimeout(r, 120));
   }
-  for (let p=last+1000; p>last-50; p-=50) {
-    try { const items=await gleapFetch('https://api.gleap.io/v3/tickets',{limit:50,skip:p}); if(items.length){last=p;break;} } catch { break; }
-  }
+  console.log(`✅ Last skip found: ${last}`);
   return last;
 }
 
@@ -183,44 +189,57 @@ async function fetchInboxTickets(startDate, endDate, lastSkip) {
   const all=[], seen=new Set();
   let skip=lastSkip, pages=0;
 
-  while (pages < 300) {
+  // FIX: max pages now scales with lastSkip so we never miss tickets
+  // e.g. lastSkip=2000 → max 2000/50+50 = 90 pages; lastSkip=50000 → max 1050 pages
+  const MAX_PAGES = Math.ceil(lastSkip / 50) + 50;
+
+  console.log(`📥 Fetching tickets: ${startDate} → ${endDate}, starting at skip=${lastSkip}, max pages=${MAX_PAGES}`);
+
+  while (pages < MAX_PAGES) {
     if (skip < 0) break;
     let items;
-    try { items=await gleapFetch('https://api.gleap.io/v3/tickets',{limit:50,skip}); } catch { skip-=50; pages++; continue; }
-    if (!items.length) { skip-=50; pages++; continue; }
-
-    let oldCount=0;
-    for (const t of items) {
-      const tid=t._id||t.id||'';
-      if (seen.has(tid)) continue; seen.add(tid);
-      const dt=parseDt(t.createdAt||t.createdDate);
-      if (!dt||dt>rangeEnd) continue;
-      if (dt<rangeStart) { oldCount++; continue; }
-      if (String(t.type||t.ticketType||'').toUpperCase()==='INQUIRY') all.push(t);
+    try {
+      items = await gleapFetch('https://api.gleap.io/v3/tickets', { limit: 50, skip });
+    } catch (e) {
+      console.warn(`Fetch error at skip=${skip}:`, e.message);
+      skip -= 50; pages++; continue;
     }
-    if (oldCount===items.length) break;
-    skip-=50; pages++;
-    await new Promise(r=>setTimeout(r,150));
+    if (!items.length) { skip -= 50; pages++; continue; }
+
+    let oldCount = 0;
+    for (const t of items) {
+      const tid = t._id||t.id||'';
+      if (seen.has(tid)) continue; seen.add(tid);
+      const dt = parseDt(t.createdAt||t.createdDate);
+      if (!dt || dt > rangeEnd) continue;
+      if (dt < rangeStart) { oldCount++; continue; }
+      if (String(t.type||t.ticketType||'').toUpperCase() === 'INQUIRY') all.push(t);
+    }
+    if (oldCount === items.length) break;
+    skip -= 50; pages++;
+    await new Promise(r => setTimeout(r, 150));
   }
+
+  console.log(`✅ Found ${all.length} INQUIRY tickets in range`);
   return all;
 }
 
 // ── Enrich tickets with full data ────────────────────────────
 async function enrichTickets(tickets) {
-  const out=[];
+  const out = [];
   for (const t of tickets) {
-    const tid=t._id||t.id;
+    const tid = t._id||t.id;
     if (!tid) { out.push(t); continue; }
-    const full=await gleapOne(tid);
-    out.push(full?{...t,...full}:t);
-    await new Promise(r=>setTimeout(r,150));
+    const full = await gleapOne(tid);
+    out.push(full ? {...t,...full} : t);
+    await new Promise(r => setTimeout(r, 150));
   }
   return out;
 }
 
 async function gleapOne(id) {
   try {
-    const res=await fetch(`https://api.gleap.io/v3/tickets/${id}`,{headers:GLEAP_HEADERS});
+    const res = await fetch(`https://api.gleap.io/v3/tickets/${id}`, { headers: GLEAP_HEADERS });
     if (!res.ok) return null;
     return res.json();
   } catch { return null; }
@@ -291,6 +310,11 @@ function computeStats(rows) {
   const hourly={};
   for (const r of rows) hourly[r.hour]=(hourly[r.hour]||0)+1;
 
+  // FIX: statusBreakdown was used by the donut chart but never computed
+  const statusMap={};
+  for (const r of rows) statusMap[r.status]=(statusMap[r.status]||0)+1;
+  const statusBreakdown=Object.entries(statusMap).map(([status,count])=>({status,count}));
+
   const agentMap={};
   for (const r of rows) {
     if (!agentMap[r.agent]) agentMap[r.agent]={
@@ -339,6 +363,7 @@ function computeStats(rows) {
     avgAssignFmt:fmtMins(avg(assignVals)),
     avgFirstRespFmt:fmtMins(avg(firstRespVals)),
     avgCloseFmt:fmtMins(avg(closeVals)),
+    statusBreakdown, // FIX: now included
     daily:Object.entries(daily).sort((a,b)=>a[0].localeCompare(b[0])).map(([day,count])=>({day,count})),
     dow:Object.entries(dow).map(([day,count])=>({day,count})),
     hourly:Object.entries(hourly).sort((a,b)=>+a[0]-+b[0]).map(([hour,count])=>({hour:+hour,count})),
@@ -354,11 +379,18 @@ function buildAIPrompt(stats) {
   return `You are a customer success team lead reviewing your inbox analytics.\n\nPERIOD OVERVIEW:\n- Total INQUIRY tickets: ${stats.total}\n- Open: ${stats.openCount} | Closed: ${stats.closedCount} | Archived: ${stats.archivedCount}\n- Escalated: ${stats.escalatedCount} | Unassigned: ${stats.unassignedCount} | SLA breached: ${stats.slaBreached}\n- Call requests: ${stats.callRequestCount}\n\nTIMING (benchmarks: assign <15min, first response <30min, close <4hrs):\n- Avg time to assign: ${stats.avgAssignFmt}\n- Avg first response: ${stats.avgFirstRespFmt}\n- Avg time to close: ${stats.avgCloseFmt}\n\nAGENT PERFORMANCE:\n${agentTable}\n\nOPEN TICKETS:\n${openList||'None'}\n\nTOP COMPANIES: ${(stats.topCompanies||[]).slice(0,5).map(c=>`${c.name}(${c.count})`).join(', ')}\n\nGive me a sharp team lead report:\n\n**1. INBOX HEALTH SCORE: X/10** — one sentence why.\n\n**2. TOP 3 URGENT ACTIONS** — most critical open/unassigned tickets to handle RIGHT NOW.\n\n**3. RESPONSE SPEED ANALYSIS** — vs benchmark. Who is fastest/slowest?\n\n**4. ESCALATION PATTERNS** — ${stats.escalatedCount} escalations. What does this signal?\n\n**5. AGENT COACHING NOTES** — specific feedback for each agent by name.\n\n**6. THIS WEEK'S 5-POINT ACTION PLAN** — exact steps to take now.\n\nBe direct, use real numbers, name names.`;
 }
 
-// ── Cache ────────────────────────────────────────────────────
+// ── Cache — expire after 10 mins ─────────────────────────────
 let cachedLastSkip=null, lastSkipTime=0;
 
 // ── Routes ───────────────────────────────────────────────────
-app.get('/api/health', (req,res) => res.json({ok:true,timestamp:new Date().toISOString(),projectId:PROJECT_ID}));
+app.get('/api/health', (req,res) => res.json({
+  ok: true,
+  timestamp: new Date().toISOString(),
+  projectId: PROJECT_ID,
+  hasGleapKey: !!GLEAP_API_KEY,
+  hasOpenRouterKey: !!OPENROUTER_KEY,
+  cachedLastSkip,
+}));
 
 app.get('/api/analytics', async (req,res) => {
   try {
@@ -367,7 +399,8 @@ app.get('/api/analytics', async (req,res) => {
     const end=req.query.end||now.toISOString();
 
     if (!cachedLastSkip||(Date.now()-lastSkipTime)>600000) {
-      cachedLastSkip=await findLastSkip(); lastSkipTime=Date.now();
+      cachedLastSkip=await findLastSkip();
+      lastSkipTime=Date.now();
     }
 
     let tickets=await fetchInboxTickets(start,end,cachedLastSkip);
@@ -394,7 +427,8 @@ app.get('/api/tickets', async (req,res) => {
     const limit=parseInt(req.query.limit||'50');
 
     if (!cachedLastSkip||(Date.now()-lastSkipTime)>600000) {
-      cachedLastSkip=await findLastSkip(); lastSkipTime=Date.now();
+      cachedLastSkip=await findLastSkip();
+      lastSkipTime=Date.now();
     }
 
     let tickets=await fetchInboxTickets(start,end,cachedLastSkip);

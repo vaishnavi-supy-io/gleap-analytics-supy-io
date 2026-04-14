@@ -1117,6 +1117,7 @@ function applyFilters() {
       (r.company||'').toLowerCase().includes(search) ||
       (r.email||'').toLowerCase().includes(search) ||
       (r.title||'').toLowerCase().includes(search) ||
+      (r.agent||'').toLowerCase().includes(search) ||
       String(r.bugId||'').includes(search)
     );
   }

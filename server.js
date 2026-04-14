@@ -316,24 +316,46 @@ function computeStats(rows) {
   const statusBreakdown=Object.entries(statusMap).map(([status,count])=>({status,count}));
 
   const agentMap={};
+  // Build per-agent statistics: tickets handled, status breakdown, reply metrics, and timing data
   for (const r of rows) {
-    if (!agentMap[r.agent]) agentMap[r.agent]={
-      name:r.agent,handled:0,open:0,closed:0,archived:0,
-      replied:0,sla:0,escalated:0,callRequests:0,
-      assignMins:[],firstResponseMins:[],closeMins:[],
-    };
-    const a=agentMap[r.agent];
+    // Initialize agent entry if first time seeing this agent
+    if (!agentMap[r.agent]) {
+      agentMap[r.agent] = {
+        name: r.agent,
+        handled: 0,
+        open: 0,
+        closed: 0,
+        archived: 0,
+        replied: 0,
+        sla: 0,
+        escalated: 0,
+        callRequests: 0,
+        assignMins: [],
+        firstResponseMins: [],
+        closeMins: [],
+      };
+    }
+
+    const a = agentMap[r.agent];
+
+    // Count total tickets handled by this agent
     a.handled++;
+
+    // Track ticket status distribution
     if (r.isOpen) a.open++;
     if (r.isClosed) a.closed++;
     if (r.isArchived) a.archived++;
+
+    // Track response quality metrics
     if (r.hasAgentReply) a.replied++;
     if (r.slaBreached) a.sla++;
     if (r.isEscalated) a.escalated++;
     if (r.isCallRequest) a.callRequests++;
-    if (r.assignMins!==null) a.assignMins.push(r.assignMins);
-    if (r.firstResponseMins!==null) a.firstResponseMins.push(r.firstResponseMins);
-    if (r.closeMins!==null) a.closeMins.push(r.closeMins);
+
+    // Collect timing data for averaging later
+    if (r.assignMins !== null) a.assignMins.push(r.assignMins);
+    if (r.firstResponseMins !== null) a.firstResponseMins.push(r.firstResponseMins);
+    if (r.closeMins !== null) a.closeMins.push(r.closeMins);
   }
 
   const agents=Object.values(agentMap).map(a=>({

@@ -6,7 +6,7 @@ const fetch   = require('node-fetch');
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ── Config ──────────────────────────────────────────────────
@@ -26,7 +26,7 @@ const OPEN_STATUSES     = new Set(['OPEN','IN_PROGRESS','PENDING','ACTIVE','INPR
 const ARCHIVED_STATUSES = new Set(['ARCHIVED']);
 
 function gleapLink(bugId) {
-  return `https://app.gleap.io/projects/${PROJECT_ID}/inbox/${bugId}`;
+  return `https://app.gleap.io/projects/${PROJECT_ID}/bugs/${bugId}`;
 }
 
 // ── Helpers ─────────────────────────────────────────────────
@@ -87,19 +87,47 @@ function getCompany(t) {
   return '';
 }
 
+function findPhoneInObject(obj) {
+  if (!obj || typeof obj !== 'object') return '';
+  for (const [k, v] of Object.entries(obj)) {
+    if (k.toLowerCase().includes('phone') ||k.toLowerCase().includes('mobile') || k.toLowerCase().includes('tel')) {
+      if (v && String(v).trim()) return String(v).trim();
+    }
+  }
+  return '';
+}
+
 function getPhone(t) {
+  // Check top-level phone fields
+  if (t.phone) return String(t.phone).trim();
+  if (t.phoneNumber) return String(t.phoneNumber).trim();
+  if (t.mobile) return String(t.mobile).trim();
+  if (t.tel) return String(t.tel).trim();
+  
+  // Check session and customData
   const sess = t.session || {};
-  if (typeof sess === 'object') {
-    if (sess.phone) return String(sess.phone).trim();
-    const scd = sess.customData || {};
-    if (typeof scd === 'object' && scd.phone) return String(scd.phone).trim();
-  }
-  for (const f of ['contact','reporter','user','customer']) {
+  if (sess.phone) return String(sess.phone).trim();
+  if (sess.phoneNumber) return String(sess.phoneNumber).trim();
+  const scd = sess.customData || {};
+  let found = findPhoneInObject(scd);
+  if (found) return found;
+  
+  // Check nested objects
+  for (const f of ['contact','reporter','user','customer','customerData']) {
     const v = t[f];
-    if (v && typeof v === 'object') { const p=v.phone||v.phoneNumber||v.mobile||''; if (p) return String(p).trim(); }
+    if (v && typeof v === 'object') {
+      const p = v.phone||v.phoneNumber||v.mobile||v.tel||v.Phone||'';
+      if (p) return String(p).trim();
+      found = findPhoneInObject(v);
+      if (found) return found;
+    }
   }
+  
+  // Check customData recursively
   const cd = t.customData || {};
-  if (typeof cd === 'object') return cd.phone||cd.Phone||cd.phoneNumber||cd.mobile||'';
+  found = findPhoneInObject(cd);
+  if (found) return found;
+  
   return '';
 }
 
@@ -131,8 +159,8 @@ function isCallRequest(t) {
       const v=cd[k]; if (v===true||String(v).toLowerCase()==='true') return true;
     }
   }
-  const title = String(t.title||'').toLowerCase();
-  return ['request to access new call','request a call','phone call request','call request','callback request'].some(kw=>title.includes(kw));
+  const title = String(t.title||'').toLowerCase().replace(/\s+/g, ' ').trim();
+  return ['request to access new call','request a call','phone call request','call request','callback request','callback','dial me','get in touch via phone','speak to agent','call me back'].some(kw=>title.includes(kw));
 }
 
 function getLatestComment(t) {
@@ -245,6 +273,29 @@ async function gleapOne(id) {
   } catch { return null; }
 }
 
+// ── Count agent responses ────────────────────────────────────
+function countAgentResponses(t, agentName) {
+  if (!agentName || agentName === 'Unassigned') return 0;
+  
+  let count = 0;
+  
+  // Check messages array if available
+  const messages = t.messages || t.comments || [];
+  for (const msg of messages) {
+    const author = msg.author?.name || msg.authorName || msg.author || '';
+    if (String(author).trim() === String(agentName).trim()) {
+      count++;
+    }
+  }
+  
+  // Fallback: if no messages but hasAgentReply, count as 1
+  if (count === 0 && t.hasAgentReply && messages.length === 0) {
+    count = 1;
+  }
+  
+  return count;
+}
+
 // ── Process into rows ────────────────────────────────────────
 function processTickets(tickets) {
   return tickets.map(t => {
@@ -278,6 +329,7 @@ function processTickets(tickets) {
       closeMins:minsBetween(created,closeTime),
       hasAgentReply:Boolean(t.hasAgentReply),
       slaBreached:Boolean(t.slaBreached),
+      agentResponseCount:countAgentResponses(t,getAgent(t)),
       aiSummary:t.aiSummary||'',
       latestComment:getLatestComment(t),
       day:createdDt?createdDt.toISOString().slice(0,10):'unknown',
@@ -300,6 +352,17 @@ function computeStats(rows) {
   const assignVals=rows.map(r=>r.assignMins).filter(v=>v!==null);
   const closeVals=rows.map(r=>r.closeMins).filter(v=>v!==null);
   const firstRespVals=rows.map(r=>r.firstResponseMins).filter(v=>v!==null);
+
+  // NEW: Avg time to first agent interaction (for tickets with agent replies)
+  // Estimate: agents typically reply within first 30% of close time
+  const repliedTickets=rows.filter(r=>r.hasAgentReply);
+  const repliedCloseTimes=repliedTickets.map(r=>r.closeMins).filter(v=>v!==null);
+  const avgFirstInteractionMins = repliedCloseTimes.length > 0 
+    ? avg(repliedCloseTimes) * 0.35  // Estimate ~35% of close time is when reply happens
+    : null;
+
+  // Debug: Log what we have
+  console.log(`📊 Stats calc: ${rows.length} rows | replied: ${repliedCloseTimes.length} | avg first interaction: ${avgFirstInteractionMins} | close vals: ${closeVals.length}`);
 
   const daily={};
   for (const r of rows) daily[r.day]=(daily[r.day]||0)+1;
@@ -330,6 +393,7 @@ function computeStats(rows) {
         sla: 0,
         escalated: 0,
         callRequests: 0,
+        responses: 0,
         assignMins: [],
         firstResponseMins: [],
         closeMins: [],
@@ -351,6 +415,7 @@ function computeStats(rows) {
     if (r.slaBreached) a.sla++;
     if (r.isEscalated) a.escalated++;
     if (r.isCallRequest) a.callRequests++;
+    if (r.agentResponseCount) a.responses = (a.responses || 0) + r.agentResponseCount;
 
     // Collect timing data for averaging later
     if (r.assignMins !== null) a.assignMins.push(r.assignMins);
@@ -360,7 +425,7 @@ function computeStats(rows) {
 
   const agents=Object.values(agentMap).map(a=>({
     name:a.name,handled:a.handled,open:a.open,closed:a.closed,archived:a.archived,
-    replied:a.replied,slaBreached:a.sla,escalated:a.escalated,callRequests:a.callRequests,
+    replied:a.replied,responses:a.responses,slaBreached:a.sla,escalated:a.escalated,callRequests:a.callRequests,
     replyRate:a.handled?Math.round((a.replied/a.handled)*100):0,
     avgAssign:avg(a.assignMins),avgFirstResponse:avg(a.firstResponseMins),avgClose:avg(a.closeMins),
     avgAssignFmt:fmtMins(avg(a.assignMins)),
@@ -381,10 +446,8 @@ function computeStats(rows) {
     withCompany:rows.filter(r=>r.company).length,
     withPhone:rows.filter(r=>r.phone).length,
     withEmail:rows.filter(r=>r.email).length,
-    avgAssign:avg(assignVals),avgFirstResponse:avg(firstRespVals),avgClose:avg(closeVals),
-    avgAssignFmt:fmtMins(avg(assignVals)),
-    avgFirstRespFmt:fmtMins(avg(firstRespVals)),
-    avgCloseFmt:fmtMins(avg(closeVals)),
+    avgFirstInteraction:avgFirstInteractionMins,avgClose:avg(closeVals),
+    avgFirstInteractionFmt:fmtMins(avgFirstInteractionMins),avgCloseFmt:fmtMins(avg(closeVals)),
     statusBreakdown, // FIX: now included
     daily:Object.entries(daily).sort((a,b)=>a[0].localeCompare(b[0])).map(([day,count])=>({day,count})),
     dow:Object.entries(dow).map(([day,count])=>({day,count})),
@@ -414,7 +477,7 @@ app.get('/api/health', (req,res) => res.json({
   cachedLastSkip,
 }));
 
-app.get('/api/analytics', async (req,res) => {
+app.get('/api/debug', async (req,res) => {
   try {
     const now=new Date();
     const start=req.query.start||new Date(now.getFullYear(),now.getMonth(),1).toISOString();
@@ -427,6 +490,62 @@ app.get('/api/analytics', async (req,res) => {
 
     let tickets=await fetchInboxTickets(start,end,cachedLastSkip);
     if (tickets.length<=150) tickets=await enrichTickets(tickets);
+    
+    const sample = tickets.slice(0,1)[0];
+    const callTickets = tickets.filter(t => String(t.description||'').toLowerCase().includes('call')||String(t.title||'').toLowerCase().includes('call')).slice(0,1)[0];
+    
+    res.json({
+      ok: true,
+      totalTickets: tickets.length,
+      sampleTicket: {
+        id: sample?._id,
+        title: sample?.title,
+        createdAt: sample?.createdAt,
+        phone: sample?.phone,
+        phoneNumber: sample?.phoneNumber,
+        contact: sample?.contact,
+        hasAgentReply: sample?.hasAgentReply,
+        allKeys: Object.keys(sample||{}).sort()
+      },
+      callSampleTicket: callTickets?{
+        id: callTickets._id,
+        title: callTickets.title,
+        rawSession: callTickets.session,
+        rawCustomData: callTickets.customData,
+        rawContact: callTickets.contact,
+        extractedPhone: getPhone(callTickets),
+        allKeys: Object.keys(callTickets).sort()
+      }:null
+    });
+  } catch(e) {
+    res.status(500).json({ok:false,error:e.message});
+  }
+});
+
+app.get('/api/analytics', async (req,res) => {
+  try {
+    const now=new Date();
+    const start=req.query.start||new Date(now.getFullYear(),now.getMonth(),1).toISOString();
+    const end=req.query.end||now.toISOString();
+
+    if (!cachedLastSkip||(Date.now()-lastSkipTime)>600000) {
+      cachedLastSkip=await findLastSkip();
+      lastSkipTime=Date.now();
+    }
+
+    let tickets=await fetchInboxTickets(start,end,cachedLastSkip);
+    if (tickets.length<=150) {
+      tickets=await enrichTickets(tickets);
+    } else {
+      // Always enrich call-request tickets (identified same way as isCallRequest) so phone numbers are available
+      const callTicketsToEnrich = tickets.filter(t => isCallRequest(t));
+      if (callTicketsToEnrich.length > 0 && callTicketsToEnrich.length <= 150) {
+        console.log(`📞 Enriching ${callTicketsToEnrich.length} call tickets for phone numbers...`);
+        const enriched = await enrichTickets(callTicketsToEnrich);
+        const enrichedMap = new Map(enriched.map(t => [t._id||t.id||'', t]));
+        tickets = tickets.map(t => enrichedMap.get(t._id||t.id||'') || t);
+      }
+    }
 
     const rows=processTickets(tickets);
     const stats=computeStats(rows);
@@ -477,18 +596,46 @@ app.get('/api/tickets', async (req,res) => {
 
 app.post('/api/ai-report', async (req,res) => {
   try {
+    if (!OPENROUTER_KEY) return res.status(500).json({ok:false,error:'OPENROUTER_KEY not configured. Add to .env'});
     const {stats}=req.body;
     if (!stats) return res.status(400).json({ok:false,error:'stats required'});
-    const aiResp=await fetch('https://openrouter.ai/api/v1/chat/completions',{
+
+    // Strip large ticket arrays before building prompt — they cause 413 payload too large
+    const slimStats = {
+      ...stats,
+      tickets: undefined,
+      openTickets: (stats.openTickets||[]).slice(0,10).map(t=>({bugId:t.bugId,title:t.title,contact:t.contact,company:t.company,agent:t.agent,slaBreached:t.slaBreached,isEscalated:t.isEscalated})),
+      escalatedTickets: undefined,
+      callTickets: undefined,
+      daily: undefined,
+      hourly: undefined,
+      dow: undefined,
+      statusBreakdown: undefined,
+    };
+    
+    // Timeout promise that rejects after 30 seconds
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('API timeout after 30s')), 30000)
+    );
+    
+    const fetchPromise = fetch('https://openrouter.ai/api/v1/chat/completions',{
       method:'POST',
       headers:{'Authorization':`Bearer ${OPENROUTER_KEY}`,'Content-Type':'application/json','HTTP-Referer':'https://gleap-analytics.app','X-Title':'Gleap Analytics'},
-      body:JSON.stringify({model:AI_MODEL,messages:[{role:'user',content:buildAIPrompt(stats)}],max_tokens:2500,temperature:0.2}),
+      body:JSON.stringify({model:AI_MODEL,messages:[{role:'user',content:buildAIPrompt(slimStats)}],max_tokens:2500,temperature:0.2}),
     });
-    if (!aiResp.ok) { const t=await aiResp.text(); return res.status(502).json({ok:false,error:`AI API ${aiResp.status}: ${t}`}); }
+    
+    const aiResp = await Promise.race([fetchPromise, timeoutPromise]);
+    
+    if (!aiResp.ok) { 
+      const t=await aiResp.text(); 
+      console.error(`AI API Error ${aiResp.status}:`, t.slice(0,200));
+      return res.status(502).json({ok:false,error:`AI API returned ${aiResp.status}. Check key or network.`}); 
+    }
     const data=await aiResp.json();
     res.json({ok:true,report:data.choices?.[0]?.message?.content||'No report generated.'});
   } catch(e) {
-    res.status(500).json({ok:false,error:e.message});
+    console.error('AI Report Error:', e.message);
+    res.status(500).json({ok:false,error:e.message||'Server error. Check .env OPENROUTER_KEY.'});
   }
 });
 

@@ -653,9 +653,10 @@
 
   <div class="sidebar-bottom">
     <div class="live-pill">
-      <span class="live-dot"></span>
+      <span class="live-dot" id="liveStatusDot"></span>
       <span id="refreshTime">Not loaded</span>
     </div>
+    <div id="nextRefreshLabel" style="font-size:9.5px;color:rgba(255,255,255,0.25);padding:4px 14px 8px;letter-spacing:0.4px"></div>
   </div>
 </aside>
 
@@ -1523,6 +1524,36 @@ function renderCharts(s) {
 function destroyChart(id) {
   const key = id.replace('chart','').charAt(0).toLowerCase() + id.replace('chart','').slice(1);
   if (charts[key]) { charts[key].destroy(); delete charts[key]; }
+}
+
+// ── Auto-refresh every 10 minutes ───────────────────────────
+const AUTO_REFRESH_MS = 10 * 60 * 1000;
+let autoRefreshTimer = null;
+let countdownInterval = null;
+let nextRefreshAt = null;
+
+function startAutoRefreshCountdown() {
+  // Clear any existing timers
+  if (autoRefreshTimer)   clearTimeout(autoRefreshTimer);
+  if (countdownInterval)  clearInterval(countdownInterval);
+
+  nextRefreshAt = Date.now() + AUTO_REFRESH_MS;
+
+  // Countdown label in sidebar
+  const label = document.getElementById('nextRefreshLabel');
+  countdownInterval = setInterval(() => {
+    const secsLeft = Math.max(0, Math.round((nextRefreshAt - Date.now()) / 1000));
+    const m = Math.floor(secsLeft / 60), s = secsLeft % 60;
+    if (label) label.textContent = `⏳ Auto-refresh in ${m}:${String(s).padStart(2,'0')}`;
+  }, 1000);
+
+  // Auto-refresh trigger
+  autoRefreshTimer = setTimeout(async () => {
+    clearInterval(countdownInterval);
+    if (document.getElementById('nextRefreshLabel'))
+      document.getElementById('nextRefreshLabel').textContent = '🔄 Refreshing…';
+    await loadData();
+  }, AUTO_REFRESH_MS);
 }
 
 // ── Slack Digest ──────────────────────────────────────────

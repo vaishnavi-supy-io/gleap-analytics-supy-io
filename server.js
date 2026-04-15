@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const path    = require('path');
 const fetch   = require('node-fetch');
+const pLimit  = require('p-limit');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -253,17 +254,56 @@ async function fetchInboxTickets(startDate, endDate, lastSkip) {
   return all;
 }
 
-// ── Enrich tickets with full data ────────────────────────────
-async function enrichTickets(tickets) {
-  const out = [];
-  for (const t of tickets) {
-    const tid = t._id||t.id;
-    if (!tid) { out.push(t); continue; }
+// ── Enrich tickets — concurrent with p-limit (5 parallel, 50ms throttle) ─
+async function enrichTickets(tickets, concurrency = 5) {
+  const limit = pLimit(concurrency);
+  return Promise.all(tickets.map(t => limit(async () => {
+    const tid = t._id || t.id;
+    if (!tid) return t;
     const full = await gleapOne(tid);
-    out.push(full ? {...t,...full} : t);
-    await new Promise(r => setTimeout(r, 150));
+    await new Promise(r => setTimeout(r, 50));
+    return full ? { ...t, ...full } : t;
+  })));
+}
+
+// ── Fetch newest tickets from skip=0 (forward scan, newest-first) ────────
+// Used for incremental updates — stops when all items on a page pre-date `since`
+async function fetchNewestTickets(since, rangeStart, rangeEnd) {
+  const sinceDate   = new Date(since);
+  const startDate   = new Date(rangeStart);
+  const endDate     = new Date(rangeEnd);
+  const all = [], seen = new Set();
+  let skip = 0, pages = 0;
+  const MAX_PAGES = 30; // 10-min window typically yields 1-3 pages
+
+  console.log(`🔄 Incremental scan from skip=0 since ${since}`);
+  while (pages < MAX_PAGES) {
+    let items;
+    try {
+      items = await gleapFetch('https://api.gleap.io/v3/tickets', { limit: 50, skip });
+    } catch(e) { console.warn(`Incremental fetch error skip=${skip}:`, e.message); break; }
+    if (!items.length) break;
+
+    let allOlderThanSince = true;
+    for (const t of items) {
+      const tid = t._id || t.id || '';
+      if (seen.has(tid)) continue; seen.add(tid);
+      const dt = parseDt(t.createdAt || t.createdDate);
+      if (!dt) continue;
+      if (dt >= sinceDate) {
+        allOlderThanSince = false;
+        if (dt >= startDate && dt <= endDate &&
+            String(t.type || t.ticketType || '').toUpperCase() === 'INQUIRY') {
+          all.push(t);
+        }
+      }
+    }
+    if (allOlderThanSince) break;
+    skip += 50; pages++;
+    await new Promise(r => setTimeout(r, 100));
   }
-  return out;
+  console.log(`🔄 Incremental: found ${all.length} new tickets (${pages} pages scanned)`);
+  return all;
 }
 
 async function gleapOne(id) {
@@ -465,8 +505,107 @@ function buildAIPrompt(stats) {
   return `You are a customer success team lead reviewing your inbox analytics.\n\nPERIOD OVERVIEW:\n- Total INQUIRY tickets: ${stats.total}\n- Open: ${stats.openCount} | Closed: ${stats.closedCount} | Archived: ${stats.archivedCount}\n- Escalated: ${stats.escalatedCount} | Unassigned: ${stats.unassignedCount} | SLA breached: ${stats.slaBreached}\n- Call requests: ${stats.callRequestCount}\n\nTIMING (benchmarks: assign <15min, first response <30min, close <4hrs):\n- Avg time to assign: ${stats.avgAssignFmt}\n- Avg first response: ${stats.avgFirstRespFmt}\n- Avg time to close: ${stats.avgCloseFmt}\n\nAGENT PERFORMANCE:\n${agentTable}\n\nOPEN TICKETS:\n${openList||'None'}\n\nTOP COMPANIES: ${(stats.topCompanies||[]).slice(0,5).map(c=>`${c.name}(${c.count})`).join(', ')}\n\nGive me a sharp team lead report:\n\n**1. INBOX HEALTH SCORE: X/10** — one sentence why.\n\n**2. TOP 3 URGENT ACTIONS** — most critical open/unassigned tickets to handle RIGHT NOW.\n\n**3. RESPONSE SPEED ANALYSIS** — vs benchmark. Who is fastest/slowest?\n\n**4. ESCALATION PATTERNS** — ${stats.escalatedCount} escalations. What does this signal?\n\n**5. AGENT COACHING NOTES** — specific feedback for each agent by name.\n\n**6. THIS WEEK'S 5-POINT ACTION PLAN** — exact steps to take now.\n\nBe direct, use real numbers, name names.`;
 }
 
-// ── Cache — expire after 10 mins ─────────────────────────────
-let cachedLastSkip=null, lastSkipTime=0;
+// ── Pagination cache ──────────────────────────────────────────
+let cachedLastSkip = null, lastSkipTime = 0;
+
+// ── Analytics cache ───────────────────────────────────────────
+// key: "YYYY-MM-DD::YYYY-MM-DD" → { stats, rows, rawTickets, generatedAt, lastIncrementalAt }
+const analyticsCache = new Map();
+
+// ── Full pipeline (initial fetch for a date range) ──────────────
+async function runFullPipeline(start, end) {
+  if (!cachedLastSkip || (Date.now() - lastSkipTime) > 600000) {
+    cachedLastSkip = await findLastSkip();
+    lastSkipTime = Date.now();
+  }
+
+  let tickets = await fetchInboxTickets(start, end, cachedLastSkip);
+  if (tickets.length <= 150) {
+    tickets = await enrichTickets(tickets);
+  } else {
+    const callOnes = tickets.filter(t => isCallRequest(t));
+    if (callOnes.length > 0 && callOnes.length <= 150) {
+      console.log(`📞 Enriching ${callOnes.length} call tickets...`);
+      const enriched = await enrichTickets(callOnes);
+      const enrichedMap = new Map(enriched.map(t => [t._id||t.id||'', t]));
+      tickets = tickets.map(t => enrichedMap.get(t._id||t.id||'') || t);
+    }
+  }
+
+  const rows  = processTickets(tickets);
+  const stats = computeStats(rows);
+  const now   = new Date().toISOString();
+  return { stats, rows, rawTickets: tickets, generatedAt: now, lastIncrementalAt: now };
+}
+
+// ── Incremental refresh — merges only new + re-enriches open tickets ──────
+async function incrementalRefresh(cacheKey, start, end) {
+  const cached = analyticsCache.get(cacheKey);
+  if (!cached) return;
+
+  try {
+    console.log(`⏱ Incremental refresh: ${cacheKey}`);
+    let changed = false;
+
+    // 1. Fetch brand-new tickets created since last check
+    const newRaw = await fetchNewestTickets(cached.lastIncrementalAt, start, end);
+    if (newRaw.length) {
+      const enrichedNew = await enrichTickets(newRaw, 5);
+      const existingIds = new Set(cached.rawTickets.map(t => t._id||t.id||''));
+      const brandNew    = enrichedNew.filter(t => !existingIds.has(t._id||t.id||''));
+      if (brandNew.length) {
+        cached.rawTickets = [...cached.rawTickets, ...brandNew];
+        changed = true;
+        console.log(`➕ ${brandNew.length} new tickets added`);
+      }
+    }
+
+    // 2. Re-enrich open tickets to catch status/agent changes (capped at 50)
+    const openRaw = cached.rawTickets
+      .filter(t => OPEN_STATUSES.has(String(t.status||t.bugStatus||'').toUpperCase()))
+      .slice(0, 50);
+    if (openRaw.length) {
+      const reEnriched = await enrichTickets(openRaw, 5);
+      const reMap = new Map(reEnriched.map(t => [t._id||t.id||'', t]));
+      cached.rawTickets = cached.rawTickets.map(t => reMap.get(t._id||t.id||'') || t);
+      changed = true;
+      console.log(`♻️ Re-enriched ${openRaw.length} open tickets`);
+    }
+
+    // 3. Recompute stats only if something changed
+    if (changed) {
+      cached.rows  = processTickets(cached.rawTickets);
+      cached.stats = computeStats(cached.rows);
+    }
+    cached.lastIncrementalAt = new Date().toISOString();
+    analyticsCache.set(cacheKey, cached);
+    console.log(`✅ Incremental done [${cacheKey}]: ${cached.rawTickets.length} tickets total`);
+  } catch(e) {
+    console.error(`❌ Incremental refresh failed [${cacheKey}]:`, e.message);
+  }
+}
+
+// ── Background worker — runs every 10 min ───────────────────────
+const REFRESH_INTERVAL_MS = 10 * 60 * 1000;
+function startBackgroundWorker() {
+  console.log('⏰ Background cache worker started (10 min interval)');
+  setInterval(async () => {
+    const now        = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    const monthEnd   = now.toISOString();
+    const cacheKey   = `${monthStart.slice(0,10)}::${monthEnd.slice(0,10)}`;
+
+    if (analyticsCache.has(cacheKey)) {
+      await incrementalRefresh(cacheKey, monthStart, monthEnd);
+    } else {
+      console.log('🔄 Background: cold build for current month cache');
+      try {
+        const result = await runFullPipeline(monthStart, monthEnd);
+        analyticsCache.set(cacheKey, result);
+      } catch(e) { console.error('Background worker error:', e.message); }
+    }
+  }, REFRESH_INTERVAL_MS);
+}
 
 // ── Routes ───────────────────────────────────────────────────
 app.get('/api/health', (req,res) => res.json({
@@ -525,32 +664,29 @@ app.get('/api/debug', async (req,res) => {
 
 app.get('/api/analytics', async (req,res) => {
   try {
-    const now=new Date();
-    const start=req.query.start||new Date(now.getFullYear(),now.getMonth(),1).toISOString();
-    const end=req.query.end||now.toISOString();
+    const now   = new Date();
+    const start = req.query.start || new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    const end   = req.query.end   || now.toISOString();
+    const force = req.query.force === 'true';
 
-    if (!cachedLastSkip||(Date.now()-lastSkipTime)>600000) {
-      cachedLastSkip=await findLastSkip();
-      lastSkipTime=Date.now();
+    // Stable cache key — date-only so minor second differences reuse same entry
+    const cacheKey = `${start.slice(0,10)}::${end.slice(0,10)}`;
+    const cached   = analyticsCache.get(cacheKey);
+
+    if (cached && !force) {
+      console.log(`⚡ Cache hit [${cacheKey}] — served instantly`);
+      return res.json({
+        ok: true, stats: cached.stats,
+        generatedAt: cached.generatedAt,
+        lastIncrementalAt: cached.lastIncrementalAt,
+        fromCache: true,
+      });
     }
 
-    let tickets=await fetchInboxTickets(start,end,cachedLastSkip);
-    if (tickets.length<=150) {
-      tickets=await enrichTickets(tickets);
-    } else {
-      // Always enrich call-request tickets (identified same way as isCallRequest) so phone numbers are available
-      const callTicketsToEnrich = tickets.filter(t => isCallRequest(t));
-      if (callTicketsToEnrich.length > 0 && callTicketsToEnrich.length <= 150) {
-        console.log(`📞 Enriching ${callTicketsToEnrich.length} call tickets for phone numbers...`);
-        const enriched = await enrichTickets(callTicketsToEnrich);
-        const enrichedMap = new Map(enriched.map(t => [t._id||t.id||'', t]));
-        tickets = tickets.map(t => enrichedMap.get(t._id||t.id||'') || t);
-      }
-    }
-
-    const rows=processTickets(tickets);
-    const stats=computeStats(rows);
-    res.json({ok:true,stats,generatedAt:now.toISOString()});
+    console.log(`🔃 Cache miss [${cacheKey}] — running full pipeline`);
+    const result = await runFullPipeline(start, end);
+    analyticsCache.set(cacheKey, result);
+    res.json({ ok: true, stats: result.stats, generatedAt: result.generatedAt, fromCache: false });
   } catch(e) {
     console.error(e);
     res.status(500).json({ok:false,error:e.message});
@@ -797,5 +933,22 @@ app.get('/api/digest', async (req, res) => {
   }
 });
 
+app.get('/api/cache-status', (req, res) => {
+  const entries = [];
+  for (const [key, val] of analyticsCache.entries()) {
+    entries.push({
+      key,
+      tickets: val.rawTickets?.length || 0,
+      generatedAt: val.generatedAt,
+      lastIncrementalAt: val.lastIncrementalAt,
+      ageSeconds: Math.round((Date.now() - new Date(val.lastIncrementalAt).getTime()) / 1000),
+    });
+  }
+  res.json({ ok: true, entries, cachedLastSkip });
+});
+
 app.get('*',(req,res)=>res.sendFile(path.join(__dirname,'public','index.html')));
-app.listen(PORT,()=>console.log(`✅ Gleap Analytics v2 → http://localhost:${PORT}`));
+app.listen(PORT, () => {
+  console.log(`✅ Gleap Analytics v2 → http://localhost:${PORT}`);
+  startBackgroundWorker();
+});

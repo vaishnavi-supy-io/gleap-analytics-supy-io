@@ -680,6 +680,9 @@
       <button class="btn btn-primary" onclick="loadData()">
         ↻ Refresh
       </button>
+      <button class="btn btn-outline" onclick="sendDigest()" id="digestBtn" title="Post a Slack digest for the current date range">
+        📤 Slack Digest
+      </button>
       <button class="btn btn-outline" onclick="window.print()">
         🖨 Print Report
       </button>
@@ -1520,6 +1523,63 @@ function renderCharts(s) {
 function destroyChart(id) {
   const key = id.replace('chart','').charAt(0).toLowerCase() + id.replace('chart','').slice(1);
   if (charts[key]) { charts[key].destroy(); delete charts[key]; }
+}
+
+// ── Slack Digest ──────────────────────────────────────────
+async function sendDigest() {
+  const btn  = document.getElementById('digestBtn');
+  const from = document.getElementById('dateFrom').value;
+  const to   = document.getElementById('dateTo').value;
+  if (!from || !to) { showToast('Set a date range first', 'error'); return; }
+
+  btn.disabled = true;
+  btn.textContent = '⏳ Sending…';
+
+  try {
+    const url = `/api/digest?start=${from}T00:00:00.000Z&end=${to}T23:59:59.999Z`;
+    const resp = await fetch(url);
+    const data = await resp.json();
+    if (!data.ok) throw new Error(data.error || 'Server error');
+
+    if (!data.slackConfigured) {
+      showToast('⚠️ SLACK_WEBHOOK_URL not set in .env — digest generated but not posted', 'warning', 6000);
+    } else if (data.posted) {
+      showToast(`✅ Digest posted to Slack! (${data.total} tickets · ${data.period})`, 'success');
+    } else {
+      showToast(`❌ Slack post failed: ${data.postError || 'unknown error'}`, 'error', 6000);
+    }
+  } catch(e) {
+    showToast(`❌ Digest error: ${e.message}`, 'error');
+  }
+
+  btn.disabled = false;
+  btn.textContent = '📤 Slack Digest';
+}
+
+function showToast(msg, type = 'success', duration = 4000) {
+  const existing = document.getElementById('toast-notification');
+  if (existing) existing.remove();
+
+  const colors = {
+    success: { bg: '#065f46', border: '#10b981' },
+    error:   { bg: '#7f1d1d', border: '#ef4444' },
+    warning: { bg: '#78350f', border: '#f59e0b' },
+  };
+  const c = colors[type] || colors.success;
+
+  const toast = document.createElement('div');
+  toast.id = 'toast-notification';
+  toast.style.cssText = `
+    position:fixed;bottom:24px;right:24px;z-index:9999;
+    background:${c.bg};color:#fff;border:1px solid ${c.border};
+    border-radius:10px;padding:12px 18px;font-family:var(--font);
+    font-size:13px;font-weight:600;max-width:380px;line-height:1.4;
+    box-shadow:0 8px 32px rgba(0,0,0,0.3);
+    opacity:1;transition:opacity 0.3s;
+  `;
+  toast.textContent = msg;
+  document.body.appendChild(toast);
+  setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, duration);
 }
 
 // ── AI Report ─────────────────────────────────────────────

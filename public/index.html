@@ -6,116 +6,66 @@
   <title>Supy — Inbox Intelligence Dashboard</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-
   <style>
     :root {
-      --p50:  #faf5ff;
-      --p100: #f3e8ff;
-      --p200: #e9d5ff;
-      --p300: #d8b4fe;
-      --p400: #c084fc;
-      --p500: #a855f7;
-      --p600: #9333ea;
-      --p700: #7e22ce;
-      --p800: #6b21a8;
-      --p900: #4c1d95;
-      --p950: #2e1065;
-
-      --ink:       #1a0a2e;
-      --ink2:      #3d1f6b;
-      --muted:     #6b5b8a;
-      --faint:     #9d8fbf;
-      --border:    #e5daf5;
-      --border2:   #d0c4eb;
-      --surface:   #ffffff;
-      --surface2:  #faf7ff;
-      --surface3:  #f3eeff;
-
-      --green:  #10b981;
-      --amber:  #f59e0b;
-      --red:    #ef4444;
-      --blue:   #6366f1;
-
-      --sidebar: 228px;
+      --p50: #faf5ff; --p100: #f3e8ff; --p200: #e9d5ff;
+      --p300: #d8b4fe; --p400: #a78bfa; --p500: #7c3aed;
+      --p600: #6b46c1; --p700: #5b21b6; --p800: #4c1d95; --p900: #3b0764;
+      --ink: #1A1A2E; --ink2: #4C1D95;
+      --muted: #6B7280; --faint: #9CA3AF;
+      --border: #E5E3F0; --border2: #D1C4E9;
+      --surface: #FFFFFF; --surface2: #F9F8FF; --surface3: #EDE9FE;
+      --green: #059669; --amber: #D97706; --red: #DC2626; --blue: #4F46E5;
+      --sidebar: 220px;
       --r4: 4px; --r8: 8px; --r12: 12px; --r16: 16px; --r20: 20px;
-      --sh1: 0 1px 4px rgba(88,28,135,0.07);
-      --sh2: 0 4px 16px rgba(88,28,135,0.10);
-      --sh3: 0 8px 32px rgba(88,28,135,0.14);
-
-      --font: 'Montserrat', sans-serif;
+      --sh1: 0 1px 3px rgba(107,70,193,0.07);
+      --sh2: 0 4px 12px rgba(107,70,193,0.12);
+      --sh3: 0 8px 32px rgba(107,70,193,0.18);
+      --font: 'Inter', sans-serif;
     }
-
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html { scroll-behavior: smooth; }
-
     body {
-      font-family: var(--font);
-      background: var(--surface2);
-      color: var(--ink);
-      min-height: 100vh;
-      font-size: 13px;
-      line-height: 1.5;
+      font-family: var(--font); background: var(--surface2); color: var(--ink);
+      min-height: 100vh; font-size: 13px; line-height: 1.5;
       -webkit-font-smoothing: antialiased;
     }
-
-    /* ── Sidebar ─────────────────────────────────────────── */
+    /* Sidebar */
     .sidebar {
-      position: fixed; top: 0; left: 0; bottom: 0;
-      width: var(--sidebar);
-      background: var(--p950);
-      display: flex; flex-direction: column;
-      z-index: 200;
-      border-right: 1px solid rgba(255,255,255,0.05);
+      position: fixed; top: 0; left: 0; bottom: 0; width: var(--sidebar);
+      background: var(--p900); display: flex; flex-direction: column;
+      z-index: 200; border-right: 1px solid rgba(255,255,255,0.05);
     }
-
-    .sidebar-top {
-      padding: 24px 18px 16px;
-      border-bottom: 1px solid rgba(255,255,255,0.06);
-    }
-
+    .sidebar-top { padding: 24px 18px 16px; border-bottom: 1px solid rgba(255,255,255,0.06); }
     .logo-row { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
-
     .logo-gem {
       width: 32px; height: 32px;
       background: linear-gradient(135deg, var(--p400), var(--p600));
-      border-radius: 9px;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 14px; flex-shrink: 0;
-      box-shadow: 0 2px 8px rgba(168,85,247,0.4);
+      border-radius: 9px; display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; box-shadow: 0 2px 8px rgba(167,139,250,0.4); color: #fff;
     }
-
-    .logo-name {
-      font-size: 15px; font-weight: 700; color: #fff;
-      letter-spacing: 0.5px;
-    }
+    .logo-name { font-size: 16px; font-weight: 800; color: #fff; letter-spacing: -0.3px; }
     .logo-sub {
       font-size: 9.5px; font-weight: 500; color: rgba(255,255,255,0.35);
-      letter-spacing: 1.2px; text-transform: uppercase; margin-top: 2px;
-      padding-left: 42px;
+      letter-spacing: 1px; text-transform: uppercase; margin-top: 2px; padding-left: 42px;
     }
-
     .sidebar-nav { flex: 1; padding: 14px 10px; overflow-y: auto; }
-
     .nav-section {
       font-size: 9px; font-weight: 700; color: rgba(255,255,255,0.25);
-      letter-spacing: 1.4px; text-transform: uppercase;
-      padding: 14px 8px 5px;
+      letter-spacing: 1.4px; text-transform: uppercase; padding: 14px 8px 5px;
     }
-
     .nav-item {
-      display: flex; align-items: center; gap: 9px;
-      padding: 8px 10px; border-radius: var(--r8);
-      cursor: pointer; color: rgba(255,255,255,0.5);
-      font-size: 12.5px; font-weight: 500;
-      transition: all 0.15s;
-      border: none; background: none; width: 100%; text-align: left;
-      position: relative;
+      display: flex; align-items: center; gap: 9px; padding: 8px 10px;
+      border-radius: var(--r8); cursor: pointer; color: rgba(255,255,255,0.5);
+      font-size: 12.5px; font-weight: 500; transition: all 0.15s;
+      border: none; border-left: 3px solid transparent;
+      background: none; width: 100%; text-align: left; text-decoration: none;
     }
-    .nav-item:hover { background: rgba(168,85,247,0.12); color: rgba(255,255,255,0.85); }
-    .nav-item.active { background: rgba(168,85,247,0.22); color: #fff; }
-    .nav-item .ni-icon { font-size: 14px; width: 18px; text-align: center; flex-shrink: 0; }
+    .nav-item:hover { background: rgba(167,139,250,0.12); color: rgba(255,255,255,0.85); }
+    .nav-item.active { background: rgba(167,139,250,0.15); color: #fff; border-left-color: var(--p400); }
+    .nav-item .ni-icon { width: 18px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
     .nav-badge {
       margin-left: auto; background: var(--p500); color: #fff;
       font-size: 9.5px; font-weight: 700; padding: 1px 6px;
@@ -123,547 +73,350 @@
     }
     .nav-badge.red { background: var(--red); }
     .nav-badge.amber { background: var(--amber); color: var(--ink); }
-
-    .sidebar-bottom {
-      padding: 12px 10px 16px;
-      border-top: 1px solid rgba(255,255,255,0.06);
-    }
+    .sidebar-bottom { padding: 12px 10px 16px; border-top: 1px solid rgba(255,255,255,0.06); }
     .live-pill {
-      display: flex; align-items: center; gap: 8px;
-      padding: 7px 10px; border-radius: var(--r8);
-      background: rgba(16,185,129,0.12); font-size: 11px; color: rgba(255,255,255,0.55);
-      font-weight: 500;
+      display: flex; align-items: center; gap: 8px; padding: 7px 10px;
+      border-radius: var(--r8); background: rgba(5,150,105,0.12);
+      font-size: 11px; color: rgba(255,255,255,0.55); font-weight: 500;
     }
     .live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); animation: blink 2s infinite; }
     @keyframes blink { 0%,100%{opacity:1}50%{opacity:0.4} }
-
-    /* ── Main ────────────────────────────────────────────── */
-    .main { margin-left: var(--sidebar); min-height: 100vh; display: flex; flex-direction: column; }
-
-    .topbar {
-      padding: 16px 28px;
-      display: flex; align-items: center; justify-content: space-between;
-      background: var(--surface);
-      border-bottom: 1px solid var(--border);
-      position: sticky; top: 0; z-index: 100;
-      gap: 16px;
+    .logout-btn {
+      display: flex; align-items: center; gap: 9px; padding: 8px 10px;
+      border-radius: var(--r8); cursor: pointer; color: rgba(255,255,255,0.4);
+      font-size: 12px; font-weight: 500; transition: all 0.15s;
+      text-decoration: none; margin-top: 6px; border-left: 3px solid transparent;
     }
-
+    .logout-btn:hover { background: rgba(220,38,38,0.15); color: #fca5a5; border-left-color: var(--red); }
+    /* Main */
+    .main { margin-left: var(--sidebar); min-height: 100vh; display: flex; flex-direction: column; }
+    .topbar {
+      padding: 16px 28px; display: flex; align-items: center;
+      justify-content: space-between; background: var(--surface);
+      border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100; gap: 16px;
+    }
     .topbar-left { display: flex; flex-direction: column; }
     .topbar-title { font-size: 16px; font-weight: 700; color: var(--ink); }
     .topbar-sub { font-size: 11px; color: var(--muted); font-weight: 400; margin-top: 1px; }
-
     .topbar-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-
     .ctrl-group { display: flex; align-items: center; gap: 6px; }
     .ctrl-label { font-size: 10.5px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
-
     select, input[type="date"] {
-      font-family: var(--font);
-      font-size: 12px; font-weight: 500; color: var(--ink);
+      font-family: var(--font); font-size: 12px; font-weight: 500; color: var(--ink);
       background: var(--surface); border: 1.5px solid var(--border2);
-      border-radius: var(--r8); padding: 6px 10px;
-      outline: none; cursor: pointer;
+      border-radius: var(--r8); padding: 6px 10px; outline: none; cursor: pointer;
       transition: border-color 0.15s;
     }
     select:hover, input[type="date"]:hover { border-color: var(--p400); }
-    select:focus, input[type="date"]:focus { border-color: var(--p500); box-shadow: 0 0 0 3px rgba(168,85,247,0.1); }
-
+    select:focus, input[type="date"]:focus { border-color: var(--p500); box-shadow: 0 0 0 3px rgba(124,58,237,0.1); }
     .btn {
       font-family: var(--font); font-size: 12px; font-weight: 600;
-      padding: 7px 16px; border-radius: var(--r8);
-      border: none; cursor: pointer; transition: all 0.15s;
-      display: inline-flex; align-items: center; gap: 6px;
+      padding: 7px 16px; border-radius: var(--r8); border: none;
+      cursor: pointer; transition: all 0.15s; display: inline-flex; align-items: center; gap: 6px;
     }
     .btn-primary { background: var(--p600); color: #fff; }
     .btn-primary:hover { background: var(--p700); box-shadow: var(--sh2); }
+    .btn-primary:active { background: var(--p800); transform: scale(0.97); }
     .btn-outline { background: transparent; color: var(--p600); border: 1.5px solid var(--p300); }
     .btn-outline:hover { background: var(--p50); }
+    .btn:active { transform: scale(0.97); }
+    .btn:focus-visible { outline: 2px solid var(--p500); outline-offset: 2px; }
     .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
-    /* ── Sections ────────────────────────────────────────── */
+    /* Sections */
     .section { display: none; padding: 24px 28px; flex-direction: column; gap: 20px; }
     .section.active { display: flex; }
-
     .section-header { display: flex; align-items: center; justify-content: space-between; }
-    .section-title {
-      font-size: 14px; font-weight: 700; color: var(--ink);
-      display: flex; align-items: center; gap: 8px;
-    }
-    .section-title .stag {
-      font-size: 10px; font-weight: 700; color: var(--p600);
-      background: var(--p100); padding: 2px 8px; border-radius: 99px;
-    }
-
-    /* ── KPI Cards ───────────────────────────────────────── */
+    .section-title { font-size: 14px; font-weight: 700; color: var(--ink); display: flex; align-items: center; gap: 8px; }
+    .section-title .stag { font-size: 10px; font-weight: 700; color: var(--p600); background: var(--p100); padding: 2px 8px; border-radius: 99px; }
+    /* KPI Cards */
     .kpi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
-
     .kpi-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--r16);
-      padding: 18px 16px;
-      position: relative; overflow: hidden;
-      transition: box-shadow 0.15s, transform 0.15s;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--r16); padding: 18px 16px;
+      position: relative; overflow: hidden; transition: box-shadow 0.15s, transform 0.15s;
     }
     .kpi-card:hover { box-shadow: var(--sh2); transform: translateY(-1px); }
     .kpi-card::before {
-      content: '';
-      position: absolute; top: 0; left: 0; right: 0; height: 3px;
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
       background: linear-gradient(90deg, var(--p400), var(--p600));
       border-radius: var(--r16) var(--r16) 0 0;
     }
     .kpi-card.green::before { background: linear-gradient(90deg, #34d399, var(--green)); }
-    .kpi-card.red::before { background: linear-gradient(90deg, #f87171, var(--red)); }
+    .kpi-card.red::before   { background: linear-gradient(90deg, #f87171, var(--red)); }
     .kpi-card.amber::before { background: linear-gradient(90deg, #fcd34d, var(--amber)); }
-    .kpi-card.blue::before { background: linear-gradient(90deg, #818cf8, var(--blue)); }
-
-    .kpi-icon { font-size: 18px; margin-bottom: 10px; opacity: 0.85; }
+    .kpi-card.blue::before  { background: linear-gradient(90deg, #818cf8, var(--blue)); }
+    .kpi-icon-svg { color: var(--p400); margin-bottom: 10px; }
+    .kpi-card.green .kpi-icon-svg { color: var(--green); }
+    .kpi-card.red   .kpi-icon-svg { color: var(--red); }
+    .kpi-card.amber .kpi-icon-svg { color: var(--amber); }
+    .kpi-card.blue  .kpi-icon-svg { color: var(--blue); }
     .kpi-value { font-size: 26px; font-weight: 800; color: var(--ink); line-height: 1; }
-    .kpi-label { font-size: 10.5px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px; }
+    .kpi-label { font-size: 10.5px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
     .kpi-sub { font-size: 10px; color: var(--faint); margin-top: 3px; }
-
-    /* ── Charts grid ─────────────────────────────────────── */
+    /* Charts */
     .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
     .charts-grid.cols3 { grid-template-columns: 1fr 1fr 1fr; }
     @media (max-width: 1100px) { .charts-grid { grid-template-columns: 1fr; } }
-
-    .chart-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--r16);
-      padding: 18px 20px;
-    }
-    .chart-title {
-      font-size: 12px; font-weight: 700; color: var(--ink);
-      margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between;
-    }
+    .chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r16); padding: 18px 20px; }
+    .chart-title { font-size: 12px; font-weight: 700; color: var(--ink); margin-bottom: 14px; display: flex; align-items: center; gap: 6px; }
     .chart-wrap { position: relative; height: 180px; }
     .chart-wrap.tall { height: 220px; }
-
-    /* ── Agent Table ─────────────────────────────────────── */
-    .table-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--r16);
-      overflow: hidden;
+    /* Agent Cards */
+    .agent-cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+    .agent-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--r16); padding: 20px;
+      transition: box-shadow 0.15s, transform 0.15s;
     }
-    .table-head {
-      padding: 14px 20px;
-      border-bottom: 1px solid var(--border);
-      display: flex; align-items: center; justify-content: space-between;
+    .agent-card:hover { box-shadow: var(--sh2); transform: translateY(-1px); }
+    .agent-card-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+    .agent-avatar {
+      width: 44px; height: 44px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--p400), var(--p600));
+      color: #fff; font-size: 14px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
     }
+    .agent-name { font-size: 14px; font-weight: 700; color: var(--ink); }
+    .agent-meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .agent-reply-rate { font-size: 22px; font-weight: 800; line-height: 1; }
+    .agent-stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; text-align: center; }
+    .agent-stat { display: flex; flex-direction: column; gap: 4px; align-items: center; }
+    .agent-stat-label { font-size: 9.5px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; }
+    /* Table (legacy) */
+    .table-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r16); overflow: hidden; }
+    .table-head { padding: 14px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
     .table-title { font-size: 12.5px; font-weight: 700; color: var(--ink); }
-
     table { width: 100%; border-collapse: collapse; }
     thead th {
-      font-size: 10px; font-weight: 700; color: var(--muted);
-      text-transform: uppercase; letter-spacing: 0.6px;
-      padding: 10px 14px; background: var(--surface2);
+      font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase;
+      letter-spacing: 0.6px; padding: 10px 14px; background: var(--surface2);
       border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap;
     }
-    tbody td {
-      padding: 11px 14px; font-size: 12px; font-weight: 400; color: var(--ink);
-      border-bottom: 1px solid var(--border); vertical-align: middle;
-    }
+    tbody td { padding: 11px 14px; font-size: 12px; color: var(--ink); border-bottom: 1px solid var(--border); vertical-align: middle; }
     tbody tr:last-child td { border-bottom: none; }
     tbody tr:hover td { background: var(--surface2); }
-
     .agent-row td:first-child { font-weight: 600; }
-
-    /* ── Badges ──────────────────────────────────────────── */
-    .badge {
-      display: inline-flex; align-items: center; gap: 4px;
-      font-size: 10px; font-weight: 700; padding: 2px 8px;
-      border-radius: 99px; white-space: nowrap;
-    }
-    .badge.open     { background: rgba(99,102,241,0.1); color: var(--blue); }
-    .badge.closed   { background: rgba(16,185,129,0.1); color: var(--green); }
+    /* Badges */
+    .badge { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 99px; white-space: nowrap; }
+    .badge.open     { background: rgba(79,70,229,0.1);  color: var(--blue); }
+    .badge.closed   { background: rgba(5,150,105,0.1);  color: var(--green); }
     .badge.archived { background: rgba(156,163,175,0.1); color: #6b7280; }
-    .badge.done     { background: rgba(16,185,129,0.1); color: var(--green); }
-    .badge.escalated{ background: rgba(239,68,68,0.1); color: var(--red); }
-    .badge.call     { background: rgba(168,85,247,0.12); color: var(--p600); }
-    .badge.sla      { background: rgba(239,68,68,0.15); color: var(--red); }
-    .badge.unassign { background: rgba(245,158,11,0.12); color: #b45309; }
-    .badge.replied  { background: rgba(16,185,129,0.12); color: #047857; }
-    .badge.pending  { background: rgba(245,158,11,0.1); color: var(--amber); }
+    .badge.done     { background: rgba(5,150,105,0.1);  color: var(--green); }
+    .badge.escalated{ background: rgba(220,38,38,0.1);  color: var(--red); }
+    .badge.call     { background: rgba(124,58,237,0.12); color: var(--p600); }
+    .badge.sla      { background: rgba(220,38,38,0.15); color: var(--red); }
+    .badge.unassign { background: rgba(217,119,6,0.12); color: #92400e; }
+    .badge.replied  { background: rgba(5,150,105,0.12); color: #065f46; }
+    .badge.pending  { background: rgba(217,119,6,0.1);  color: var(--amber); }
     .badge.unknown  { background: var(--surface3); color: var(--muted); }
-
-    /* ── Ticket list ─────────────────────────────────────── */
+    /* Ticket filters */
     .ticket-filters {
-      display: flex; align-items: center; gap: 10px;
-      padding: 12px 16px; background: var(--surface2);
-      border: 1px solid var(--border); border-radius: var(--r12);
-      flex-wrap: wrap;
+      display: flex; align-items: center; gap: 10px; padding: 12px 16px;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: var(--r12); flex-wrap: wrap;
     }
     .filter-btn {
       font-family: var(--font); font-size: 11px; font-weight: 600;
       padding: 5px 12px; border-radius: 99px; border: 1.5px solid var(--border2);
-      background: var(--surface); color: var(--muted); cursor: pointer;
-      transition: all 0.15s;
+      background: var(--surface); color: var(--muted); cursor: pointer; transition: all 0.15s;
     }
-    .filter-btn:hover { border-color: var(--p400); color: var(--p600); }
+    .filter-btn:hover  { border-color: var(--p400); color: var(--p600); }
     .filter-btn.active { border-color: var(--p500); background: var(--p100); color: var(--p700); }
-
     .search-input {
       font-family: var(--font); font-size: 12px; font-weight: 500; color: var(--ink);
       background: var(--surface); border: 1.5px solid var(--border2);
-      border-radius: var(--r8); padding: 6px 12px 6px 32px;
-      outline: none; width: 200px; transition: border-color 0.15s;
+      border-radius: var(--r8); padding: 6px 12px 6px 32px; outline: none;
+      width: 200px; transition: border-color 0.15s;
     }
-    .search-input:focus { border-color: var(--p500); box-shadow: 0 0 0 3px rgba(168,85,247,0.1); }
+    .search-input:focus { border-color: var(--p500); box-shadow: 0 0 0 3px rgba(124,58,237,0.1); }
     .search-wrap { position: relative; }
-    .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font-size: 13px; color: var(--faint); pointer-events: none; }
-
+    .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--faint); pointer-events: none; display: flex; align-items: center; }
     /* Ticket rows */
     .ticket-row {
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: var(--r12); padding: 14px 18px;
-      display: grid; grid-template-columns: 60px 1fr auto;
-      gap: 12px; align-items: start;
-      transition: box-shadow 0.15s, border-color 0.15s;
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--r12);
+      padding: 14px 18px; display: grid; grid-template-columns: 60px 1fr auto;
+      gap: 12px; align-items: start; transition: box-shadow 0.15s, border-color 0.15s;
     }
     .ticket-row:hover { box-shadow: var(--sh1); border-color: var(--p300); }
     .ticket-row.escalated-row { border-left: 3px solid var(--red); }
-    .ticket-row.call-row { border-left: 3px solid var(--p500); }
-
-    .ticket-id { font-size: 11px; font-weight: 700; color: var(--p600); }
-    .ticket-date { font-size: 10px; color: var(--faint); margin-top: 2px; }
-
+    .ticket-row.call-row      { border-left: 3px solid var(--p500); }
+    .ticket-id    { font-size: 11px; font-weight: 700; color: var(--p600); }
+    .ticket-date  { font-size: 10px; color: var(--faint); margin-top: 2px; }
     .ticket-title { font-size: 12.5px; font-weight: 600; color: var(--ink); margin-bottom: 5px; }
-    .ticket-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-    .ticket-person { font-size: 11px; color: var(--muted); }
-    .ticket-company { font-size: 11px; font-weight: 600; color: var(--ink2); }
+    .ticket-meta  { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .ticket-person  { font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 3px; }
+    .ticket-company { font-size: 11px; font-weight: 600; color: var(--ink2); display: flex; align-items: center; gap: 3px; }
     .ticket-comment { font-size: 11px; color: var(--muted); margin-top: 6px; font-style: italic; line-height: 1.4; }
-    .ticket-phones { font-size: 11px; color: var(--ink2); font-weight: 600; }
-
+    .ticket-phones  { font-size: 11px; color: var(--ink2); font-weight: 600; display: flex; align-items: center; gap: 3px; }
     .ticket-right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
     .gleap-link {
-      font-size: 10.5px; font-weight: 600; color: var(--p600);
-      text-decoration: none; padding: 4px 10px; border-radius: 99px;
-      background: var(--p100); transition: all 0.15s;
-      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 10.5px; font-weight: 600; color: var(--p600); text-decoration: none;
+      padding: 4px 10px; border-radius: 99px; background: var(--p100);
+      transition: all 0.15s; display: inline-flex; align-items: center; gap: 4px;
     }
     .gleap-link:hover { background: var(--p200); color: var(--p800); }
-    .timing-row { display: flex; gap: 10px; flex-wrap: wrap; }
-    .timing-chip {
-      font-size: 10px; font-weight: 500; color: var(--muted);
-      background: var(--surface2); padding: 2px 7px; border-radius: 4px;
-      border: 1px solid var(--border);
-    }
-
-    /* ── Loading / Empty ─────────────────────────────────── */
-    .loader {
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      padding: 60px; gap: 16px; color: var(--muted);
-    }
-    .spinner {
-      width: 36px; height: 36px; border: 3px solid var(--p200);
-      border-top-color: var(--p500); border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-    }
+    .timing-row  { display: flex; gap: 10px; flex-wrap: wrap; }
+    .timing-chip { font-size: 10px; font-weight: 500; color: var(--muted); background: var(--surface2); padding: 2px 7px; border-radius: 4px; border: 1px solid var(--border); }
+    /* Skeleton */
+    .skeleton { background: linear-gradient(90deg, var(--surface3) 25%, var(--border) 50%, var(--surface3) 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: var(--r8); }
+    @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+    .skeleton-card { height: 110px; border-radius: var(--r16); }
+    .skeleton-row  { height: 20px; margin-bottom: 8px; }
+    .skeleton-row.short { width: 60%; }
+    /* Loader / Empty */
+    .loader { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px; gap: 16px; color: var(--muted); }
+    .spinner { width: 36px; height: 36px; border: 3px solid var(--p200); border-top-color: var(--p500); border-radius: 50%; animation: spin 0.8s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
     .loader-text { font-size: 12px; font-weight: 500; }
-    .loader-sub { font-size: 11px; color: var(--faint); }
-
-    .empty-state {
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      padding: 50px; gap: 10px; color: var(--muted);
-    }
-    .empty-icon { font-size: 36px; }
+    .loader-sub  { font-size: 11px; color: var(--faint); }
+    .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 50px; gap: 10px; color: var(--muted); }
     .empty-text { font-size: 13px; font-weight: 600; }
-    .empty-sub { font-size: 11px; color: var(--faint); }
-
-    /* ── AI Report ───────────────────────────────────────── */
-    .ai-report-box {
-      background: var(--surface);
-      border: 1.5px solid var(--p300);
-      border-radius: var(--r16);
-      padding: 24px;
-      line-height: 1.7;
-    }
-    .ai-report-box h2, .ai-report-box strong {
-      font-weight: 700; color: var(--p800);
-    }
-    .ai-report-box p { margin: 8px 0; font-size: 13px; color: var(--ink); }
+    .empty-sub  { font-size: 11px; color: var(--faint); }
+    /* AI */
+    .ai-report-box { background: var(--surface); border: 1.5px solid var(--p300); border-radius: var(--r16); padding: 24px; line-height: 1.7; }
+    .ai-report-box h2, .ai-report-box strong { font-weight: 700; color: var(--p800); }
+    .ai-report-box p  { margin: 8px 0; font-size: 13px; color: var(--ink); }
     .ai-report-box ul { padding-left: 20px; }
     .ai-report-box li { margin: 5px 0; font-size: 13px; }
-
-    /* ── Call detail cards ───────────────────────────────── */
+    /* Call cards */
     .call-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px,1fr)); gap: 12px; }
-    .call-card {
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: var(--r16); padding: 16px 18px;
-      border-left: 4px solid var(--p500);
-      transition: box-shadow 0.15s;
-    }
+    .call-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r16); padding: 16px 18px; border-left: 4px solid var(--p500); transition: box-shadow 0.15s; }
     .call-card:hover { box-shadow: var(--sh2); }
     .call-card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-    .call-card-id { font-size: 11px; font-weight: 700; color: var(--p600); }
-    .call-card-name { font-size: 13px; font-weight: 700; color: var(--ink); margin-bottom: 4px; }
+    .call-card-id      { font-size: 11px; font-weight: 700; color: var(--p600); }
+    .call-card-name    { font-size: 13px; font-weight: 700; color: var(--ink); margin-bottom: 4px; }
     .call-card-company { font-size: 11px; color: var(--muted); margin-bottom: 10px; }
     .call-card-details { display: flex; flex-direction: column; gap: 5px; }
-    .call-detail-row { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); }
+    .call-detail-row   { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); }
     .call-detail-row strong { color: var(--ink); font-weight: 600; }
-    .call-card-footer { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
-
-    /* ── Progress bars ───────────────────────────────────── */
-    .progress-bar { height: 4px; background: var(--border); border-radius: 99px; overflow: hidden; margin-top: 4px; }
+    .call-card-footer  { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+    /* Progress */
+    .progress-bar  { height: 4px; background: var(--border); border-radius: 99px; overflow: hidden; margin-top: 4px; }
     .progress-fill { height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--p400), var(--p600)); transition: width 0.6s; }
     .progress-fill.green { background: var(--green); }
-    .progress-fill.red { background: var(--red); }
-
-    /* ── Alert bar ───────────────────────────────────────── */
-    .alert-bar {
-      padding: 10px 16px; border-radius: var(--r8);
-      display: flex; align-items: center; gap: 10px;
-      font-size: 12px; font-weight: 500;
-    }
-    .alert-bar.warning { background: rgba(245,158,11,0.1); color: #92400e; border: 1px solid rgba(245,158,11,0.25); }
-    .alert-bar.danger  { background: rgba(239,68,68,0.08); color: #991b1b; border: 1px solid rgba(239,68,68,0.2); }
-    .alert-bar.success { background: rgba(16,185,129,0.08); color: #065f46; border: 1px solid rgba(16,185,129,0.2); }
-
-    /* ── Pagination ──────────────────────────────────────── */
+    .progress-fill.red   { background: var(--red); }
+    /* Alert bar */
+    .alert-bar { padding: 10px 16px; border-radius: var(--r8); display: flex; align-items: center; gap: 10px; font-size: 12px; font-weight: 500; }
+    .alert-bar.warning { background: rgba(217,119,6,0.1);  color: #92400e; border: 1px solid rgba(217,119,6,0.25); }
+    .alert-bar.danger  { background: rgba(220,38,38,0.08); color: #991b1b; border: 1px solid rgba(220,38,38,0.2); }
+    .alert-bar.success { background: rgba(5,150,105,0.08); color: #065f46; border: 1px solid rgba(5,150,105,0.2); }
+    /* Pagination */
     .pagination { display: flex; align-items: center; gap: 6px; }
-    .page-btn {
-      font-family: var(--font); font-size: 11px; font-weight: 600;
-      width: 30px; height: 30px; border-radius: var(--r8);
-      border: 1.5px solid var(--border2); background: var(--surface); color: var(--muted);
-      cursor: pointer; transition: all 0.15s; display: flex; align-items: center; justify-content: center;
-    }
-    .page-btn.active { border-color: var(--p500); background: var(--p600); color: #fff; }
+    .page-btn { font-family: var(--font); font-size: 11px; font-weight: 600; width: 30px; height: 30px; border-radius: var(--r8); border: 1.5px solid var(--border2); background: var(--surface); color: var(--muted); cursor: pointer; transition: all 0.15s; display: flex; align-items: center; justify-content: center; }
+    .page-btn.active          { border-color: var(--p500); background: var(--p600); color: #fff; }
     .page-btn:hover:not(.active) { border-color: var(--p400); color: var(--p600); }
-
-    /* ── Scrollbar ───────────────────────────────────────── */
+    /* Misc */
     ::-webkit-scrollbar { width: 5px; height: 5px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: var(--p200); border-radius: 99px; }
-
-    /* ── Error ───────────────────────────────────────────── */
-    .error-box {
-      background: rgba(239,68,68,0.06); border: 1px solid rgba(239,68,68,0.2);
-      border-radius: var(--r12); padding: 16px 20px; color: #991b1b; font-size: 12px;
-    }
-
-    /* ── Ticket list container ───────────────────────────── */
+    .error-box { background: rgba(220,38,38,0.06); border: 1px solid rgba(220,38,38,0.2); border-radius: var(--r12); padding: 16px 20px; color: #991b1b; font-size: 12px; }
     .ticket-list { display: flex; flex-direction: column; gap: 8px; }
-
-    /* ── Last refresh ─────────────────────────────────────── */
     #refreshTime { font-size: 10.5px; color: var(--faint); font-weight: 500; }
-
-    /* ── Agent performance metric cells ───────────────────── */
-    .perf-bar { display: flex; align-items: center; gap: 8px; }
-    .perf-val { min-width: 60px; font-size: 11.5px; font-weight: 600; color: var(--ink); }
-    .mini-bar { flex: 1; height: 3px; background: var(--border); border-radius: 99px; overflow: hidden; }
+    .perf-bar  { display: flex; align-items: center; gap: 8px; }
+    .perf-val  { min-width: 60px; font-size: 11.5px; font-weight: 600; color: var(--ink); }
+    .mini-bar  { flex: 1; height: 3px; background: var(--border); border-radius: 99px; overflow: hidden; }
     .mini-fill { height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--p300), var(--p600)); }
-
-    /* ── Responsive ──────────────────────────────────────── */
+    /* Info button */
+    .info-btn { background: none; border: none; cursor: pointer; color: var(--faint); padding: 0 2px; line-height: 1; vertical-align: middle; display: inline-flex; align-items: center; transition: color 0.15s; }
+    .info-btn:hover { color: var(--p500); }
+    /* Info modal */
+    .info-modal-overlay { display: none; position: fixed; inset: 0; background: rgba(15,10,30,0.55); z-index: 600; backdrop-filter: blur(3px); align-items: center; justify-content: center; }
+    .info-modal-overlay.open { display: flex; }
+    .info-modal { background: var(--surface); border-radius: 16px; box-shadow: var(--sh3); max-width: 480px; width: 90%; animation: modalIn 0.15s ease; border: 1px solid var(--border); }
+    @keyframes modalIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+    .info-modal-header { padding: 20px 24px 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: flex-start; }
+    .info-modal-title { font-size: 16px; font-weight: 700; color: var(--ink); }
+    .info-modal-body  { padding: 20px 24px; display: flex; flex-direction: column; gap: 14px; }
+    .info-section-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: var(--p600); margin-bottom: 4px; }
+    .info-section-text  { font-size: 13px; color: var(--ink); line-height: 1.6; }
+    .info-benchmark { background: var(--surface3); border-radius: var(--r8); padding: 10px 14px; font-size: 12px; color: var(--ink2); font-weight: 500; }
+    /* Responsive */
     @media (max-width: 900px) {
       :root { --sidebar: 0px; }
       .sidebar { transform: translateX(-100%); }
-      .main { margin-left: 0; }
+      .main   { margin-left: 0; }
     }
-
-    /* ── Ticket Detail Modal ─────────────────────────────── */
-    .modal-overlay {
-      display: none;
-      position: fixed;
-      top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(0, 0, 0, 0.6);
-      z-index: 500;
-      backdrop-filter: blur(2px);
-      animation: fadeIn 0.2s ease;
-    }
-
+    /* Ticket Modal */
+    .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 500; backdrop-filter: blur(2px); animation: fadeIn 0.2s ease; }
     .modal-overlay.open { display: flex; align-items: center; justify-content: center; }
-
-    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-
-    @keyframes slideUp {
-      from {
-        transform: translateY(20px);
-        opacity: 0;
-      }
-      to {
-        transform: translateY(0);
-        opacity: 1;
-      }
-    }
-
-    .modal-box {
-      background: var(--surface);
-      border-radius: var(--r20);
-      box-shadow: var(--sh3);
-      max-width: 700px;
-      width: 90%;
-      max-height: 85vh;
-      overflow-y: auto;
-      animation: slideUp 0.3s ease;
-      border: 1px solid var(--border);
-    }
-
-    .modal-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 20px 24px;
-      border-bottom: 1px solid var(--border);
-      position: sticky;
-      top: 0;
-      background: var(--surface);
-      z-index: 1;
-    }
-
-    .modal-title {
-      font-size: 18px;
-      font-weight: 700;
-      color: var(--ink);
-    }
-
-    .modal-close {
-      background: none;
-      border: none;
-      font-size: 24px;
-      cursor: pointer;
-      color: var(--muted);
-      padding: 4px;
-      line-height: 1;
-    }
-
+    @keyframes fadeIn  { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    .modal-box { background: var(--surface); border-radius: var(--r20); box-shadow: var(--sh3); max-width: 700px; width: 90%; max-height: 85vh; overflow-y: auto; animation: slideUp 0.3s ease; border: 1px solid var(--border); }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 20px 24px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--surface); z-index: 1; }
+    .modal-title { font-size: 18px; font-weight: 700; color: var(--ink); }
+    .modal-close { background: none; border: none; font-size: 24px; cursor: pointer; color: var(--muted); padding: 4px; line-height: 1; }
     .modal-close:hover { color: var(--ink); }
-
-    .modal-content {
-      padding: 24px;
-      display: flex;
-      flex-direction: column;
-      gap: 20px;
-    }
-
-    .modal-section {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
-    }
-
-    .modal-field {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-
-    .modal-label {
-      font-size: 11px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: var(--muted);
-    }
-
-    .modal-value {
-      font-size: 14px;
-      color: var(--ink);
-      font-weight: 500;
-      word-break: break-word;
-    }
-
+    .modal-content  { padding: 24px; display: flex; flex-direction: column; gap: 20px; }
+    .modal-section  { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
     .modal-section.full { grid-template-columns: 1fr; }
-
-    .modal-badges {
-      display: flex;
-      gap: 6px;
-      flex-wrap: wrap;
-    }
-
-    .modal-footer {
-      padding: 20px 24px;
-      border-top: 1px solid var(--border);
-      display: flex;
-      gap: 10px;
-      justify-content: flex-end;
-    }
-
-    .modal-btn {
-      padding: 10px 16px;
-      border-radius: var(--r8);
-      border: none;
-      font-weight: 600;
-      cursor: pointer;
-      font-size: 13px;
-      transition: all 0.15s;
-    }
-
-    .modal-btn-primary {
-      background: var(--p600);
-      color: white;
-    }
-
+    .modal-field { display: flex; flex-direction: column; gap: 4px; }
+    .modal-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); }
+    .modal-value { font-size: 14px; color: var(--ink); font-weight: 500; word-break: break-word; }
+    .modal-badges { display: flex; gap: 6px; flex-wrap: wrap; }
+    .modal-footer   { padding: 20px 24px; border-top: 1px solid var(--border); display: flex; gap: 10px; justify-content: flex-end; }
+    .modal-btn { padding: 10px 16px; border-radius: var(--r8); border: none; font-weight: 600; cursor: pointer; font-size: 13px; font-family: var(--font); transition: all 0.15s; }
+    .modal-btn-primary   { background: var(--p600); color: white; }
     .modal-btn-primary:hover { background: var(--p700); }
-
-    .modal-btn-secondary {
-      background: var(--surface3);
-      color: var(--ink);
-    }
-
+    .modal-btn-secondary { background: var(--surface3); color: var(--ink); }
     .modal-btn-secondary:hover { background: var(--border2); }
   </style>
 </head>
 <body>
 
-<!-- ── Sidebar ─────────────────────────────────────────────── -->
+<!-- Sidebar -->
 <aside class="sidebar">
   <div class="sidebar-top">
     <div class="logo-row">
-      <div class="logo-gem">📊</div>
-      <div class="logo-name">Gleap Dashboard</div>
-
+      <div class="logo-gem">
+        <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/></svg>
+      </div>
+      <div class="logo-name">Supy</div>
     </div>
-    <div class="logo-sub">Inbox Analytics</div>
+    <div class="logo-sub">Inbox Intelligence</div>
   </div>
-
   <nav class="sidebar-nav">
     <div class="nav-section">Dashboards</div>
     <button class="nav-item active" onclick="showSection('overview')">
-      <span class="ni-icon">🏠</span> Overview
+      <span class="ni-icon"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25"/></svg></span> Overview
     </button>
     <button class="nav-item" onclick="showSection('inbox')">
-      <span class="ni-icon">📥</span> Inbox
+      <span class="ni-icon"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 13.5h3.86a2.25 2.25 0 012.012 1.244l.256.512a2.25 2.25 0 002.013 1.244h3.218a2.25 2.25 0 002.013-1.244l.256-.512a2.25 2.25 0 012.013-1.244h3.859M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></span> Inbox
       <span class="nav-badge" id="badgeOpen">—</span>
     </button>
     <button class="nav-item" onclick="showSection('agents')">
-      <span class="ni-icon">👥</span> Agent Performance
+      <span class="ni-icon"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"/></svg></span> Agent Performance
     </button>
     <button class="nav-item" onclick="showSection('calls')">
-      <span class="ni-icon">📞</span> Call Requests
+      <span class="ni-icon"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z"/></svg></span> Call Requests
       <span class="nav-badge" id="badgeCalls">—</span>
     </button>
     <button class="nav-item" onclick="showSection('unassigned')">
-      <span class="ni-icon">🚨</span> Unassigned Queue
-      <span class="nav-badge" id="badgeUnassigned" style="background:#ef4444">—</span>
+      <span class="ni-icon"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg></span> Unassigned Queue
+      <span class="nav-badge red" id="badgeUnassigned">—</span>
     </button>
-
-
     <div class="nav-section">Analytics</div>
     <button class="nav-item" onclick="showSection('charts')">
-      <span class="ni-icon">📈</span> Trends & Charts
+      <span class="ni-icon"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/></svg></span> Trends & Charts
     </button>
     <button class="nav-item" onclick="showSection('ai')">
-      <span class="ni-icon">🤖</span> AI Report
+      <span class="ni-icon"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z"/></svg></span> AI Report
     </button>
   </nav>
-
   <div class="sidebar-bottom">
     <div class="live-pill">
       <span class="live-dot" id="liveStatusDot"></span>
       <span id="refreshTime">Not loaded</span>
     </div>
     <div id="nextRefreshLabel" style="font-size:9.5px;color:rgba(255,255,255,0.25);padding:4px 14px 8px;letter-spacing:0.4px"></div>
+    <a href="/api/auth/logout" class="logout-btn">
+      <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9"/></svg>
+      Sign Out
+    </a>
   </div>
 </aside>
 
-<!-- ── Main ───────────────────────────────────────────────── -->
+<!-- Main -->
 <main class="main">
-
-  <!-- Topbar -->
   <div class="topbar">
     <div class="topbar-left">
       <div class="topbar-title" id="pageTitle">Overview</div>
@@ -679,41 +432,44 @@
         <input type="date" id="dateTo" />
       </div>
       <button class="btn btn-primary" onclick="loadData()">
-        ↻ Refresh
+        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/></svg>
+        Load Data
       </button>
-      <button class="btn btn-outline" onclick="sendDigest()" id="digestBtn" title="Post a Slack digest for the current date range">
-        📤 Slack Digest
+      <button class="btn btn-outline" id="digestBtn" onclick="sendDigest()" title="Post a Slack digest for the current date range">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M5.042 15.165a2.528 2.528 0 01-2.52 2.523A2.528 2.528 0 010 15.165a2.527 2.527 0 012.522-2.52h2.52v2.52zm1.271 0a2.527 2.527 0 012.521-2.52 2.527 2.527 0 012.521 2.52v6.313A2.528 2.528 0 018.834 24a2.528 2.528 0 01-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 01-2.521-2.52A2.528 2.528 0 018.834 0a2.528 2.528 0 012.521 2.522v2.52H8.834zm0 1.271a2.528 2.528 0 012.521 2.521 2.528 2.528 0 01-2.521 2.521H2.522A2.528 2.528 0 010 8.834a2.528 2.528 0 012.522-2.521h6.312zm10.122 2.521a2.528 2.528 0 012.522-2.521A2.528 2.528 0 0124 8.834a2.528 2.528 0 01-2.522 2.521h-2.522V8.834zm-1.268 0a2.528 2.528 0 01-2.523 2.521 2.527 2.527 0 01-2.52-2.521V2.522A2.527 2.527 0 0115.165 0a2.528 2.528 0 012.523 2.522v6.312zm-2.523 10.122a2.528 2.528 0 012.523 2.522A2.528 2.528 0 0115.165 24a2.527 2.527 0 01-2.52-2.522v-2.522h2.52zm0-1.268a2.527 2.527 0 01-2.52-2.523 2.526 2.526 0 012.52-2.52h6.313A2.527 2.527 0 0124 15.165a2.528 2.528 0 01-2.522 2.523h-6.313z"/></svg>
+        Slack Digest
       </button>
-      <button class="btn btn-outline" onclick="window.print()">
-        🖨 Print Report
+      <button class="btn btn-outline" onclick="generateAI(); showSection('ai')">
+        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/></svg>
+        AI Report
       </button>
     </div>
   </div>
 
-  <!-- ── SECTION: Overview ─────────────────────────────────── -->
   <div id="section-overview" class="section active">
     <div id="overviewContent">
       <div class="loader"><div class="spinner"></div><div class="loader-text">Fetching inbox data…</div><div class="loader-sub">This may take 30–60 seconds on first load</div></div>
     </div>
   </div>
 
-  <!-- ── SECTION: Inbox ───────────────────────────────────── -->
   <div id="section-inbox" class="section">
     <div class="section-header">
-      <div class="section-title">📥 Inbox Conversations <span class="stag" id="inboxCount">—</span></div>
+      <div class="section-title">
+        <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 13.5h3.86a2.25 2.25 0 012.012 1.244l.256.512a2.25 2.25 0 002.013 1.244h3.218a2.25 2.25 0 002.013-1.244l.256-.512a2.25 2.25 0 012.013-1.244h3.859M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        Inbox Conversations <span class="stag" id="inboxCount">—</span>
+      </div>
     </div>
     <div class="ticket-filters" id="inboxFilters">
       <div class="search-wrap">
-        <span class="search-icon">🔍</span>
+        <span class="search-icon"><svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg></span>
         <input type="text" class="search-input" id="ticketSearch" placeholder="Search name, company, email…" oninput="filterTickets()" />
       </div>
       <button class="filter-btn active" onclick="setFilter('all',this)">All</button>
       <button class="filter-btn" onclick="setFilter('open',this)">Open</button>
       <button class="filter-btn" onclick="setFilter('closed',this)">Closed</button>
       <button class="filter-btn" onclick="setFilter('unassigned',this)">Unassigned</button>
-
-      <button class="filter-btn" onclick="setFilter('call',this)">📞 Call</button>
-      <button class="filter-btn" onclick="setFilter('sla',this)">⚠ SLA</button>
+      <button class="filter-btn" onclick="setFilter('call',this)">Call</button>
+      <button class="filter-btn" onclick="setFilter('sla',this)">SLA Breached</button>
       <button class="filter-btn" onclick="setFilter('archived',this)">Archived</button>
     </div>
     <div id="ticketList" class="ticket-list">
@@ -722,77 +478,77 @@
     <div id="ticketPagination" class="pagination"></div>
   </div>
 
-  <!-- ── SECTION: Agents ──────────────────────────────────── -->
   <div id="section-agents" class="section">
     <div class="section-header">
-      <div class="section-title">👥 Agent Performance</div>
+      <div class="section-title">
+        <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"/></svg>
+        Agent Performance
+      </div>
     </div>
-    <div id="agentContent">
-      <div class="loader"><div class="spinner"></div></div>
-    </div>
+    <div id="agentContent"><div class="loader"><div class="spinner"></div></div></div>
   </div>
 
-  <!-- ── SECTION: Calls ───────────────────────────────────── -->
   <div id="section-calls" class="section">
     <div class="section-header">
-      <div class="section-title">📞 Call Requests <span class="stag" id="callCount">—</span></div>
+      <div class="section-title">
+        <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z"/></svg>
+        Call Requests <span class="stag" id="callCount">—</span>
+      </div>
     </div>
-    <div id="callContent">
-      <div class="loader"><div class="spinner"></div></div>
-    </div>
+    <div id="callContent"><div class="loader"><div class="spinner"></div></div></div>
   </div>
 
-
-
-  <!-- ── SECTION: Unassigned Queue ───────────────────────── -->
   <div id="section-unassigned" class="section">
     <div class="section-header">
-      <div class="section-title">🚨 Unassigned Queue <span class="stag" id="unassignedQueueCount">—</span></div>
+      <div class="section-title">
+        <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>
+        Unassigned Queue <span class="stag" id="unassignedQueueCount">—</span>
+      </div>
     </div>
-    <div id="unassignedContent">
-      <div class="loader"><div class="spinner"></div></div>
-    </div>
+    <div id="unassignedContent"><div class="loader"><div class="spinner"></div></div></div>
   </div>
 
-  <!-- ── SECTION: Charts ──────────────────────────────────── -->
   <div id="section-charts" class="section">
-    <div class="section-title">📈 Trends & Volume</div>
+    <div class="section-title">
+      <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/></svg>
+      Trends & Volume
+    </div>
     <div class="charts-grid">
-      <div class="chart-card">
-        <div class="chart-title">Daily Volume</div>
-        <div class="chart-wrap tall"><canvas id="chartDaily"></canvas></div>
-      </div>
-      <div class="chart-card">
-        <div class="chart-title">Day of Week</div>
-        <div class="chart-wrap tall"><canvas id="chartDow"></canvas></div>
-      </div>
-      <div class="chart-card">
-        <div class="chart-title">Hour of Day (UTC)</div>
-        <div class="chart-wrap tall"><canvas id="chartHourly"></canvas></div>
-      </div>
-      <div class="chart-card">
-        <div class="chart-title">Top Companies</div>
-        <div class="chart-wrap tall"><canvas id="chartCompanies"></canvas></div>
-      </div>
+      <div class="chart-card"><div class="chart-title">Daily Volume</div><div class="chart-wrap tall"><canvas id="chartDaily"></canvas></div></div>
+      <div class="chart-card"><div class="chart-title">Day of Week</div><div class="chart-wrap tall"><canvas id="chartDow"></canvas></div></div>
+      <div class="chart-card"><div class="chart-title">Hour of Day (UTC)</div><div class="chart-wrap tall"><canvas id="chartHourly"></canvas></div></div>
+      <div class="chart-card"><div class="chart-title">Top Companies</div><div class="chart-wrap tall"><canvas id="chartCompanies"></canvas></div></div>
     </div>
   </div>
 
-  <!-- ── SECTION: AI ──────────────────────────────────────── -->
   <div id="section-ai" class="section">
     <div class="section-header">
-      <div class="section-title">🤖 AI Team Lead Report</div>
+      <div class="section-title">
+        <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z"/></svg>
+        AI Team Lead Report
+      </div>
       <button class="btn btn-primary" id="aiBtn" onclick="generateAI()">Generate Report</button>
     </div>
     <div id="aiContent">
       <div class="empty-state">
-        <div class="empty-icon">🤖</div>
+        <svg width="48" height="48" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1" style="color:var(--border2)"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/></svg>
         <div class="empty-text">AI Report</div>
         <div class="empty-sub">Click "Generate Report" to get AI-powered insights on your team's inbox performance.</div>
       </div>
     </div>
   </div>
-
 </main>
+
+<!-- Info Modal -->
+<div id="infoModalOverlay" class="info-modal-overlay" onclick="if(event.target===this)closeInfoModal()">
+  <div class="info-modal">
+    <div class="info-modal-header">
+      <div class="info-modal-title" id="infoModalTitle"></div>
+      <button class="modal-close" onclick="closeInfoModal()">&#215;</button>
+    </div>
+    <div class="info-modal-body" id="infoModalBody"></div>
+  </div>
+</div>
 
 <script>
 // ── State ─────────────────────────────────────────────────
@@ -802,8 +558,8 @@ let filteredTickets = [];
 let currentFilter = 'all';
 let currentPage   = 1;
 const PAGE_SIZE   = 30;
-
 const charts = {};
+const _ticketRegistry = {};
 
 // ── Init ──────────────────────────────────────────────────
 (function init() {
@@ -816,13 +572,13 @@ const charts = {};
 
 // ── Navigation ────────────────────────────────────────────
 const titles = {
-  overview: ['Overview', 'Key metrics at a glance'],
-  inbox: ['Inbox Conversations', 'All INQUIRY type tickets'],
-  agents: ['Agent Performance', 'Response times, resolution rates, and team metrics'],
-  calls: ['Call Requests', 'Tickets with call_flow = true'],
+  overview:   ['Overview', 'Key metrics at a glance'],
+  inbox:      ['Inbox Conversations', 'All INQUIRY type tickets'],
+  agents:     ['Agent Performance', 'Response times, resolution rates, and team metrics'],
+  calls:      ['Call Requests', 'Tickets with call_flow = true'],
   unassigned: ['Unassigned Queue', 'Open tickets with no agent assigned — sorted oldest first'],
-  charts: ['Trends & Charts', 'Volume by day, time, and company'],
-  ai: ['AI Team Lead Report', 'AI-powered analysis and recommendations'],
+  charts:     ['Trends & Charts', 'Volume by day, time, and company'],
+  ai:         ['AI Team Lead Report', 'AI-powered analysis and recommendations'],
 };
 
 function showSection(id) {
@@ -837,13 +593,180 @@ function showSection(id) {
   document.getElementById('pageSub').textContent   = sub;
 }
 
+// ── Metric Info ───────────────────────────────────────────
+const METRIC_INFO = {
+  replyRate: {
+    name: 'Reply Rate',
+    what: 'The percentage of tickets that received at least one response from an agent.',
+    how: 'Calculated as: (Tickets with Agent Reply ÷ Total Tickets) × 100',
+    healthy: 'A healthy reply rate is 85% or above. Below 70% means many customers are being ignored.',
+    example: 'If Reply Rate is 85%, that means 85 out of every 100 tickets got at least one agent response.'
+  },
+  avgFirstResponse: {
+    name: 'Avg First Response Time',
+    what: 'The average time between a customer opening a ticket and the first agent interaction (reply or action).',
+    how: 'Measured as the time gap between ticket creation and the first recorded agent reply timestamp.',
+    healthy: 'Benchmark: under 30 minutes. Over 2 hours starts to negatively impact customer satisfaction.',
+    example: 'If this shows "45 min", it means on average agents respond to new tickets within 45 minutes of them being created.'
+  },
+  avgCloseTime: {
+    name: 'Avg Time to Close',
+    what: 'The average time from when a ticket was opened to when it was marked as Closed or Resolved.',
+    how: 'Calculated as the difference between the ticket creation time and the close/resolve timestamp.',
+    healthy: 'Benchmark: under 4 hours for support tickets. Under 24 hours is acceptable. Over 3 days is a red flag.',
+    example: 'If this shows "6.2 hrs", it means tickets take about 6 hours on average to get fully resolved.'
+  },
+  slaBreached: {
+    name: 'SLA Breached',
+    what: 'The number of tickets that exceeded the agreed response or resolution time (Service Level Agreement).',
+    how: 'A ticket is flagged as SLA Breached when the Gleap system marks it as having exceeded the defined time thresholds.',
+    healthy: 'This should be 0. Any SLA breach means a customer was not served within the promised timeframe.',
+    example: 'If SLA Breached shows 3, it means 3 customers waited longer than the promised response time.'
+  },
+  unassignedCount: {
+    name: 'Unassigned Tickets',
+    what: 'Open tickets that have not been assigned to any agent yet. These are sitting in the queue with no owner.',
+    how: 'Count of all tickets where the assigned agent field is empty or "Unassigned" and the status is Open.',
+    healthy: 'Should be 0 or as close to 0 as possible. Unassigned tickets are at risk of being forgotten.',
+    example: 'If Unassigned shows 5, there are 5 open customer conversations that nobody is currently responsible for.'
+  },
+  callRequests: {
+    name: 'Call Requests',
+    what: 'Tickets where the customer explicitly requested a phone call back from the support team.',
+    how: 'Identified by the call_flow flag being true in the ticket form data, or specific keywords in the title.',
+    healthy: 'All call requests should have a phone number and a follow-up. Open call requests need immediate attention.',
+    example: 'If Call Requests shows 8, then 8 customers are waiting for your team to call them back.'
+  },
+  resolveRate: {
+    name: 'Resolve Rate',
+    what: 'The percentage of all tickets that have been fully resolved (Closed or Archived) in this period.',
+    how: 'Calculated as: ((Closed + Archived Tickets) ÷ Total Tickets) × 100',
+    healthy: 'Target 80% or above. A low resolve rate means tickets are piling up without resolution.',
+    example: 'A resolve rate of 75% means 3 out of every 4 tickets were fully resolved in this period.'
+  },
+  assignmentRate: {
+    name: 'Assignment Rate',
+    what: 'The percentage of tickets that were assigned to a specific agent (not left as unassigned).',
+    how: 'Calculated as: (Assigned Tickets ÷ Total Tickets) × 100',
+    healthy: 'Should be 95% or above. Every ticket should have an owner responsible for resolving it.',
+    example: 'An assignment rate of 90% means 1 in 10 tickets has no owner assigned to handle it.'
+  },
+  totalConversations: {
+    name: 'Total Conversations',
+    what: 'The total number of INQUIRY-type tickets created in the selected date range.',
+    how: 'Count of all tickets of type INQUIRY fetched from the Gleap API for the date range you selected.',
+    healthy: 'No specific target — this is your volume baseline. Compare week-over-week to spot spikes.',
+    example: 'If Total shows 147, it means 147 customers opened support conversations in the selected period.'
+  },
+  openCount: {
+    name: 'Open Tickets',
+    what: 'Tickets that are still active and awaiting resolution. These are conversations currently in progress.',
+    how: 'Count of tickets with status: OPEN, IN_PROGRESS, PENDING, or ACTIVE.',
+    healthy: 'Should trend downward over time. High open count = backlog building up.',
+    example: 'If Open shows 23, there are 23 live customer conversations that are not yet resolved.'
+  },
+  leaderboard: {
+    name: 'Top Performers (Leaderboard)',
+    what: 'Ranks agents by the number of tickets they actually replied to in this period.',
+    how: 'Agents are sorted by "Tickets Replied" — tickets where an agent sent at least one response.',
+    healthy: 'Top performers maintain a reply rate above 80%. Volume + quality together determine true performance.',
+    example: 'The #1 agent replied to 34 tickets this month, meaning they actively engaged 34 customers.'
+  },
+  agingBuckets: {
+    name: 'Open Ticket Aging',
+    what: 'How long your currently open tickets have been waiting without resolution, grouped by age.',
+    how: "Each open ticket's age is calculated from creation time to now, then grouped into time buckets.",
+    healthy: 'Most tickets should be in the < 1 hour or 1-4 hour buckets. Anything in "3+ days" is critical.',
+    example: 'If "3+ days" shows 4 tickets with a fire emoji, those 4 customers have been waiting over 3 days with no resolution.'
+  },
+  ticketsHandled: {
+    name: 'Tickets Handled',
+    what: 'The total number of tickets assigned to a specific agent in this period.',
+    how: 'Count of all tickets where this agent is listed as the assigned handler, regardless of current status.',
+    healthy: 'Distribution should be roughly equal across the team. One agent handling 90% signals an imbalance.',
+    example: 'If an agent shows "Handled: 28", they were responsible for 28 customer conversations this period.'
+  }
+};
+
+function showInfoModal(key) {
+  const info = METRIC_INFO[key];
+  if (!info) return;
+  document.getElementById('infoModalTitle').textContent = info.name;
+  document.getElementById('infoModalBody').innerHTML = `
+    <div>
+      <div class="info-section-label">What it means</div>
+      <div class="info-section-text">${info.what}</div>
+    </div>
+    <div>
+      <div class="info-section-label">How it's calculated</div>
+      <div class="info-section-text">${info.how}</div>
+    </div>
+    <div class="info-benchmark"><strong>&#10003; Healthy value:</strong> ${info.healthy}</div>
+    <div>
+      <div class="info-section-label">Example</div>
+      <div class="info-section-text" style="font-style:italic">"${info.example}"</div>
+    </div>
+  `;
+  document.getElementById('infoModalOverlay').classList.add('open');
+}
+
+function closeInfoModal() {
+  document.getElementById('infoModalOverlay').classList.remove('open');
+}
+
+function infoBtn(key) {
+  return `<button class="info-btn" onclick="showInfoModal('${key}')" aria-label="Learn more about ${key}" title="What is this?"><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z"/></svg></button>`;
+}
+
+// ── Alert bar helper ──────────────────────────────────────
+function alertBar(type, msg, id) {
+  return `<div class="alert-bar ${type}" id="${id}" role="alert">
+    <span>${msg}</span>
+    <button onclick="document.getElementById('${id}').remove()" style="margin-left:auto;background:none;border:none;cursor:pointer;color:inherit;padding:0 4px;font-size:16px;opacity:0.6" aria-label="Dismiss">&#215;</button>
+  </div>`;
+}
+
+// ── KPI card helper ───────────────────────────────────────
+function kpiCard(value, label, sub, color, infoKey, iconSvg) {
+  return `<div class="kpi-card ${color||''}">
+    ${iconSvg ? `<div class="kpi-icon-svg">${iconSvg}</div>` : ''}
+    <div class="kpi-value">${value}</div>
+    <div class="kpi-label">${label} ${infoKey ? infoBtn(infoKey) : ''}</div>
+    ${sub ? `<div class="kpi-sub">${sub}</div>` : ''}
+  </div>`;
+}
+
+// ── Empty state helper ────────────────────────────────────
+function emptyState(icon, title, sub) {
+  const icons = {
+    inbox:     '<svg width="48" height="48" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1" style="color:var(--border2)"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 13.5h3.86a2.25 2.25 0 012.012 1.244l.256.512a2.25 2.25 0 002.013 1.244h3.218a2.25 2.25 0 002.013-1.244l.256-.512a2.25 2.25 0 012.013-1.244h3.859M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>',
+    agents:    '<svg width="48" height="48" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1" style="color:var(--border2)"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"/></svg>',
+    calls:     '<svg width="48" height="48" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1" style="color:var(--border2)"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z"/></svg>',
+    check:     '<svg width="48" height="48" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1" style="color:var(--green)"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>',
+    agentsSVG: '<svg width="48" height="48" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1" style="color:var(--border2)"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"/></svg>',
+  };
+  return `<div class="empty-state">${icons[icon]||icons.inbox}<div class="empty-text">${title}</div><div class="empty-sub">${sub}</div></div>`;
+}
+
+// ── Skeleton loading ──────────────────────────────────────
+function overviewSkeleton() {
+  return `<div style="display:flex;flex-direction:column;gap:20px;padding:4px 0">
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px">
+      ${Array(7).fill('<div class="skeleton skeleton-card"></div>').join('')}
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">
+      ${Array(3).fill('<div class="skeleton" style="height:160px;border-radius:var(--r16)"></div>').join('')}
+    </div>
+  </div>`;
+}
+
 // ── Load data ─────────────────────────────────────────────
 async function loadData() {
   const from = document.getElementById('dateFrom').value;
   const to   = document.getElementById('dateTo').value;
   if (!from || !to) { alert('Please set both dates'); return; }
 
-  document.getElementById('overviewContent').innerHTML = `<div class="loader"><div class="spinner"></div><div class="loader-text">Scanning inbox…</div><div class="loader-sub">Fetching all INQUIRY tickets in range. Please wait 30–90 seconds.</div></div>`;
+  document.getElementById('overviewContent').innerHTML = overviewSkeleton();
   document.getElementById('pageSub').textContent = 'Fetching data…';
 
   try {
@@ -854,6 +777,8 @@ async function loadData() {
     globalStats = data.stats;
     allTickets  = data.stats.tickets || [];
     filteredTickets = [...allTickets];
+    allTickets.forEach(t => { _ticketRegistry[t.id || t.bugId] = t; });
+    (data.stats.callTickets || []).forEach(t => { _ticketRegistry[t.id || t.bugId] = t; });
 
     renderOverview(data.stats);
     renderAgents(data.stats);
@@ -862,19 +787,19 @@ async function loadData() {
     renderTicketList();
     renderUnassignedQueue();
 
-    // Update badges
     const unassignedOpenCount = (data.stats.tickets||[]).filter(t=>t.isOpen && t.agent==='Unassigned').length;
-    document.getElementById('badgeOpen').textContent          = data.stats.openCount || 0;
-    document.getElementById('badgeCalls').textContent         = data.stats.callRequestCount || 0;
-    document.getElementById('badgeUnassigned').textContent    = unassignedOpenCount;
-    document.getElementById('inboxCount').textContent         = data.stats.total + ' total';
-    document.getElementById('callCount').textContent          = data.stats.callRequestCount + ' tickets';
+    document.getElementById('badgeOpen').textContent       = data.stats.openCount || 0;
+    document.getElementById('badgeCalls').textContent      = data.stats.callRequestCount || 0;
+    document.getElementById('badgeUnassigned').textContent = unassignedOpenCount;
+    document.getElementById('inboxCount').textContent      = data.stats.total + ' total';
+    document.getElementById('callCount').textContent       = data.stats.callRequestCount + ' tickets';
 
     const gen = new Date(data.generatedAt);
     document.getElementById('refreshTime').textContent = 'Updated ' + gen.toLocaleTimeString();
     document.getElementById('pageSub').textContent = `${from} → ${to} · ${data.stats.total} conversations`;
+    startAutoRefreshCountdown();
   } catch(e) {
-    document.getElementById('overviewContent').innerHTML = `<div class="error-box">❌ Failed to load data: ${e.message}<br><small>Check your .env credentials and that the server is running.</small></div>`;
+    document.getElementById('overviewContent').innerHTML = `<div class="error-box">&#10060; Failed to load data: ${e.message}<br><small>Check your .env credentials and that the server is running.</small></div>`;
     document.getElementById('pageSub').textContent = 'Error loading data';
   }
 }
@@ -886,81 +811,49 @@ function renderOverview(s) {
   const assignRate  = s.total ? Math.round((s.assignedCount/s.total)*100) : 0;
 
   let alerts = '';
-  if (s.slaBreached > 0)     alerts += `<div class="alert-bar danger">⚠ ${s.slaBreached} ticket${s.slaBreached>1?'s':''} with SLA breached — review immediately</div>`;
-  if (s.unassignedCount > 0) alerts += `<div class="alert-bar warning">⚡ ${s.unassignedCount} unassigned ticket${s.unassignedCount>1?'s':''} — assign now to avoid delays</div>`;
-  if (s.openCount === 0)     alerts += `<div class="alert-bar success">✅ All conversations are resolved — great work!</div>`;
+  if (s.slaBreached > 0)     alerts += alertBar('danger',  `&#9888; ${s.slaBreached} ticket${s.slaBreached>1?'s':''} with SLA breached — review immediately`, 'alert-sla');
+  if (s.unassignedCount > 0) alerts += alertBar('warning', `&#9889; ${s.unassignedCount} unassigned ticket${s.unassignedCount>1?'s':''} — assign now to avoid delays`, 'alert-unassigned');
+  if (s.openCount === 0)     alerts += alertBar('success', `&#10003; All conversations are resolved — great work!`, 'alert-success');
+
+  const svgChat  = `<svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 13.5h3.86a2.25 2.25 0 012.012 1.244l.256.512a2.25 2.25 0 002.013 1.244h3.218a2.25 2.25 0 002.013-1.244l.256-.512a2.25 2.25 0 012.013-1.244h3.859M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`;
+  const svgOpen  = `<svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M21.75 9v.906a2.25 2.25 0 01-1.183 1.981l-6.478 3.488M2.25 9v.906a2.25 2.25 0 001.183 1.981l6.478 3.488m8.839 2.51l-4.66-2.51m0 0l-1.023-.55a2.25 2.25 0 00-2.134 0l-1.022.55m0 0l-4.661 2.51m16.5 1.615a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V8.844a2.25 2.25 0 011.183-1.98l7.5-4.04a2.25 2.25 0 012.134 0l7.5 4.04a2.25 2.25 0 011.183 1.98V19.5z"/></svg>`;
+  const svgSla   = `<svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`;
+  const svgUser  = `<svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"/></svg>`;
+  const svgPhone = `<svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z"/></svg>`;
+  const svgBldg  = `<svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21"/></svg>`;
+  const svgMail  = `<svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75"/></svg>`;
 
   document.getElementById('overviewContent').innerHTML = `
     ${alerts ? `<div style="display:flex;flex-direction:column;gap:6px">${alerts}</div>` : ''}
-
     ${renderPerformanceLeaderboard(s)}
-
     ${renderAgingBuckets(s)}
-
     <div class="kpi-grid">
-      <div class="kpi-card">
-        <div class="kpi-icon">💬</div>
-        <div class="kpi-value">${s.total}</div>
-        <div class="kpi-label">Total Conversations</div>
-        <div class="kpi-sub">INQUIRY type tickets</div>
-      </div>
-      <div class="kpi-card ${s.openCount>0?'amber':'green'}">
-        <div class="kpi-icon">📬</div>
-        <div class="kpi-value">${s.openCount}</div>
-        <div class="kpi-label">Open / Active</div>
-        <div class="kpi-sub">${s.closedCount} closed · ${s.archivedCount} archived</div>
-      </div>
-
-      <div class="kpi-card ${s.slaBreached>0?'red':''}">
-        <div class="kpi-icon">⏱</div>
-        <div class="kpi-value">${s.slaBreached}</div>
-        <div class="kpi-label">SLA Breached</div>
-        <div class="kpi-sub">${s.total - s.slaBreached} within SLA</div>
-      </div>
-      <div class="kpi-card ${s.unassignedCount>0?'amber':''}">
-        <div class="kpi-icon">👤</div>
-        <div class="kpi-value">${s.unassignedCount}</div>
-        <div class="kpi-label">Unassigned</div>
-        <div class="kpi-sub">${s.assignedCount} assigned to agents</div>
-      </div>
-      <div class="kpi-card blue">
-        <div class="kpi-icon">📞</div>
-        <div class="kpi-value">${s.callRequestCount}</div>
-        <div class="kpi-label">Call Requests</div>
-        <div class="kpi-sub">call_flow = true tickets</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-icon">🏢</div>
-        <div class="kpi-value">${s.withCompany}</div>
-        <div class="kpi-label">With Company</div>
-        <div class="kpi-sub">${s.withPhone} have phone number</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-icon">✉️</div>
-        <div class="kpi-value">${s.withEmail}</div>
-        <div class="kpi-label">With Email</div>
-        <div class="kpi-sub">Contact info available</div>
-      </div>
+      ${kpiCard(s.total, 'Total Conversations', 'INQUIRY type tickets', '', 'totalConversations', svgChat)}
+      ${kpiCard(s.openCount, 'Open / Active', `${s.closedCount} closed · ${s.archivedCount} archived`, s.openCount>0?'amber':'green', 'openCount', svgOpen)}
+      ${kpiCard(s.slaBreached, 'SLA Breached', `${s.total - s.slaBreached} within SLA`, s.slaBreached>0?'red':'', 'slaBreached', svgSla)}
+      ${kpiCard(s.unassignedCount, 'Unassigned', `${s.assignedCount} assigned to agents`, s.unassignedCount>0?'amber':'', 'unassignedCount', svgUser)}
+      ${kpiCard(s.callRequestCount, 'Call Requests', 'call_flow = true tickets', 'blue', 'callRequests', svgPhone)}
+      ${kpiCard(s.withCompany, 'With Company', `${s.withPhone} have phone number`, '', '', svgBldg)}
+      ${kpiCard(s.withEmail, 'With Email', 'Contact info available', '', '', svgMail)}
     </div>
-
     <div class="charts-grid cols3">
       <div class="chart-card">
-        <div class="chart-title">⏱ Response Timings</div>
+        <div class="chart-title">&#9201; Response Timings</div>
         <div style="display:flex;flex-direction:column;gap:12px;padding-top:4px">
           ${metricRow('Avg Time to First Agent Interaction', s.avgFirstInteractionFmt, s.avgFirstInteraction, 240)}
           ${metricRow('Avg Time to Close', s.avgCloseFmt, s.avgClose, 1440)}
         </div>
       </div>
       <div class="chart-card">
-        <div class="chart-title">📊 Resolution Rates</div>
+        <div class="chart-title">&#128202; Resolution Rates</div>
         <div style="display:flex;flex-direction:column;gap:12px;padding-top:4px">
-          ${rateRow('Resolve Rate', resolveRate, 'green')}
-          ${rateRow('Reply Rate', replyRate, 'purple')}
-          ${rateRow('Assignment Rate', assignRate, 'blue')}
+          ${rateRow('Resolve Rate', resolveRate, 'green', 'resolveRate')}
+          ${rateRow('Reply Rate', replyRate, 'purple', 'replyRate')}
+          ${rateRow('Assignment Rate', assignRate, 'blue', 'assignmentRate')}
         </div>
       </div>
       <div class="chart-card">
-        <div class="chart-title">🏢 Top Companies</div>
+        <div class="chart-title">&#127970; Top Companies</div>
         <div style="display:flex;flex-direction:column;gap:6px;padding-top:4px;overflow:auto;max-height:180px">
           ${(s.topCompanies||[]).slice(0,8).map((c,i)=>`
             <div style="display:flex;align-items:center;justify-content:space-between;font-size:11.5px">
@@ -970,7 +863,6 @@ function renderOverview(s) {
         </div>
       </div>
     </div>
-
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
       <div class="chart-card">
         <div class="chart-title">Status Breakdown</div>
@@ -982,12 +874,7 @@ function renderOverview(s) {
       </div>
     </div>
   `;
-
-  // Mini charts
-  setTimeout(() => {
-    renderStatusDonut(s);
-    renderDowSmall(s);
-  }, 50);
+  setTimeout(() => { renderStatusDonut(s); renderDowSmall(s); }, 50);
 }
 
 // ── Ticket age helpers ────────────────────────────────────
@@ -1017,9 +904,8 @@ function renderAgingBuckets(s) {
   const total = openTickets.length;
   const cards = buckets.map(b => {
     const pct = total ? Math.round((b.count / total) * 100) : 0;
-    const urgent = (b.label === '3+ days' && b.count > 0) ? ' 🔥' : '';
-    return `
-      <div style="flex:1;min-width:100px;background:${b.bg};border:1px solid ${b.color}44;border-radius:var(--r12);padding:14px 10px;text-align:center">
+    const urgent = (b.label === '3+ days' && b.count > 0) ? ' &#128293;' : '';
+    return `<div style="flex:1;min-width:100px;background:${b.bg};border:1px solid ${b.color}44;border-radius:var(--r12);padding:14px 10px;text-align:center">
         <div style="font-size:26px;font-weight:800;color:${b.color};margin-bottom:1px">${b.count}${urgent}</div>
         <div style="font-size:10px;font-weight:700;color:${b.color};margin-bottom:8px;white-space:nowrap">${b.label}</div>
         <div style="height:3px;background:rgba(0,0,0,0.08);border-radius:99px;overflow:hidden">
@@ -1029,9 +915,8 @@ function renderAgingBuckets(s) {
       </div>`;
   }).join('');
 
-  return `
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r16);padding:18px 20px">
-      <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:12px">⏳ Open Ticket Aging — ${total} open tickets</div>
+  return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r16);padding:18px 20px">
+      <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:12px;display:flex;align-items:center;gap:6px">Open Ticket Aging — ${total} open tickets ${infoBtn('agingBuckets')}</div>
       <div style="display:flex;gap:10px;flex-wrap:wrap">${cards}</div>
     </div>`;
 }
@@ -1047,13 +932,13 @@ function renderUnassignedQueue() {
     .sort((a, b) => {
       const da = a.createdAt ? new Date(a.createdAt) : new Date(0);
       const db = b.createdAt ? new Date(b.createdAt) : new Date(0);
-      return da - db; // oldest first
+      return da - db;
     });
 
   if (countEl) countEl.textContent = unassigned.length + ' tickets';
 
   if (!unassigned.length) {
-    container.innerHTML = '<div class="empty-state"><div class="empty-icon">✅</div><div class="empty-text">No unassigned open tickets!</div><div class="empty-sub">All open conversations are assigned to agents.</div></div>';
+    container.innerHTML = emptyState('check', 'No unassigned open tickets!', 'All open conversations are assigned to agents.');
     return;
   }
 
@@ -1064,33 +949,29 @@ function renderUnassignedQueue() {
     if (hrs < 4)  return `<span style="background:rgba(99,102,241,0.12);color:#3730a3;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:700">${hrs.toFixed(1)} hrs</span>`;
     if (hrs < 24) return `<span style="background:rgba(245,158,11,0.12);color:#92400e;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:700">${hrs.toFixed(1)} hrs</span>`;
     const days = (hrs / 24).toFixed(1);
-    const fire = hrs > 72 ? ' 🔥' : '';
+    const fire = hrs > 72 ? ' &#128293;' : '';
     return `<span style="background:rgba(239,68,68,0.12);color:#991b1b;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:700">${days} days${fire}</span>`;
   }
 
   const waiting4  = unassigned.filter(t => { const h = ticketAgeHrs(t); return h !== null && h > 4; }).length;
   const waiting24 = unassigned.filter(t => { const h = ticketAgeHrs(t); return h !== null && h > 24; }).length;
 
-  const summaryCards = `
-    <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap">
-      <div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);border-radius:var(--r12);padding:12px 20px;text-align:center;min-width:130px">
+  const summaryCards = `<div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+      <div style="background:rgba(220,38,38,0.08);border:1px solid rgba(220,38,38,0.2);border-radius:var(--r12);padding:12px 20px;text-align:center;min-width:130px">
         <div style="font-size:28px;font-weight:800;color:var(--red)">${unassigned.length}</div>
         <div style="font-size:10px;font-weight:700;color:#991b1b;text-transform:uppercase;letter-spacing:0.5px">Unassigned Open</div>
       </div>
-      ${waiting4 > 0 ? `
-      <div style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);border-radius:var(--r12);padding:12px 20px;text-align:center;min-width:130px">
+      ${waiting4 > 0 ? `<div style="background:rgba(217,119,6,0.08);border:1px solid rgba(217,119,6,0.25);border-radius:var(--r12);padding:12px 20px;text-align:center;min-width:130px">
         <div style="font-size:28px;font-weight:800;color:var(--amber)">${waiting4}</div>
         <div style="font-size:10px;font-weight:700;color:#92400e;text-transform:uppercase;letter-spacing:0.5px">Waiting > 4 hrs</div>
       </div>` : ''}
-      ${waiting24 > 0 ? `
-      <div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);border-radius:var(--r12);padding:12px 20px;text-align:center;min-width:130px">
-        <div style="font-size:28px;font-weight:800;color:var(--red)">${waiting24} 🔥</div>
+      ${waiting24 > 0 ? `<div style="background:rgba(220,38,38,0.08);border:1px solid rgba(220,38,38,0.2);border-radius:var(--r12);padding:12px 20px;text-align:center;min-width:130px">
+        <div style="font-size:28px;font-weight:800;color:var(--red)">${waiting24} &#128293;</div>
         <div style="font-size:10px;font-weight:700;color:#991b1b;text-transform:uppercase;letter-spacing:0.5px">Waiting > 24 hrs</div>
       </div>` : ''}
     </div>`;
 
-  const rows = unassigned.map(t => `
-    <tr style="border-bottom:1px solid var(--border)">
+  const rows = unassigned.map(t => `<tr style="border-bottom:1px solid var(--border)">
       <td style="padding:10px 12px;white-space:nowrap">${ageBadge(t)}</td>
       <td style="padding:10px 12px;font-size:10.5px;font-weight:700;color:var(--p600);white-space:nowrap">#${escHtml(t.bugId)}</td>
       <td style="padding:10px 12px;max-width:300px">
@@ -1103,43 +984,36 @@ function renderUnassignedQueue() {
       </td>
       <td style="padding:10px 12px;font-size:11px;color:var(--muted);white-space:nowrap">${t.createdAt ? t.createdAt.slice(0, 10) : '—'}</td>
       <td style="padding:10px 12px;white-space:nowrap">
-        ${t.isCallRequest ? '<span style="font-size:11px;margin-right:4px">📞</span>' : ''}
-        ${t.slaBreached ? '<span style="background:rgba(239,68,68,0.1);color:var(--red);padding:1px 7px;border-radius:99px;font-size:10px;font-weight:700">SLA ⚠</span>' : ''}
+        ${t.isCallRequest ? '<span style="font-size:11px;margin-right:4px">&#128222;</span>' : ''}
+        ${t.slaBreached ? '<span style="background:rgba(220,38,38,0.1);color:var(--red);padding:1px 7px;border-radius:99px;font-size:10px;font-weight:700">SLA &#9888;</span>' : ''}
       </td>
       <td style="padding:10px 12px">
-        <a href="javascript:void(0)" onclick="openTicketModal(${JSON.stringify(t).replace(/"/g, '&quot;')})" class="gleap-link" style="cursor:pointer;font-size:11px">Open ↗</a>
+        <a href="javascript:void(0)" onclick="openTicketModal(${JSON.stringify(t.id || t.bugId)})" class="gleap-link" style="cursor:pointer;font-size:11px">Open &#8599;</a>
       </td>
     </tr>`).join('');
 
-  container.innerHTML = `
-    ${summaryCards}
+  container.innerHTML = `${summaryCards}
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r16);overflow:hidden">
       <table style="width:100%;border-collapse:collapse">
-        <thead>
-          <tr style="background:var(--surface3)">
-            <th style="padding:10px 12px;text-align:left;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap">Age ↑</th>
-            <th style="padding:10px 12px;text-align:left;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px">ID</th>
-            <th style="padding:10px 12px;text-align:left;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px">Subject</th>
-            <th style="padding:10px 12px;text-align:left;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px">Customer</th>
-            <th style="padding:10px 12px;text-align:left;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px">Created</th>
-            <th style="padding:10px 12px;text-align:left;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px">Flags</th>
-            <th></th>
-          </tr>
-        </thead>
+        <thead><tr style="background:var(--surface3)">
+          <th style="padding:10px 12px;text-align:left;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap">Age &#8593;</th>
+          <th style="padding:10px 12px;text-align:left;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px">ID</th>
+          <th style="padding:10px 12px;text-align:left;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px">Subject</th>
+          <th style="padding:10px 12px;text-align:left;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px">Customer</th>
+          <th style="padding:10px 12px;text-align:left;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px">Created</th>
+          <th style="padding:10px 12px;text-align:left;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px">Flags</th>
+          <th></th>
+        </tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>`;
 }
 
 function renderPerformanceLeaderboard(s) {
-  // Sort by tickets actually replied to — most accurate measure of real work done
   const agents = (s.agents || []).filter(a => a.name !== 'Unassigned').sort((a, b) => (b.replied || 0) - (a.replied || 0)).slice(0, 3);
-  
   if (!agents.length) return '';
-
   const medalColors = ['#FFD700', '#C0C0C0', '#CD7F32'];
-  const medalLabels = ['🥇 #1', '🥈 #2', '🥉 #3'];
-
+  const medalLabels = ['&#129351; #1', '&#129352; #2', '&#129353; #3'];
   const cards = agents.map((agent, idx) => `
     <div style="flex:1;background:var(--surface);border:2px solid ${medalColors[idx]};border-radius:var(--r16);padding:16px;display:flex;flex-direction:column;align-items:center;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,0.08)">
       <div style="font-size:20px;font-weight:800;color:${medalColors[idx]};margin-bottom:4px">${medalLabels[idx]}</div>
@@ -1147,15 +1021,11 @@ function renderPerformanceLeaderboard(s) {
       <div style="font-size:28px;font-weight:800;color:var(--p600);margin-bottom:2px">${agent.replied}</div>
       <div style="font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px">Tickets Replied</div>
       <div style="margin-top:10px;font-size:11px;color:var(--faint)">${agent.handled} assigned · <span style="font-weight:700;color:${agent.replyRate>=80?'var(--green)':agent.replyRate>=50?'var(--amber)':'var(--red)'}">${agent.replyRate}% rate</span></div>
-    </div>
-  `).join('');
-
-  return `
-    <div style="background:linear-gradient(135deg,rgba(147,51,234,0.06),rgba(168,85,247,0.03));border:1px solid var(--border);border-radius:var(--r16);padding:20px;margin-bottom:16px">
-      <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:14px">🏆 Top Performers by Tickets Replied</div>
-      <div style="display:flex;gap:12px">${cards}</div>
-    </div>
-  `;
+    </div>`).join('');
+  return `<div style="background:linear-gradient(135deg,rgba(124,58,237,0.06),rgba(167,139,250,0.03));border:1px solid var(--border);border-radius:var(--r16);padding:20px;margin-bottom:16px">
+    <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:14px;display:flex;align-items:center;gap:6px">&#127942; Top Performers by Tickets Replied ${infoBtn('leaderboard')}</div>
+    <div style="display:flex;gap:12px">${cards}</div>
+  </div>`;
 }
 
 function metricRow(label, value, raw, benchmark) {
@@ -1171,12 +1041,12 @@ function metricRow(label, value, raw, benchmark) {
   </div>`;
 }
 
-function rateRow(label, pct, color) {
+function rateRow(label, pct, color, infoKey) {
   const colorMap = { green:'var(--green)', blue:'var(--blue)', purple:'var(--p500)' };
   const c = colorMap[color] || 'var(--p500)';
   return `<div>
-    <div style="display:flex;justify-content:space-between;margin-bottom:4px">
-      <span style="font-size:11px;font-weight:600;color:var(--muted)">${label}</span>
+    <div style="display:flex;justify-content:space-between;margin-bottom:4px;align-items:center">
+      <span style="font-size:11px;font-weight:600;color:var(--muted);display:flex;align-items:center;gap:3px">${label} ${infoKey?infoBtn(infoKey):''}</span>
       <span style="font-size:12px;font-weight:700;color:${c}">${pct}%</span>
     </div>
     <div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${c}"></div></div>
@@ -1187,19 +1057,13 @@ function renderStatusDonut(s) {
   const ctx = document.getElementById('chartStatusDonut');
   if (!ctx) return;
   if (charts.statusDonut) charts.statusDonut.destroy();
-  const labels = (s.statusBreakdown||[]).map(x=>x.status);
-  const values = (s.statusBreakdown||[]).map(x=>x.count);
   charts.statusDonut = new Chart(ctx, {
     type: 'doughnut',
     data: {
-      labels,
-      datasets: [{
-        data: values,
-        backgroundColor: ['#10b981','#6366f1','#9333ea','#f59e0b','#ef4444','#6b7280'],
-        borderWidth: 0,
-      }]
+      labels: (s.statusBreakdown||[]).map(x=>x.status),
+      datasets: [{ data: (s.statusBreakdown||[]).map(x=>x.count), backgroundColor: ['#059669','#4F46E5','#7c3aed','#D97706','#DC2626','#6b7280'], borderWidth: 0 }]
     },
-    options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom', labels:{ font:{ family:'Montserrat', size:10 }, boxWidth:10, padding:8 } } } }
+    options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom', labels:{ font:{ family:'Inter', size:10 }, boxWidth:10, padding:8 } } } }
   });
 }
 
@@ -1207,106 +1071,99 @@ function renderDowSmall(s) {
   const ctx = document.getElementById('chartDowSmall');
   if (!ctx) return;
   if (charts.dowSmall) charts.dowSmall.destroy();
-  const days = (s.dow||[]).map(d=>d.day);
-  const vals = (s.dow||[]).map(d=>d.count);
   charts.dowSmall = new Chart(ctx, {
     type: 'bar',
-    data: { labels:days, datasets:[{ data:vals, backgroundColor:'rgba(147,51,234,0.7)', borderRadius:4 }] },
-    options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false} }, scales:{ x:{ticks:{font:{family:'Montserrat',size:10}}}, y:{ticks:{font:{family:'Montserrat',size:10}}} } }
+    data: { labels:(s.dow||[]).map(d=>d.day), datasets:[{ data:(s.dow||[]).map(d=>d.count), backgroundColor:'rgba(124,58,237,0.7)', borderRadius:4 }] },
+    options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{x:{ticks:{font:{family:'Inter',size:10}}},y:{ticks:{font:{family:'Inter',size:10}}}} }
   });
 }
 
-// ── Agents ────────────────────────────────────────────────
+// ── Agents (Card Grid) ────────────────────────────────────
 function renderAgents(s) {
   const agents = s.agents || [];
   if (!agents.length) {
-    document.getElementById('agentContent').innerHTML = '<div class="empty-state"><div class="empty-icon">👥</div><div class="empty-text">No agent data</div></div>';
+    document.getElementById('agentContent').innerHTML = emptyState('agentsSVG', 'No agent data', 'No agents found for this date range.');
     return;
   }
-
   const maxHandled = Math.max(...agents.map(a=>a.handled), 1);
-
-  const rows = agents.map(a => {
+  const agentCards = agents.map(a => {
     const replyColor = a.replyRate >= 80 ? 'var(--green)' : a.replyRate >= 50 ? 'var(--amber)' : 'var(--red)';
-    return `<tr class="agent-row">
-      <td>${escHtml(a.name)}</td>
-      <td>
-        <div class="perf-bar">
-          <span class="perf-val">${a.handled}</span>
-          <div class="mini-bar"><div class="mini-fill" style="width:${Math.round((a.handled/maxHandled)*100)}%"></div></div>
+    const initials = a.name.split(' ').map(n=>n[0]).join('').toUpperCase().slice(0,2);
+    return `<div class="agent-card">
+      <div class="agent-card-header">
+        <div class="agent-avatar">${initials}</div>
+        <div>
+          <div class="agent-name">${escHtml(a.name)}</div>
+          <div class="agent-meta">${a.handled} tickets handled</div>
         </div>
-      </td>
-      <td><span class="badge open">${a.open}</span></td>
-      <td><span class="badge closed">${a.closed}</span></td>
-      <td>${a.archived}</td>
-      <td style="color:#0066cc;font-weight:700">${a.responses||0}</td>
-      <td style="color:${replyColor};font-weight:700">${a.replyRate}%</td>
-      <td>${a.avgAssignFmt}</td>
-      <td>${a.avgFirstRespFmt}</td>
-      <td>${a.avgCloseFmt}</td>
-      <td>${a.slaBreached > 0 ? `<span class="badge sla">${a.slaBreached}</span>` : '<span style="color:var(--green)">✓</span>'}</td>
-      <td>${a.escalated > 0 ? `<span class="badge escalated">${a.escalated}</span>` : '—'}</td>
-      <td>${a.callRequests > 0 ? `<span class="badge call">${a.callRequests}</span>` : '—'}</td>
-    </tr>`;
+        <div style="margin-left:auto;text-align:right">
+          <div class="agent-reply-rate" style="color:${replyColor}">${a.replyRate}%</div>
+          <div class="agent-meta">reply rate ${infoBtn('replyRate')}</div>
+        </div>
+      </div>
+      <div class="agent-stats-grid">
+        <div class="agent-stat"><span class="badge open">${a.open}</span><div class="agent-stat-label">Open</div></div>
+        <div class="agent-stat"><span class="badge closed">${a.closed}</span><div class="agent-stat-label">Closed</div></div>
+        <div class="agent-stat"><span style="font-size:13px;font-weight:700">${a.responses||0}</span><div class="agent-stat-label">Responses</div></div>
+        <div class="agent-stat">
+          <span>${a.slaBreached>0?`<span class="badge sla">${a.slaBreached}</span>`:'<span style="color:var(--green);font-size:14px">&#10003;</span>'}</span>
+          <div class="agent-stat-label">SLA ${infoBtn('slaBreached')}</div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+        <div style="display:flex;justify-content:space-between;font-size:11px">
+          <span style="color:var(--muted)">Avg Assign</span>
+          <span style="font-weight:600">${a.avgAssignFmt}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;align-items:center">
+          <span style="color:var(--muted);display:flex;align-items:center;gap:2px">Avg 1st Response ${infoBtn('avgFirstResponse')}</span>
+          <span style="font-weight:600">${a.avgFirstRespFmt}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;align-items:center">
+          <span style="color:var(--muted);display:flex;align-items:center;gap:2px">Avg Close Time ${infoBtn('avgCloseTime')}</span>
+          <span style="font-weight:600">${a.avgCloseFmt}</span>
+        </div>
+      </div>
+      <div style="margin-top:10px">
+        <div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:4px">
+          <span style="color:var(--muted)">Workload</span>
+          <span style="color:var(--muted)">${Math.round((a.handled/maxHandled)*100)}%</span>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" style="width:${Math.round((a.handled/maxHandled)*100)}%"></div></div>
+      </div>
+    </div>`;
   }).join('');
 
   document.getElementById('agentContent').innerHTML = `
-    <div class="table-card">
-      <div class="table-head">
-        <div class="table-title">Team Performance — All Agents</div>
-        <div style="font-size:11px;color:var(--muted)">${agents.length} agents</div>
-      </div>
-      <div style="overflow-x:auto">
-        <table>
-          <thead>
-            <tr>
-              <th>Agent</th>
-              <th>Handled</th>
-              <th>Open</th>
-              <th>Closed</th>
-              <th>Archived</th>
-              <th>Responses</th>
-              <th>Reply Rate</th>
-              <th>Avg Assign</th>
-              <th>Avg 1st Resp</th>
-              <th>Avg Close</th>
-              <th>SLA Breached</th>
-              <th>Escalated</th>
-              <th>Call Reqs</th>
-            </tr>
-          </thead>
-          <tbody>${rows}</tbody>
-        </table>
-      </div>
-    </div>
-
+    <div class="agent-cards-grid">${agentCards}</div>
     <div class="charts-grid">
       <div class="chart-card">
-        <div class="chart-title">Tickets Handled per Agent</div>
+        <div class="chart-title">Tickets Handled per Agent ${infoBtn('ticketsHandled')}</div>
         <div class="chart-wrap tall"><canvas id="chartAgentHandled"></canvas></div>
       </div>
       <div class="chart-card">
-        <div class="chart-title">Avg Close Time per Agent</div>
+        <div class="chart-title">Avg Close Time per Agent ${infoBtn('avgCloseTime')}</div>
         <div class="chart-wrap tall"><canvas id="chartAgentClose"></canvas></div>
       </div>
-    </div>
-  `;
+    </div>`;
 
   setTimeout(() => {
     const ctx1 = document.getElementById('chartAgentHandled');
-    if (ctx1 && !charts.agentHandled) {
+    if (ctx1) {
+      if (charts.agentHandled) charts.agentHandled.destroy();
       charts.agentHandled = new Chart(ctx1, {
         type: 'bar',
-        data: { labels: agents.map(a=>a.name), datasets: [{ label:'Handled', data: agents.map(a=>a.handled), backgroundColor:'rgba(147,51,234,0.75)', borderRadius:4 }, { label:'Open', data: agents.map(a=>a.open), backgroundColor:'rgba(99,102,241,0.5)', borderRadius:4 }] },
-        options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{labels:{font:{family:'Montserrat',size:10}}}}, scales:{x:{ticks:{font:{family:'Montserrat',size:10}}},y:{ticks:{font:{family:'Montserrat',size:10}}}} }
+        data: { labels: agents.map(a=>a.name), datasets: [{ label:'Handled', data: agents.map(a=>a.handled), backgroundColor:'rgba(124,58,237,0.75)', borderRadius:4 }, { label:'Open', data: agents.map(a=>a.open), backgroundColor:'rgba(79,70,229,0.5)', borderRadius:4 }] },
+        options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{labels:{font:{family:'Inter',size:10}}}}, scales:{x:{ticks:{font:{family:'Inter',size:10}}},y:{ticks:{font:{family:'Inter',size:10}}}} }
       });
     }
     const ctx2 = document.getElementById('chartAgentClose');
-    if (ctx2 && !charts.agentClose) {
+    if (ctx2) {
+      if (charts.agentClose) charts.agentClose.destroy();
       charts.agentClose = new Chart(ctx2, {
         type: 'bar',
-        data: { labels: agents.map(a=>a.name), datasets: [{ label:'Avg Close (hrs)', data: agents.map(a=>a.avgClose?+(a.avgClose/60).toFixed(1):null), backgroundColor:'rgba(16,185,129,0.65)', borderRadius:4 }] },
-        options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{labels:{font:{family:'Montserrat',size:10}}}}, scales:{x:{ticks:{font:{family:'Montserrat',size:10}}},y:{ticks:{font:{family:'Montserrat',size:10}}}} }
+        data: { labels: agents.map(a=>a.name), datasets: [{ label:'Avg Close (hrs)', data: agents.map(a=>a.avgClose?+(a.avgClose/60).toFixed(1):null), backgroundColor:'rgba(5,150,105,0.65)', borderRadius:4 }] },
+        options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{labels:{font:{family:'Inter',size:10}}}}, scales:{x:{ticks:{font:{family:'Inter',size:10}}},y:{ticks:{font:{family:'Inter',size:10}}}} }
       });
     }
   }, 50);
@@ -1316,52 +1173,58 @@ function renderAgents(s) {
 function renderCalls(s) {
   const calls = s.callTickets || [];
   if (!calls.length) {
-    document.getElementById('callContent').innerHTML = '<div class="empty-state"><div class="empty-icon">📞</div><div class="empty-text">No call requests found</div><div class="empty-sub">No tickets with call_flow=true in this date range.</div></div>';
+    document.getElementById('callContent').innerHTML = emptyState('calls', 'No call requests found', 'No tickets with call_flow=true in this date range.');
     return;
   }
-
-  // Stats summary
   const open    = calls.filter(c=>c.isOpen).length;
   const closed  = calls.filter(c=>c.isClosed).length;
   const noPhone = calls.filter(c=>!c.phone).length;
   const noReply = calls.filter(c=>!c.hasAgentReply).length;
 
+  const svgMail = `<svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75"/></svg>`;
+  const svgPhoneS=`<svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z"/></svg>`;
+  const svgUserS =`<svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"/></svg>`;
+  const svgCal   =`<svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5"/></svg>`;
+  const svgBolt  =`<svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"/></svg>`;
+  const svgCheck =`<svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`;
+
+  const svgPhoneKpi=`<svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z"/></svg>`;
+  const svgOpenKpi =`<svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15"/></svg>`;
+  const svgDoneKpi =`<svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`;
+  const svgWarnKpi =`<svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>`;
+  const svgChatKpi =`<svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 13.5h3.86a2.25 2.25 0 012.012 1.244l.256.512a2.25 2.25 0 002.013 1.244h3.218a2.25 2.25 0 002.013-1.244l.256-.512a2.25 2.25 0 012.013-1.244h3.859M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`;
+
   const cards = calls.map(c => `
     <div class="call-card">
-      <div class="call-card-head">
-        <span class="call-card-id">#${escHtml(c.bugId)}</span>
-        ${statusBadge(c.status)}
-      </div>
+      <div class="call-card-head"><span class="call-card-id">#${escHtml(c.bugId)}</span>${statusBadge(c.status)}</div>
       <div class="call-card-name">${escHtml(c.contact)}</div>
       <div class="call-card-company">${escHtml(c.company||'—')}</div>
       <div class="call-card-details">
-        <div class="call-detail-row">📧 <strong>${escHtml(c.email||'—')}</strong></div>
-        <div class="call-detail-row">📱 <strong>${c.phone ? escHtml(c.phone) : '<span style="color:var(--red)">⚠ No phone</span>'}</strong></div>
-        <div class="call-detail-row">👤 <strong>${escHtml(c.agent)}</strong></div>
-        <div class="call-detail-row">🗓 <strong>${c.createdAt?c.createdAt.slice(0,10):'—'}</strong></div>
-        ${c.assignMins!==null?`<div class="call-detail-row">⚡ Assigned in <strong>${formatMins(c.assignMins)}</strong></div>`:''}
-        ${c.closeMins!==null?`<div class="call-detail-row">✅ Closed in <strong>${formatMins(c.closeMins)}</strong></div>`:''}
+        <div class="call-detail-row">${svgMail} <strong>${escHtml(c.email||'—')}</strong></div>
+        <div class="call-detail-row">${svgPhoneS} <strong>${c.phone ? escHtml(c.phone) : '<span style="color:var(--red)">&#9888; No phone</span>'}</strong></div>
+        <div class="call-detail-row">${svgUserS} <strong>${escHtml(c.agent)}</strong></div>
+        <div class="call-detail-row">${svgCal} <strong>${c.createdAt?c.createdAt.slice(0,10):'—'}</strong></div>
+        ${c.assignMins!==null?`<div class="call-detail-row">${svgBolt} Assigned in <strong>${formatMins(c.assignMins)}</strong></div>`:''}
+        ${c.closeMins!==null?`<div class="call-detail-row">${svgCheck} Closed in <strong>${formatMins(c.closeMins)}</strong></div>`:''}
       </div>
       <div class="call-card-footer">
         <div style="display:flex;gap:6px">
-          ${c.hasAgentReply?'<span class="badge replied">Replied</span>':'<span class="badge danger" style="background:rgba(239,68,68,0.1);color:var(--red)">No Reply</span>'}
-          ${c.slaBreached?'<span class="badge sla">SLA ⚠</span>':''}
+          ${c.hasAgentReply?'<span class="badge replied">Replied</span>':'<span style="background:rgba(220,38,38,0.1);color:var(--red);font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px">No Reply</span>'}
+          ${c.slaBreached?'<span class="badge sla">SLA &#9888;</span>':''}
         </div>
-        <a href="javascript:void(0)" onclick="openTicketModal(${JSON.stringify(c).replace(/"/g, '&quot;')})" class="gleap-link" style="cursor:pointer">Open ↗</a>
+        <a href="javascript:void(0)" onclick="openTicketModal(${JSON.stringify(c.id || c.bugId)})" class="gleap-link" style="cursor:pointer">Open &#8599;</a>
       </div>
-    </div>
-  `).join('');
+    </div>`).join('');
 
   document.getElementById('callContent').innerHTML = `
     <div class="kpi-grid">
-      <div class="kpi-card blue"><div class="kpi-icon">📞</div><div class="kpi-value">${calls.length}</div><div class="kpi-label">Total Call Requests</div></div>
-      <div class="kpi-card ${open>0?'amber':'green'}"><div class="kpi-icon">📬</div><div class="kpi-value">${open}</div><div class="kpi-label">Still Open</div></div>
-      <div class="kpi-card green"><div class="kpi-icon">✅</div><div class="kpi-value">${closed}</div><div class="kpi-label">Closed</div></div>
-      <div class="kpi-card ${noPhone>0?'red':''}"><div class="kpi-icon">📱</div><div class="kpi-value">${noPhone}</div><div class="kpi-label">Missing Phone</div></div>
-      <div class="kpi-card ${noReply>0?'amber':''}"><div class="kpi-icon">💬</div><div class="kpi-value">${noReply}</div><div class="kpi-label">No Agent Reply</div></div>
+      ${kpiCard(calls.length, 'Total Call Requests', '', 'blue', 'callRequests', svgPhoneKpi)}
+      ${kpiCard(open, 'Still Open', '', open>0?'amber':'green', '', svgOpenKpi)}
+      ${kpiCard(closed, 'Closed', '', 'green', '', svgDoneKpi)}
+      ${kpiCard(noPhone, 'Missing Phone', '', noPhone>0?'red':'', '', svgWarnKpi)}
+      ${kpiCard(noReply, 'No Agent Reply', '', noReply>0?'amber':'', '', svgChatKpi)}
     </div>
-    <div class="call-grid">${cards}</div>
-  `;
+    <div class="call-grid">${cards}</div>`;
 }
 
 // ── Ticket List ───────────────────────────────────────────
@@ -1380,15 +1243,13 @@ function filterTickets() { applyFilters(); }
 function applyFilters() {
   const search = (document.getElementById('ticketSearch')?.value || '').toLowerCase();
   let rows = [...allTickets];
-
-  if (currentTypeFilter === 'open')       rows = rows.filter(r=>r.isOpen);
+  if (currentTypeFilter === 'open')        rows = rows.filter(r=>r.isOpen);
   else if (currentTypeFilter === 'closed') rows = rows.filter(r=>r.isClosed);
   else if (currentTypeFilter === 'unassigned') rows = rows.filter(r=>r.agent==='Unassigned');
   else if (currentTypeFilter === 'escalated')  rows = rows.filter(r=>r.isEscalated);
   else if (currentTypeFilter === 'call')        rows = rows.filter(r=>r.isCallRequest);
   else if (currentTypeFilter === 'sla')         rows = rows.filter(r=>r.slaBreached);
   else if (currentTypeFilter === 'archived')    rows = rows.filter(r=>r.isArchived);
-
   if (search) {
     rows = rows.filter(r =>
       (r.contact||'').toLowerCase().includes(search) ||
@@ -1398,7 +1259,6 @@ function applyFilters() {
       String(r.bugId||'').includes(search)
     );
   }
-
   filteredTickets = rows;
   currentPage = 1;
   renderTicketList();
@@ -1409,26 +1269,29 @@ function renderTicketList() {
   const pages = Math.ceil(total / PAGE_SIZE);
   const start = (currentPage - 1) * PAGE_SIZE;
   const slice = filteredTickets.slice(start, start + PAGE_SIZE);
-
   document.getElementById('inboxCount').textContent = `${total} shown`;
 
   if (!slice.length) {
-    document.getElementById('ticketList').innerHTML = '<div class="empty-state"><div class="empty-icon">📭</div><div class="empty-text">No conversations match</div><div class="empty-sub">Try adjusting the filters or date range.</div></div>';
+    document.getElementById('ticketList').innerHTML = emptyState('inbox', 'No conversations match', 'Try adjusting the filters or date range.');
     document.getElementById('ticketPagination').innerHTML = '';
     return;
   }
+
+  const svgU =`<svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"/></svg>`;
+  const svgB =`<svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21"/></svg>`;
+  const svgM =`<svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75"/></svg>`;
+  const svgP =`<svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z"/></svg>`;
 
   const html = slice.map(t => {
     const rowClass = t.isEscalated ? 'ticket-row escalated-row' : t.isCallRequest ? 'ticket-row call-row' : 'ticket-row';
     const badges = [
       statusBadge(t.status),
-      t.isEscalated ? '<span class="badge escalated">🚨 Escalated</span>' : '',
-      t.isCallRequest ? '<span class="badge call">📞 Call</span>' : '',
-      t.slaBreached ? '<span class="badge sla">⚠ SLA</span>' : '',
+      t.isEscalated ? '<span class="badge escalated">Escalated</span>' : '',
+      t.isCallRequest ? '<span class="badge call">Call</span>' : '',
+      t.slaBreached ? '<span class="badge sla">SLA</span>' : '',
       !t.hasAgentReply ? '<span class="badge unassign">No Reply</span>' : '',
       t.agent === 'Unassigned' ? '<span class="badge unassign">Unassigned</span>' : '',
     ].filter(Boolean).join('');
-
     return `<div class="${rowClass}">
       <div>
         <div class="ticket-id">#${escHtml(t.bugId)}</div>
@@ -1437,24 +1300,24 @@ function renderTicketList() {
       <div>
         <div class="ticket-title">${escHtml(t.title)}</div>
         <div class="ticket-meta">
-          <span class="ticket-person">👤 ${escHtml(t.contact)}</span>
-          ${t.company?`<span class="ticket-company">🏢 ${escHtml(t.company)}</span>`:''}
-          ${t.email?`<span class="ticket-person">✉ ${escHtml(t.email)}</span>`:''}
-          ${t.phone?`<span class="ticket-phones">📱 ${escHtml(t.phone)}</span>`:''}
+          <span class="ticket-person">${svgU} ${escHtml(t.contact)}</span>
+          ${t.company?`<span class="ticket-company">${svgB} ${escHtml(t.company)}</span>`:''}
+          ${t.email?`<span class="ticket-person">${svgM} ${escHtml(t.email)}</span>`:''}
+          ${t.phone?`<span class="ticket-phones">${svgP} ${escHtml(t.phone)}</span>`:''}
         </div>
         <div class="ticket-meta" style="margin-top:5px">
-          <span style="font-size:11px;color:var(--muted)">👤 ${escHtml(t.agent)}</span>
+          <span style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:3px">${svgU} ${escHtml(t.agent)}</span>
           ${badges}
         </div>
         ${t.latestComment?`<div class="ticket-comment">"${escHtml(t.latestComment)}"</div>`:''}
         <div class="timing-row" style="margin-top:6px">
-          ${t.assignMins!==null?`<span class="timing-chip">⚡ Assign: ${formatMins(t.assignMins)}</span>`:''}
-          ${t.firstResponseMins!==null?`<span class="timing-chip">💬 1st Resp: ${formatMins(t.firstResponseMins)}</span>`:''}
-          ${t.closeMins!==null?`<span class="timing-chip">✅ Close: ${formatMins(t.closeMins)}</span>`:''}
+          ${t.assignMins!==null?`<span class="timing-chip">Assign: ${formatMins(t.assignMins)}</span>`:''}
+          ${t.firstResponseMins!==null?`<span class="timing-chip">1st Resp: ${formatMins(t.firstResponseMins)}</span>`:''}
+          ${t.closeMins!==null?`<span class="timing-chip">Close: ${formatMins(t.closeMins)}</span>`:''}
         </div>
       </div>
       <div class="ticket-right">
-        <a href="javascript:void(0)" onclick="openTicketModal(${JSON.stringify(t).replace(/"/g, '&quot;')})" class="gleap-link" style="cursor:pointer">Open ↗</a>
+        <a href="javascript:void(0)" onclick="openTicketModal(${JSON.stringify(t.id || t.bugId)})" class="gleap-link" style="cursor:pointer">Open &#8599;</a>
         ${t.aiSummary?`<div style="font-size:10px;color:var(--faint);max-width:160px;text-align:right;margin-top:4px">${escHtml(t.aiSummary.slice(0,80))}…</div>`:''}
       </div>
     </div>`;
@@ -1462,20 +1325,16 @@ function renderTicketList() {
 
   document.getElementById('ticketList').innerHTML = html;
 
-  // Pagination
   if (pages <= 1) { document.getElementById('ticketPagination').innerHTML = ''; return; }
-  let paginationHtml = '';
-  if (currentPage > 1) paginationHtml += `<button class="page-btn" onclick="goPage(${currentPage-1})">‹</button>`;
+  let pg = '';
+  if (currentPage > 1) pg += `<button class="page-btn" onclick="goPage(${currentPage-1})">&#8249;</button>`;
   for (let i=1; i<=pages; i++) {
-    if (i===1||i===pages||Math.abs(i-currentPage)<=1) {
-      paginationHtml += `<button class="page-btn${i===currentPage?' active':''}" onclick="goPage(${i})">${i}</button>`;
-    } else if (Math.abs(i-currentPage)===2) {
-      paginationHtml += `<span style="color:var(--faint);padding:0 4px">…</span>`;
-    }
+    if (i===1||i===pages||Math.abs(i-currentPage)<=1) pg += `<button class="page-btn${i===currentPage?' active':''}" onclick="goPage(${i})">${i}</button>`;
+    else if (Math.abs(i-currentPage)===2) pg += `<span style="color:var(--faint);padding:0 4px">…</span>`;
   }
-  if (currentPage < pages) paginationHtml += `<button class="page-btn" onclick="goPage(${currentPage+1})">›</button>`;
-  paginationHtml += `<span style="font-size:10.5px;color:var(--faint);margin-left:6px">${total} total</span>`;
-  document.getElementById('ticketPagination').innerHTML = paginationHtml;
+  if (currentPage < pages) pg += `<button class="page-btn" onclick="goPage(${currentPage+1})">&#8250;</button>`;
+  pg += `<span style="font-size:10.5px;color:var(--faint);margin-left:6px">${total} total</span>`;
+  document.getElementById('ticketPagination').innerHTML = pg;
 }
 
 function goPage(p) { currentPage = p; renderTicketList(); window.scrollTo({top:0,behavior:'smooth'}); }
@@ -1483,39 +1342,35 @@ function goPage(p) { currentPage = p; renderTicketList(); window.scrollTo({top:0
 // ── Charts section ────────────────────────────────────────
 function renderCharts(s) {
   setTimeout(() => {
-    destroyChart('chartDaily');
-    destroyChart('chartDow');
-    destroyChart('chartHourly');
-    destroyChart('chartCompanies');
-
+    destroyChart('chartDaily'); destroyChart('chartDow'); destroyChart('chartHourly'); destroyChart('chartCompanies');
     if (document.getElementById('chartDaily')) {
       charts.daily = new Chart(document.getElementById('chartDaily'), {
         type:'bar',
-        data:{labels:(s.daily||[]).map(d=>d.day),datasets:[{label:'Conversations',data:(s.daily||[]).map(d=>d.count),backgroundColor:'rgba(147,51,234,0.72)',borderRadius:4}]},
-        options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{font:{family:'Montserrat',size:9},maxRotation:45}},y:{ticks:{font:{family:'Montserrat',size:10}}}}}
+        data:{labels:(s.daily||[]).map(d=>d.day),datasets:[{label:'Conversations',data:(s.daily||[]).map(d=>d.count),backgroundColor:'rgba(124,58,237,0.72)',borderRadius:4}]},
+        options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{font:{family:'Inter',size:9},maxRotation:45}},y:{ticks:{font:{family:'Inter',size:10}}}}}
       });
     }
     if (document.getElementById('chartDow')) {
       charts.dow = new Chart(document.getElementById('chartDow'), {
         type:'bar',
-        data:{labels:(s.dow||[]).map(d=>d.day),datasets:[{label:'Conversations',data:(s.dow||[]).map(d=>d.count),backgroundColor:['rgba(147,51,234,0.5)','rgba(147,51,234,0.6)','rgba(147,51,234,0.7)','rgba(147,51,234,0.8)','rgba(147,51,234,0.9)','rgba(147,51,234,0.4)','rgba(147,51,234,0.3)'],borderRadius:4}]},
-        options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{font:{family:'Montserrat',size:10}}},y:{ticks:{font:{family:'Montserrat',size:10}}}}}
+        data:{labels:(s.dow||[]).map(d=>d.day),datasets:[{label:'Conversations',data:(s.dow||[]).map(d=>d.count),backgroundColor:['rgba(124,58,237,0.5)','rgba(124,58,237,0.6)','rgba(124,58,237,0.7)','rgba(124,58,237,0.8)','rgba(124,58,237,0.9)','rgba(124,58,237,0.4)','rgba(124,58,237,0.3)'],borderRadius:4}]},
+        options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{font:{family:'Inter',size:10}}},y:{ticks:{font:{family:'Inter',size:10}}}}}
       });
     }
     if (document.getElementById('chartHourly')) {
       const hourLabels = (s.hourly||[]).map(h=>`${String(h.hour).padStart(2,'0')}:00`);
       charts.hourly = new Chart(document.getElementById('chartHourly'), {
         type:'line',
-        data:{labels:hourLabels,datasets:[{label:'Volume',data:(s.hourly||[]).map(h=>h.count),borderColor:'var(--p500)',backgroundColor:'rgba(147,51,234,0.08)',fill:true,tension:0.4,pointRadius:3}]},
-        options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{font:{family:'Montserrat',size:9},maxRotation:45}},y:{ticks:{font:{family:'Montserrat',size:10}}}}}
+        data:{labels:hourLabels,datasets:[{label:'Volume',data:(s.hourly||[]).map(h=>h.count),borderColor:'var(--p500)',backgroundColor:'rgba(124,58,237,0.08)',fill:true,tension:0.4,pointRadius:3}]},
+        options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{font:{family:'Inter',size:9},maxRotation:45}},y:{ticks:{font:{family:'Inter',size:10}}}}}
       });
     }
     if (document.getElementById('chartCompanies')) {
       const top = (s.topCompanies||[]).slice(0,10);
       charts.companies = new Chart(document.getElementById('chartCompanies'), {
         type:'bar',
-        data:{labels:top.map(c=>c.name.slice(0,18)),datasets:[{label:'Tickets',data:top.map(c=>c.count),backgroundColor:'rgba(99,102,241,0.7)',borderRadius:4}]},
-        options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{font:{family:'Montserrat',size:10}}},y:{ticks:{font:{family:'Montserrat',size:9}}}}}
+        data:{labels:top.map(c=>c.name.slice(0,18)),datasets:[{label:'Tickets',data:top.map(c=>c.count),backgroundColor:'rgba(79,70,229,0.7)',borderRadius:4}]},
+        options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{font:{family:'Inter',size:10}}},y:{ticks:{font:{family:'Inter',size:9}}}}}
       });
     }
   }, 100);
@@ -1526,88 +1381,71 @@ function destroyChart(id) {
   if (charts[key]) { charts[key].destroy(); delete charts[key]; }
 }
 
-// ── Auto-refresh every 10 minutes ───────────────────────────
+// ── Auto-refresh every 10 minutes ────────────────────────
 const AUTO_REFRESH_MS = 10 * 60 * 1000;
-let autoRefreshTimer = null;
+let autoRefreshTimer  = null;
 let countdownInterval = null;
-let nextRefreshAt = null;
+let nextRefreshAt     = null;
 
 function startAutoRefreshCountdown() {
-  // Clear any existing timers
-  if (autoRefreshTimer)   clearTimeout(autoRefreshTimer);
-  if (countdownInterval)  clearInterval(countdownInterval);
-
+  if (autoRefreshTimer)  clearTimeout(autoRefreshTimer);
+  if (countdownInterval) clearInterval(countdownInterval);
   nextRefreshAt = Date.now() + AUTO_REFRESH_MS;
-
-  // Countdown label in sidebar
   const label = document.getElementById('nextRefreshLabel');
   countdownInterval = setInterval(() => {
     const secsLeft = Math.max(0, Math.round((nextRefreshAt - Date.now()) / 1000));
-    const m = Math.floor(secsLeft / 60), s = secsLeft % 60;
-    if (label) label.textContent = `⏳ Auto-refresh in ${m}:${String(s).padStart(2,'0')}`;
+    const m = Math.floor(secsLeft / 60), sc = secsLeft % 60;
+    if (label) label.textContent = `Auto-refresh in ${m}:${String(sc).padStart(2,'0')}`;
   }, 1000);
-
-  // Auto-refresh trigger
   autoRefreshTimer = setTimeout(async () => {
     clearInterval(countdownInterval);
     if (document.getElementById('nextRefreshLabel'))
-      document.getElementById('nextRefreshLabel').textContent = '🔄 Refreshing…';
+      document.getElementById('nextRefreshLabel').textContent = 'Refreshing…';
     await loadData();
   }, AUTO_REFRESH_MS);
 }
 
 // ── Slack Digest ──────────────────────────────────────────
+const DIGEST_BTN_HTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M5.042 15.165a2.528 2.528 0 01-2.52 2.523A2.528 2.528 0 010 15.165a2.527 2.527 0 012.522-2.52h2.52v2.52zm1.271 0a2.527 2.527 0 012.521-2.52 2.527 2.527 0 012.521 2.52v6.313A2.528 2.528 0 018.834 24a2.528 2.528 0 01-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 01-2.521-2.52A2.528 2.528 0 018.834 0a2.528 2.528 0 012.521 2.522v2.52H8.834zm0 1.271a2.528 2.528 0 012.521 2.521 2.528 2.528 0 01-2.521 2.521H2.522A2.528 2.528 0 010 8.834a2.528 2.528 0 012.522-2.521h6.312zm10.122 2.521a2.528 2.528 0 012.522-2.521A2.528 2.528 0 0124 8.834a2.528 2.528 0 01-2.522 2.521h-2.522V8.834zm-1.268 0a2.528 2.528 0 01-2.523 2.521 2.527 2.527 0 01-2.52-2.521V2.522A2.527 2.527 0 0115.165 0a2.528 2.528 0 012.523 2.522v6.312zm-2.523 10.122a2.528 2.528 0 012.523 2.522A2.528 2.528 0 0115.165 24a2.527 2.527 0 01-2.52-2.522v-2.522h2.52zm0-1.268a2.527 2.527 0 01-2.52-2.523 2.526 2.526 0 012.52-2.52h6.313A2.527 2.527 0 0124 15.165a2.528 2.528 0 01-2.522 2.523h-6.313z"/></svg> Slack Digest`;
+
 async function sendDigest() {
   const btn  = document.getElementById('digestBtn');
   const from = document.getElementById('dateFrom').value;
   const to   = document.getElementById('dateTo').value;
   if (!from || !to) { showToast('Set a date range first', 'error'); return; }
-
   btn.disabled = true;
-  btn.textContent = '⏳ Sending…';
-
+  btn.textContent = 'Sending…';
   try {
     const url = `/api/digest?start=${from}T00:00:00.000Z&end=${to}T23:59:59.999Z`;
     const resp = await fetch(url);
     const data = await resp.json();
     if (!data.ok) throw new Error(data.error || 'Server error');
-
     if (!data.slackConfigured) {
-      showToast('⚠️ SLACK_WEBHOOK_URL not set in .env — digest generated but not posted', 'warning', 6000);
+      showToast('SLACK_WEBHOOK_URL not set — digest generated but not posted', 'warning', 6000);
     } else if (data.posted) {
-      showToast(`✅ Digest posted to Slack! (${data.total} tickets · ${data.period})`, 'success');
+      showToast(`Digest posted to Slack! (${data.total} tickets · ${data.period})`, 'success');
     } else {
-      showToast(`❌ Slack post failed: ${data.postError || 'unknown error'}`, 'error', 6000);
+      showToast(`Slack post failed: ${data.postError || 'unknown error'}`, 'error', 6000);
     }
   } catch(e) {
-    showToast(`❌ Digest error: ${e.message}`, 'error');
+    showToast(`Digest error: ${e.message}`, 'error');
   }
-
   btn.disabled = false;
-  btn.textContent = '📤 Slack Digest';
+  btn.innerHTML = DIGEST_BTN_HTML;
 }
 
 function showToast(msg, type = 'success', duration = 4000) {
   const existing = document.getElementById('toast-notification');
   if (existing) existing.remove();
-
   const colors = {
     success: { bg: '#065f46', border: '#10b981' },
     error:   { bg: '#7f1d1d', border: '#ef4444' },
     warning: { bg: '#78350f', border: '#f59e0b' },
   };
   const c = colors[type] || colors.success;
-
   const toast = document.createElement('div');
   toast.id = 'toast-notification';
-  toast.style.cssText = `
-    position:fixed;bottom:24px;right:24px;z-index:9999;
-    background:${c.bg};color:#fff;border:1px solid ${c.border};
-    border-radius:10px;padding:12px 18px;font-family:var(--font);
-    font-size:13px;font-weight:600;max-width:380px;line-height:1.4;
-    box-shadow:0 8px 32px rgba(0,0,0,0.3);
-    opacity:1;transition:opacity 0.3s;
-  `;
+  toast.style.cssText = `position:fixed;bottom:24px;right:24px;z-index:9999;background:${c.bg};color:#fff;border:1px solid ${c.border};border-radius:10px;padding:12px 18px;font-family:var(--font);font-size:13px;font-weight:600;max-width:380px;line-height:1.4;box-shadow:0 8px 32px rgba(0,0,0,0.3);opacity:1;transition:opacity 0.3s;`;
   toast.textContent = msg;
   document.body.appendChild(toast);
   setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, duration);
@@ -1617,25 +1455,16 @@ function showToast(msg, type = 'success', duration = 4000) {
 async function generateAI() {
   if (!globalStats) { alert('Load data first'); return; }
   const btn = document.getElementById('aiBtn');
-  btn.disabled = true; btn.textContent = '⏳ Generating…';
+  btn.disabled = true; btn.textContent = 'Generating…';
   document.getElementById('aiContent').innerHTML = '<div class="loader"><div class="spinner"></div><div class="loader-text">Generating AI insights…</div></div>';
-
   try {
-    // Strip large ticket arrays before sending — only send summary stats to avoid 413
     const statsForAI = {
-      total: globalStats.total,
-      openCount: globalStats.openCount,
-      closedCount: globalStats.closedCount,
-      archivedCount: globalStats.archivedCount,
-      escalatedCount: globalStats.escalatedCount,
-      callRequestCount: globalStats.callRequestCount,
-      unassignedCount: globalStats.unassignedCount,
-      slaBreached: globalStats.slaBreached,
-      withReply: globalStats.withReply,
-      avgFirstInteractionFmt: globalStats.avgFirstInteractionFmt,
-      avgCloseFmt: globalStats.avgCloseFmt,
-      avgAssignFmt: globalStats.avgAssignFmt,
-      avgFirstRespFmt: globalStats.avgFirstRespFmt,
+      total: globalStats.total, openCount: globalStats.openCount, closedCount: globalStats.closedCount,
+      archivedCount: globalStats.archivedCount, escalatedCount: globalStats.escalatedCount,
+      callRequestCount: globalStats.callRequestCount, unassignedCount: globalStats.unassignedCount,
+      slaBreached: globalStats.slaBreached, withReply: globalStats.withReply,
+      avgFirstInteractionFmt: globalStats.avgFirstInteractionFmt, avgCloseFmt: globalStats.avgCloseFmt,
+      avgAssignFmt: globalStats.avgAssignFmt, avgFirstRespFmt: globalStats.avgFirstRespFmt,
       agents: globalStats.agents || [],
       topCompanies: (globalStats.topCompanies || []).slice(0, 10),
       openTickets: (globalStats.openTickets || []).slice(0, 10).map(t => ({
@@ -1644,26 +1473,15 @@ async function generateAI() {
       })),
     };
     const resp = await fetch('/api/ai-report', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({stats:statsForAI}) });
-    
-    if (!resp.ok) {
-      const errMsg = `Server error: ${resp.status}. Check API keys in .env`;
-      throw new Error(errMsg);
-    }
-    
+    if (!resp.ok) throw new Error(`Server error: ${resp.status}. Check API keys in .env`);
     const data = await resp.json();
     if (!data.ok) throw new Error(data.error || 'Unknown error');
-
-    // Render markdown-ish
-    const html = data.report
-      .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
-      .replace(/\n\n/g,'</p><p>')
-      .replace(/\n/g,'<br>');
-
+    const html = data.report.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\n\n/g,'</p><p>').replace(/\n/g,'<br>');
     document.getElementById('aiContent').innerHTML = `<div class="ai-report-box"><p>${html}</p></div>`;
   } catch(e) {
-    document.getElementById('aiContent').innerHTML = `<div class="error-box">❌ AI report failed: ${e.message}</div>`;
+    document.getElementById('aiContent').innerHTML = `<div class="error-box">&#10060; AI report failed: ${e.message}</div>`;
   }
-  btn.disabled = false; btn.textContent = '↻ Regenerate';
+  btn.disabled = false; btn.textContent = 'Regenerate';
 }
 
 // ── Helpers ───────────────────────────────────────────────
@@ -1690,113 +1508,58 @@ function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-// ── Ticket Detail Modal ────────────────────────────────────
-function openTicketModal(ticket) {
+// ── Ticket Detail Modal ───────────────────────────────────
+function openTicketModal(ticketId) {
+  const ticket = _ticketRegistry[ticketId];
+  if (!ticket) return;
   const modalContent = document.getElementById('ticketModaContent');
   if (!modalContent) return;
-  
-  const statusColor = ['OPEN','ACTIVE','IN_PROGRESS','INPROGRESS'].includes(ticket.status) ? 'var(--amber)' : 
+  const statusColor = ['OPEN','ACTIVE','IN_PROGRESS','INPROGRESS'].includes(ticket.status) ? 'var(--amber)' :
                       ['CLOSED','RESOLVED'].includes(ticket.status) ? 'var(--green)' : 'var(--muted)';
-  
   const badges = [];
-  badges.push(`<span class="badge" style="background:rgba(168,85,247,0.15);color:var(--p600)">${ticket.status}</span>`);
-  if (ticket.isCallRequest) badges.push('<span class="badge call">📞 Call Request</span>');
-  if (ticket.slaBreached) badges.push('<span class="badge sla">⚠ SLA Breached</span>');
-  if (!ticket.hasAgentReply) badges.push('<span class="badge unassign">⚠ No Agent Reply</span>');
+  badges.push(`<span class="badge" style="background:rgba(124,58,237,0.15);color:var(--p600)">${ticket.status}</span>`);
+  if (ticket.isCallRequest) badges.push('<span class="badge call">Call Request</span>');
+  if (ticket.slaBreached)   badges.push('<span class="badge sla">SLA Breached</span>');
+  if (!ticket.hasAgentReply) badges.push('<span class="badge unassign">No Agent Reply</span>');
   if (ticket.agent === 'Unassigned') badges.push('<span class="badge unassign">Unassigned</span>');
-  
   modalContent.innerHTML = `
     <div class="modal-header">
       <div>
         <div class="modal-title">#${escHtml(ticket.bugId)}</div>
         <div style="font-size:12px;color:var(--muted);margin-top:4px">${escHtml(ticket.title)}</div>
       </div>
-      <button class="modal-close" onclick="closeTicketModal()">\u00d7</button>
+      <button class="modal-close" onclick="closeTicketModal()">&#215;</button>
     </div>
     <div class="modal-content">
-      <div class="modal-section full">
-        <div class="modal-field">
-          <div class="modal-label">Title</div>
-          <div class="modal-value">${escHtml(ticket.title)}</div>
-        </div>
-      </div>
-      
-      <div class="modal-section full">
-        <div class="modal-badges">${badges.join('')}</div>
-      </div>
-      
+      <div class="modal-section full"><div class="modal-field"><div class="modal-label">Title</div><div class="modal-value">${escHtml(ticket.title)}</div></div></div>
+      <div class="modal-section full"><div class="modal-badges">${badges.join('')}</div></div>
       <div class="modal-section">
-        <div class="modal-field">
-          <div class="modal-label">Status</div>
-          <div class="modal-value" style="color:${statusColor};font-weight:700">${ticket.status}</div>
-        </div>
-        <div class="modal-field">
-          <div class="modal-label">Agent</div>
-          <div class="modal-value">${escHtml(ticket.agent)}</div>
-        </div>
+        <div class="modal-field"><div class="modal-label">Status</div><div class="modal-value" style="color:${statusColor};font-weight:700">${ticket.status}</div></div>
+        <div class="modal-field"><div class="modal-label">Agent</div><div class="modal-value">${escHtml(ticket.agent)}</div></div>
       </div>
-      
       <div class="modal-section">
-        <div class="modal-field">
-          <div class="modal-label">Contact</div>
-          <div class="modal-value">${escHtml(ticket.contact)}</div>
-        </div>
-        <div class="modal-field">
-          <div class="modal-label">Company</div>
-          <div class="modal-value">${escHtml(ticket.company) || '—'}</div>
-        </div>
+        <div class="modal-field"><div class="modal-label">Contact</div><div class="modal-value">${escHtml(ticket.contact)}</div></div>
+        <div class="modal-field"><div class="modal-label">Company</div><div class="modal-value">${escHtml(ticket.company)||'—'}</div></div>
       </div>
-      
       <div class="modal-section">
-        <div class="modal-field">
-          <div class="modal-label">Email</div>
-          <div class="modal-value" style="word-break:break-all">${escHtml(ticket.email) || '—'}</div>
-        </div>
-        <div class="modal-field">
-          <div class="modal-label">Phone</div>
-          <div class="modal-value">${escHtml(ticket.phone) || '—'}</div>
-        </div>
+        <div class="modal-field"><div class="modal-label">Email</div><div class="modal-value" style="word-break:break-all">${escHtml(ticket.email)||'—'}</div></div>
+        <div class="modal-field"><div class="modal-label">Phone</div><div class="modal-value">${escHtml(ticket.phone)||'—'}</div></div>
       </div>
-      
       <div class="modal-section">
-        <div class="modal-field">
-          <div class="modal-label">Created</div>
-          <div class="modal-value">${ticket.createdAt ? ticket.createdAt.slice(0, 10) : '—'}</div>
-        </div>
-        <div class="modal-field">
-          <div class="modal-label">Last Updated</div>
-          <div class="modal-value">${ticket.updatedAt ? ticket.updatedAt.slice(0, 10) : '—'}</div>
-        </div>
+        <div class="modal-field"><div class="modal-label">Created</div><div class="modal-value">${ticket.createdAt?ticket.createdAt.slice(0,10):'—'}</div></div>
+        <div class="modal-field"><div class="modal-label">Last Updated</div><div class="modal-value">${ticket.updatedAt?ticket.updatedAt.slice(0,10):'—'}</div></div>
       </div>
-      
       <div class="modal-section">
-        ${ticket.assignMins !== null ? `<div class="modal-field">
-          <div class="modal-label">Time to Assign</div>
-          <div class="modal-value">${formatMins(ticket.assignMins)}</div>
-        </div>` : ''}
-        ${ticket.firstResponseMins !== null ? `<div class="modal-field">
-          <div class="modal-label">Time to 1st Response</div>
-          <div class="modal-value">${formatMins(ticket.firstResponseMins)}</div>
-        </div>` : ''}
-        ${ticket.closeMins !== null ? `<div class="modal-field">
-          <div class="modal-label">Time to Close</div>
-          <div class="modal-value">${formatMins(ticket.closeMins)}</div>
-        </div>` : ''}
+        ${ticket.assignMins!==null?`<div class="modal-field"><div class="modal-label">Time to Assign</div><div class="modal-value">${formatMins(ticket.assignMins)}</div></div>`:''}
+        ${ticket.firstResponseMins!==null?`<div class="modal-field"><div class="modal-label">Time to 1st Response</div><div class="modal-value">${formatMins(ticket.firstResponseMins)}</div></div>`:''}
+        ${ticket.closeMins!==null?`<div class="modal-field"><div class="modal-label">Time to Close</div><div class="modal-value">${formatMins(ticket.closeMins)}</div></div>`:''}
       </div>
-      
-      ${ticket.latestComment ? `<div class="modal-section full">
-        <div class="modal-field">
-          <div class="modal-label">Latest Comment</div>
-          <div class="modal-value" style="font-style:italic;max-height:100px;overflow-y:auto">"${escHtml(ticket.latestComment)}"</div>
-        </div>
-      </div>` : ''}
+      ${ticket.latestComment?`<div class="modal-section full"><div class="modal-field"><div class="modal-label">Latest Comment</div><div class="modal-value" style="font-style:italic;max-height:100px;overflow-y:auto">"${escHtml(ticket.latestComment)}"</div></div></div>`:''}
     </div>
     <div class="modal-footer">
       <button class="modal-btn modal-btn-secondary" onclick="closeTicketModal()">Close</button>
-      <a href="${escHtml(ticket.gleapLink)}" target="_blank" class="modal-btn modal-btn-primary" style="text-decoration:none;display:inline-block">View in Gleap ↗</a>
-    </div>
-  `;
-  
+      <a href="${escHtml(ticket.gleapLink)}" target="_blank" class="modal-btn modal-btn-primary" style="text-decoration:none;display:inline-block">View in Gleap &#8599;</a>
+    </div>`;
   document.getElementById('ticketModalOverlay').classList.add('open');
 }
 
@@ -1804,21 +1567,16 @@ function closeTicketModal() {
   document.getElementById('ticketModalOverlay').classList.remove('open');
 }
 
-// Close modal when clicking overlay
 document.addEventListener('DOMContentLoaded', function() {
   const overlay = document.getElementById('ticketModalOverlay');
-  if (overlay) {
-    overlay.addEventListener('click', function(e) {
-      if (e.target === overlay) closeTicketModal();
-    });
-  }
+  if (overlay) overlay.addEventListener('click', function(e) { if (e.target === overlay) closeTicketModal(); });
 });
 
-// Close modal with Escape key
 document.addEventListener('keydown', function(e) {
-  if (e.key === 'Escape') closeTicketModal();
+  if (e.key === 'Escape') { closeTicketModal(); closeInfoModal(); }
 });
 </script>
+
 <div id="ticketModalOverlay" class="modal-overlay">
   <div class="modal-box" id="ticketModaContent"></div>
 </div>

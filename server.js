@@ -213,17 +213,16 @@ async function findLastSkip() {
   return last;
 }
 
-// ── Fetch INQUIRY tickets in date range ──────────────────────
-async function fetchInboxTickets(startDate, endDate, lastSkip) {
+// ── Fetch ALL tickets in date range ──────────────────────────
+async function fetchAllTickets(startDate, endDate, lastSkip) {
   const rangeStart=new Date(startDate), rangeEnd=new Date(endDate);
   const all=[], seen=new Set();
   let skip=lastSkip, pages=0;
 
-  // FIX: max pages now scales with lastSkip so we never miss tickets
-  // e.g. lastSkip=2000 → max 2000/50+50 = 90 pages; lastSkip=50000 → max 1050 pages
+  // max pages scales with lastSkip so we never miss tickets
   const MAX_PAGES = Math.ceil(lastSkip / 50) + 50;
 
-  console.log(`📥 Fetching tickets: ${startDate} → ${endDate}, starting at skip=${lastSkip}, max pages=${MAX_PAGES}`);
+  console.log(`📥 Fetching all tickets: ${startDate} → ${endDate}, starting at skip=${lastSkip}, max pages=${MAX_PAGES}`);
 
   while (pages < MAX_PAGES) {
     if (skip < 0) break;
@@ -243,16 +242,24 @@ async function fetchInboxTickets(startDate, endDate, lastSkip) {
       const dt = parseDt(t.createdAt||t.createdDate);
       if (!dt || dt > rangeEnd) continue;
       if (dt < rangeStart) { oldCount++; continue; }
-      if (String(t.type||t.ticketType||'').toUpperCase() === 'INQUIRY') all.push(t);
+      all.push(t); // all types included
     }
     if (oldCount === items.length) break;
     skip -= 50; pages++;
     await new Promise(r => setTimeout(r, 150));
   }
 
-  console.log(`✅ Found ${all.length} INQUIRY tickets in range`);
+  const typeCounts = {};
+  for (const t of all) {
+    const tp = String(t.type||t.ticketType||'UNKNOWN').toUpperCase();
+    typeCounts[tp] = (typeCounts[tp]||0) + 1;
+  }
+  console.log(`✅ Found ${all.length} tickets in range:`, typeCounts);
   return all;
 }
+
+// Legacy alias — keeps old call sites working
+const fetchInboxTickets = fetchAllTickets;
 
 // ── Enrich tickets — concurrent with p-limit (5 parallel, 50ms throttle) ─
 async function enrichTickets(tickets, concurrency = 5) {
@@ -292,9 +299,8 @@ async function fetchNewestTickets(since, rangeStart, rangeEnd) {
       if (!dt) continue;
       if (dt >= sinceDate) {
         allOlderThanSince = false;
-        if (dt >= startDate && dt <= endDate &&
-            String(t.type || t.ticketType || '').toUpperCase() === 'INQUIRY') {
-          all.push(t);
+        if (dt >= startDate && dt <= endDate) {
+          all.push(t); // all types included
         }
       }
     }
@@ -355,6 +361,7 @@ function processTickets(tickets) {
       id:t._id||t.id||'', bugId,
       gleapLink:gleapLink(bugId),
       title:t.title||'(No title)',
+      gleapType:String(t.type||t.ticketType||'UNKNOWN').toUpperCase(),
       contact:getContact(t), email:getEmail(t), company:getCompany(t), phone:getPhone(t),
       agent:getAgent(t),
       status:statusRaw,
@@ -478,6 +485,10 @@ function computeStats(rows) {
   for (const r of rows) if (r.company) companyMap[r.company]=(companyMap[r.company]||0)+1;
   const topCompanies=Object.entries(companyMap).sort((a,b)=>b[1]-a[1]).slice(0,15).map(([name,count])=>({name,count}));
 
+  const typeMap={};
+  for (const r of rows) typeMap[r.gleapType]=(typeMap[r.gleapType]||0)+1;
+  const typeBreakdown=Object.entries(typeMap).sort((a,b)=>b[1]-a[1]).map(([type,count])=>({type,count}));
+
   return {
     total,openCount:openRows.length,closedCount:closedRows.length,archivedCount:archivedRows.length,
     escalatedCount:escalated.length,callRequestCount:callRows.length,
@@ -489,7 +500,7 @@ function computeStats(rows) {
     withEmail:rows.filter(r=>r.email).length,
     avgFirstInteraction:avgFirstInteractionMins,avgClose:avg(closeVals),
     avgFirstInteractionFmt:fmtMins(avgFirstInteractionMins),avgCloseFmt:fmtMins(avg(closeVals)),
-    statusBreakdown, // FIX: now included
+    statusBreakdown, typeBreakdown, // included for charts
     daily:Object.entries(daily).sort((a,b)=>a[0].localeCompare(b[0])).map(([day,count])=>({day,count})),
     dow:Object.entries(dow).map(([day,count])=>({day,count})),
     hourly:Object.entries(hourly).sort((a,b)=>+a[0]-+b[0]).map(([hour,count])=>({hour:+hour,count})),
@@ -607,6 +618,18 @@ function startBackgroundWorker() {
   }, REFRESH_INTERVAL_MS);
 }
 
+// ── Classification cache ──────────────────────────────────────
+// key: ticketId → { category, gleapType }
+const classificationCache = new Map();
+
+const CATEGORY_MAP = {
+  INQUIRY:         ['Billing', 'Technical Issue', 'Onboarding', 'Account Access', 'How-To', 'Complaint', 'Call Request', 'General'],
+  BUG:             ['Authentication', 'Payment', 'UI / UX', 'Performance', 'Data / Reports', 'Integration', 'Mobile', 'Other'],
+  FEATURE_REQUEST: ['UI / UX', 'Reporting', 'Integration', 'Workflow', 'Automation', 'Mobile', 'Notifications', 'Other'],
+  CRASH:           ['iOS', 'Android', 'Web', 'API', 'Background Process', 'Other'],
+};
+const DEFAULT_CATEGORIES = ['Technical Issue', 'Billing', 'Access', 'Performance', 'UI / UX', 'Other'];
+
 // ── Routes ───────────────────────────────────────────────────
 app.get('/api/health', (req,res) => res.json({
   ok: true,
@@ -616,6 +639,60 @@ app.get('/api/health', (req,res) => res.json({
   hasOpenRouterKey: !!OPENROUTER_KEY,
   cachedLastSkip,
 }));
+
+// ── POST /api/classify ────────────────────────────────────────
+// Body: { tickets: [{id, gleapType, title, text}] }
+// Returns: { classifications: {ticketId: {category, gleapType}} }
+app.post('/api/classify', async (req, res) => {
+  try {
+    if (!OPENROUTER_KEY) return res.status(500).json({ok:false,error:'OPENROUTER_KEY not configured'});
+    const { tickets } = req.body;
+    if (!Array.isArray(tickets) || !tickets.length) return res.status(400).json({ok:false,error:'tickets array required'});
+
+    // Only classify tickets not already cached
+    const toClassify = tickets.filter(t => !classificationCache.has(t.id));
+    console.log(`🏷 Classifying ${toClassify.length} tickets (${tickets.length - toClassify.length} from cache)`);
+
+    const BATCH = 20;
+    for (let i = 0; i < toClassify.length; i += BATCH) {
+      const batch = toClassify.slice(i, i + BATCH);
+      const batchLines = batch.map((t, idx) => {
+        const cats = (CATEGORY_MAP[t.gleapType] || DEFAULT_CATEGORIES).join(', ');
+        return `${idx+1}. [${t.gleapType}] "${t.title}" — ${(t.text||'').slice(0,120)}\n   Categories: ${cats}`;
+      }).join('\n');
+
+      const prompt = `Classify each support ticket into exactly ONE category from the list provided for that ticket type.\n\nTickets:\n${batchLines}\n\nReturn ONLY a JSON array (no markdown) like:\n[{"idx":1,"category":"Billing"},{"idx":2,"category":"Technical Issue"},...]\n\nPick the closest match. No explanations.`;
+
+      try {
+        const aiRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${OPENROUTER_KEY}`, 'Content-Type': 'application/json', 'HTTP-Referer': 'https://gleap-analytics.app', 'X-Title': 'Gleap Analytics' },
+          body: JSON.stringify({ model: AI_MODEL, messages: [{ role: 'user', content: prompt }], max_tokens: 600, temperature: 0 }),
+        });
+        if (!aiRes.ok) { console.warn(`Classify batch ${i} AI error ${aiRes.status}`); continue; }
+        const aiData = await aiRes.json();
+        const raw = aiData.choices?.[0]?.message?.content || '[]';
+        const parsed = JSON.parse(raw.replace(/```json|```/g,'').trim());
+        for (const item of parsed) {
+          const ticket = batch[item.idx - 1];
+          if (ticket) classificationCache.set(ticket.id, { category: item.category, gleapType: ticket.gleapType });
+        }
+      } catch(e) { console.warn(`Classify batch ${i} error:`, e.message); }
+
+      if (i + BATCH < toClassify.length) await new Promise(r => setTimeout(r, 300));
+    }
+
+    // Merge cache results for all requested tickets
+    const result = {};
+    for (const t of tickets) {
+      if (classificationCache.has(t.id)) result[t.id] = classificationCache.get(t.id);
+    }
+    res.json({ ok: true, classifications: result, total: Object.keys(result).length });
+  } catch(e) {
+    console.error('Classify error:', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
 
 app.get('/api/debug', async (req,res) => {
   try {

@@ -178,6 +178,34 @@
     .btn-primary { background: var(--p600); color: #fff; }
     .btn-primary:hover { background: var(--p700); box-shadow: var(--sh2); }
     .btn-outline { background: transparent; color: var(--p600); border: 1.5px solid var(--p300); }
+    .btn-outline:hover { background: var(--p50); border-color: var(--p400); }
+
+    /* ── Type Switcher Tabs ───────────────────────────────── */
+    .type-tab {
+      font-family: var(--font); font-size: 11.5px; font-weight: 600;
+      padding: 6px 14px; border-radius: 99px;
+      border: 1.5px solid var(--border2); background: var(--surface);
+      color: var(--muted); cursor: pointer; transition: all 0.15s;
+      display: inline-flex; align-items: center; gap: 6px;
+      margin-bottom: 8px;
+    }
+    .type-tab:hover { border-color: var(--p400); color: var(--p600); background: var(--p50); }
+    .type-tab.active { background: var(--p600); color: #fff; border-color: var(--p600); }
+    .type-tab-count {
+      background: rgba(255,255,255,0.25); color: inherit;
+      font-size: 10px; font-weight: 700;
+      padding: 1px 6px; border-radius: 99px;
+    }
+    .type-tab:not(.active) .type-tab-count { background: var(--p100); color: var(--p700); }
+
+    /* ── Gleap Type Badges ────────────────────────────────── */
+    .badge-gleap-INQUIRY         { background:rgba(147,51,234,0.12); color:#6b21a8; }
+    .badge-gleap-BUG             { background:rgba(239,68,68,0.12);  color:#991b1b; }
+    .badge-gleap-FEATURE_REQUEST { background:rgba(99,102,241,0.12); color:#3730a3; }
+    .badge-gleap-CRASH           { background:rgba(249,115,22,0.12); color:#9a3412; }
+    .badge-gleap-UNKNOWN         { background:var(--surface3); color:var(--muted); }
+    .badge-category { background:rgba(16,185,129,0.12); color:#065f46; border-radius:99px; font-size:10px; font-weight:700; padding:1px 7px; }
+
     .btn-outline:hover { background: var(--p50); }
     .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
@@ -681,6 +709,9 @@
       <button class="btn btn-primary" onclick="loadData()">
         ↻ Refresh
       </button>
+      <button class="btn btn-outline" onclick="classifyTickets()" id="classifyBtn" title="AI-classify tickets into topic categories">
+        🏷 Classify Topics
+      </button>
       <button class="btn btn-outline" onclick="sendDigest()" id="digestBtn" title="Post a Slack digest for the current date range">
         📤 Slack Digest
       </button>
@@ -688,6 +719,16 @@
         🖨 Print Report
       </button>
     </div>
+  </div>
+
+  <!-- ── Type Switcher ─────────────────────────────────────── -->
+  <div id="typeSwitcher" style="display:flex;align-items:center;gap:8px;padding:10px 24px 0;flex-wrap:wrap;border-bottom:1px solid var(--border);background:var(--surface);margin-bottom:0">
+    <span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;margin-right:4px">View:</span>
+    <button class="type-tab active" data-type="ALL"             onclick="setTypeView('ALL',this)">🗂 All Types <span class="type-tab-count" id="typeCount-ALL">—</span></button>
+    <button class="type-tab" data-type="INQUIRY"         onclick="setTypeView('INQUIRY',this)">💬 Inquiries <span class="type-tab-count" id="typeCount-INQUIRY">—</span></button>
+    <button class="type-tab" data-type="BUG"             onclick="setTypeView('BUG',this)">🐛 Bugs <span class="type-tab-count" id="typeCount-BUG">—</span></button>
+    <button class="type-tab" data-type="FEATURE_REQUEST" onclick="setTypeView('FEATURE_REQUEST',this)">✨ Feature Requests <span class="type-tab-count" id="typeCount-FEATURE_REQUEST">—</span></button>
+    <button class="type-tab" data-type="CRASH"           onclick="setTypeView('CRASH',this)">💥 Crashes <span class="type-tab-count" id="typeCount-CRASH">—</span></button>
   </div>
 
   <!-- ── SECTION: Overview ─────────────────────────────────── -->
@@ -700,7 +741,7 @@
   <!-- ── SECTION: Inbox ───────────────────────────────────── -->
   <div id="section-inbox" class="section">
     <div class="section-header">
-      <div class="section-title">📥 Inbox Conversations <span class="stag" id="inboxCount">—</span></div>
+      <div class="section-title">📥 Inbox <span class="stag" id="inboxCount">—</span></div>
     </div>
     <div class="ticket-filters" id="inboxFilters">
       <div class="search-wrap">
@@ -797,11 +838,14 @@
 <script>
 // ── State ─────────────────────────────────────────────────
 let globalStats = null;
-let allTickets  = [];
+let allTickets  = [];         // all tickets from server (all types)
 let filteredTickets = [];
 let currentFilter = 'all';
 let currentPage   = 1;
 const PAGE_SIZE   = 30;
+let currentGleapType = 'ALL'; // type tab switcher
+let classifiedTickets = {};   // { ticketId: { category, gleapType } }
+let currentCategoryFilter = ''; // category filter after classification
 
 const charts = {};
 
@@ -817,7 +861,7 @@ const charts = {};
 // ── Navigation ────────────────────────────────────────────
 const titles = {
   overview: ['Overview', 'Key metrics at a glance'],
-  inbox: ['Inbox Conversations', 'All INQUIRY type tickets'],
+  inbox: ['Inbox', 'All tickets — filter by type using the tabs above'],
   agents: ['Agent Performance', 'Response times, resolution rates, and team metrics'],
   calls: ['Call Requests', 'Tickets with call_flow = true'],
   unassigned: ['Unassigned Queue', 'Open tickets with no agent assigned — sorted oldest first'],
@@ -843,7 +887,7 @@ async function loadData() {
   const to   = document.getElementById('dateTo').value;
   if (!from || !to) { alert('Please set both dates'); return; }
 
-  document.getElementById('overviewContent').innerHTML = `<div class="loader"><div class="spinner"></div><div class="loader-text">Scanning inbox…</div><div class="loader-sub">Fetching all INQUIRY tickets in range. Please wait 30–90 seconds.</div></div>`;
+  document.getElementById('overviewContent').innerHTML = `<div class="loader"><div class="spinner"></div><div class="loader-text">Scanning inbox…</div><div class="loader-sub">Fetching all tickets (inquiries, bugs, crashes, feature requests). Please wait 30–90 seconds.</div></div>`;
   document.getElementById('pageSub').textContent = 'Fetching data…';
 
   try {
@@ -853,45 +897,299 @@ async function loadData() {
 
     globalStats = data.stats;
     allTickets  = data.stats.tickets || [];
+    classifiedTickets = {}; // reset classifications on new load
+    currentCategoryFilter = '';
     filteredTickets = [...allTickets];
 
-    renderOverview(data.stats);
-    renderAgents(data.stats);
-    renderCalls(data.stats);
-    renderCharts(data.stats);
+    // Update type tab counts
+    updateTypeTabCounts(data.stats);
+
+    // Re-apply current type view filter
+    const viewTickets = ticketsForType(currentGleapType);
+    const viewStats   = statsForType(data.stats, currentGleapType);
+
+    renderOverview(viewStats, currentGleapType);
+    renderAgents(viewStats);
+    renderCalls(viewStats);
+    renderCharts(viewStats);
     renderTicketList();
     renderUnassignedQueue();
 
-    // Update badges
-    const unassignedOpenCount = (data.stats.tickets||[]).filter(t=>t.isOpen && t.agent==='Unassigned').length;
-    document.getElementById('badgeOpen').textContent          = data.stats.openCount || 0;
-    document.getElementById('badgeCalls').textContent         = data.stats.callRequestCount || 0;
+    // Update badges using view-filtered data
+    const unassignedOpenCount = viewTickets.filter(t=>t.isOpen && t.agent==='Unassigned').length;
+    document.getElementById('badgeOpen').textContent          = viewStats.openCount || 0;
+    document.getElementById('badgeCalls').textContent         = viewStats.callRequestCount || 0;
     document.getElementById('badgeUnassigned').textContent    = unassignedOpenCount;
-    document.getElementById('inboxCount').textContent         = data.stats.total + ' total';
-    document.getElementById('callCount').textContent          = data.stats.callRequestCount + ' tickets';
+    document.getElementById('inboxCount').textContent         = viewStats.total + ' total';
+    document.getElementById('callCount').textContent          = (viewStats.callRequestCount||0) + ' tickets';
 
     const gen = new Date(data.generatedAt);
     document.getElementById('refreshTime').textContent = 'Updated ' + gen.toLocaleTimeString();
-    document.getElementById('pageSub').textContent = `${from} → ${to} · ${data.stats.total} conversations`;
+    document.getElementById('pageSub').textContent = `${from} → ${to} · ${data.stats.total} tickets`;
   } catch(e) {
     document.getElementById('overviewContent').innerHTML = `<div class="error-box">❌ Failed to load data: ${e.message}<br><small>Check your .env credentials and that the server is running.</small></div>`;
     document.getElementById('pageSub').textContent = 'Error loading data';
   }
 }
 
+// ── Type View Helpers ─────────────────────────────────────
+function ticketsForType(type) {
+  if (!type || type === 'ALL') return allTickets;
+  return allTickets.filter(t => t.gleapType === type);
+}
+
+function statsForType(fullStats, type) {
+  if (!type || type === 'ALL') return fullStats;
+  const rows = ticketsForType(type);
+  // Recompute lightweight stats for the filtered set
+  const openRows     = rows.filter(r=>r.isOpen);
+  const closedRows   = rows.filter(r=>r.isClosed);
+  const archivedRows = rows.filter(r=>r.isArchived);
+  const escalated    = rows.filter(r=>r.isEscalated);
+  const callRows     = rows.filter(r=>r.isCallRequest);
+  const unassigned   = rows.filter(r=>r.agent==='Unassigned');
+  const closeVals    = rows.map(r=>r.closeMins).filter(v=>v!==null);
+  const repliedRows  = rows.filter(r=>r.hasAgentReply);
+  const repliedClose = repliedRows.map(r=>r.closeMins).filter(v=>v!==null);
+  const avgFirstInt  = repliedClose.length ? (repliedClose.reduce((a,b)=>a+b,0)/repliedClose.length)*0.35 : null;
+  const fmtMins = m => {
+    if (m===null||m===undefined||isNaN(m)) return 'N/A';
+    if (m<1) return '<1 min'; if (m<60) return `${Math.round(m)} min`;
+    if (m<1440) return `${(m/60).toFixed(1)} hrs`; return `${(m/1440).toFixed(1)} days`;
+  };
+  const avgg = arr => arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : null;
+
+  // Agent stats for this type
+  const agentMap = {};
+  for (const r of rows) {
+    if (!agentMap[r.agent]) agentMap[r.agent]={name:r.agent,handled:0,open:0,closed:0,archived:0,replied:0,sla:0,escalated:0,callRequests:0,responses:0,assignMins:[],firstResponseMins:[],closeMins:[]};
+    const a=agentMap[r.agent];
+    a.handled++; if(r.isOpen)a.open++; if(r.isClosed)a.closed++; if(r.isArchived)a.archived++;
+    if(r.hasAgentReply)a.replied++; if(r.slaBreached)a.sla++; if(r.isEscalated)a.escalated++;
+    if(r.isCallRequest)a.callRequests++; if(r.agentResponseCount)a.responses=(a.responses||0)+r.agentResponseCount;
+    if(r.assignMins!==null)a.assignMins.push(r.assignMins);
+    if(r.firstResponseMins!==null)a.firstResponseMins.push(r.firstResponseMins);
+    if(r.closeMins!==null)a.closeMins.push(r.closeMins);
+  }
+  const agents=Object.values(agentMap).map(a=>({
+    ...a, replyRate:a.handled?Math.round((a.replied/a.handled)*100):0,
+    avgAssign:avgg(a.assignMins), avgFirstResponse:avgg(a.firstResponseMins), avgClose:avgg(a.closeMins),
+    avgAssignFmt:fmtMins(avgg(a.assignMins)), avgFirstRespFmt:fmtMins(avgg(a.firstResponseMins)), avgCloseFmt:fmtMins(avgg(a.closeMins)),
+  })).sort((a,b)=>b.handled-a.handled);
+
+  const companyMap={};
+  for (const r of rows) if(r.company) companyMap[r.company]=(companyMap[r.company]||0)+1;
+  const topCompanies=Object.entries(companyMap).sort((a,b)=>b[1]-a[1]).slice(0,15).map(([name,count])=>({name,count}));
+
+  const daily={}, dow={Mon:0,Tue:0,Wed:0,Thu:0,Fri:0,Sat:0,Sun:0}, hourly={};
+  for (const r of rows) {
+    if(r.day) daily[r.day]=(daily[r.day]||0)+1;
+    if(r.dayOfWeek in dow) dow[r.dayOfWeek]++;
+    if(r.hour>=0) hourly[r.hour]=(hourly[r.hour]||0)+1;
+  }
+  const statusMap={};
+  for (const r of rows) statusMap[r.status]=(statusMap[r.status]||0)+1;
+  const priorityMap={};
+  for (const r of rows) if(r.priority) priorityMap[r.priority]=(priorityMap[r.priority]||0)+1;
+  const priorityBreakdown=Object.entries(priorityMap).map(([p,c])=>({priority:p,count:c}));
+
+  return {
+    total:rows.length, openCount:openRows.length, closedCount:closedRows.length, archivedCount:archivedRows.length,
+    escalatedCount:escalated.length, callRequestCount:callRows.length,
+    unassignedCount:unassigned.length, assignedCount:rows.length-unassigned.length,
+    withReply:repliedRows.length, slaBreached:rows.filter(r=>r.slaBreached).length,
+    withCompany:rows.filter(r=>r.company).length, withPhone:rows.filter(r=>r.phone).length, withEmail:rows.filter(r=>r.email).length,
+    avgFirstInteraction:avgFirstInt, avgClose:avgg(closeVals),
+    avgFirstInteractionFmt:fmtMins(avgFirstInt), avgCloseFmt:fmtMins(avgg(closeVals)),
+    statusBreakdown:Object.entries(statusMap).map(([s,c])=>({status:s,count:c})),
+    typeBreakdown: fullStats.typeBreakdown,
+    priorityBreakdown,
+    agents, topCompanies,
+    daily:Object.entries(daily).sort((a,b)=>a[0].localeCompare(b[0])).map(([day,count])=>({day,count})),
+    dow:Object.entries(dow).map(([day,count])=>({day,count})),
+    hourly:Object.entries(hourly).sort((a,b)=>+a[0]-+b[0]).map(([hour,count])=>({hour:+hour,count})),
+    openTickets:openRows, escalatedTickets:escalated, callTickets:callRows, tickets:rows,
+    gleapType: type,
+  };
+}
+
+function updateTypeTabCounts(stats) {
+  const typeCounts = {};
+  for (const t of (stats.tickets||[])) typeCounts[t.gleapType]=(typeCounts[t.gleapType]||0)+1;
+  const total = stats.tickets?.length || 0;
+  const el = id => document.getElementById(id);
+  if(el('typeCount-ALL'))             el('typeCount-ALL').textContent             = total;
+  if(el('typeCount-INQUIRY'))         el('typeCount-INQUIRY').textContent         = typeCounts['INQUIRY']||0;
+  if(el('typeCount-BUG'))             el('typeCount-BUG').textContent             = typeCounts['BUG']||0;
+  if(el('typeCount-FEATURE_REQUEST')) el('typeCount-FEATURE_REQUEST').textContent = typeCounts['FEATURE_REQUEST']||0;
+  if(el('typeCount-CRASH'))           el('typeCount-CRASH').textContent           = typeCounts['CRASH']||0;
+}
+
+// ── Type Switcher ─────────────────────────────────────────
+function setTypeView(type, btn) {
+  currentGleapType = type;
+  currentPage = 1;
+  currentCategoryFilter = '';
+
+  document.querySelectorAll('.type-tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+
+  if (!globalStats) return;
+  const viewStats = statsForType(globalStats, type);
+  filteredTickets = ticketsForType(type);
+
+  renderOverview(viewStats, type);
+  renderAgents(viewStats);
+  renderCalls(viewStats);
+  renderCharts(viewStats);
+  renderTicketList();
+  renderUnassignedQueue();
+
+  const unassignedOpenCount = filteredTickets.filter(t=>t.isOpen && t.agent==='Unassigned').length;
+  document.getElementById('badgeOpen').textContent          = viewStats.openCount || 0;
+  document.getElementById('badgeCalls').textContent         = viewStats.callRequestCount || 0;
+  document.getElementById('badgeUnassigned').textContent    = unassignedOpenCount;
+  document.getElementById('inboxCount').textContent         = viewStats.total + ' total';
+  document.getElementById('callCount').textContent          = (viewStats.callRequestCount||0) + ' tickets';
+}
+
+// ── Classify Topics ───────────────────────────────────────
+async function classifyTickets() {
+  if (!allTickets.length) { showToast('Load data first', 'error'); return; }
+  const btn = document.getElementById('classifyBtn');
+  btn.disabled = true; btn.textContent = '⏳ Classifying…';
+
+  const toSend = ticketsForType(currentGleapType).map(t => ({
+    id: t.id || t.bugId,
+    gleapType: t.gleapType || 'INQUIRY',
+    title: t.title || '',
+    text: t.latestComment || '',
+  }));
+
+  try {
+    const resp = await fetch('/api/classify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tickets: toSend }),
+    });
+    const data = await resp.json();
+    if (!data.ok) throw new Error(data.error);
+
+    classifiedTickets = { ...classifiedTickets, ...data.classifications };
+    showToast(`✅ Classified ${data.total} tickets into topic categories`, 'success');
+
+    // Rebuild category filter options and re-render ticket list
+    buildCategoryFilter();
+    renderTicketList();
+  } catch(e) {
+    showToast(`❌ Classification failed: ${e.message}`, 'error');
+  }
+
+  btn.disabled = false; btn.textContent = '🏷 Classify Topics';
+}
+
+function buildCategoryFilter() {
+  const categories = new Set();
+  for (const v of Object.values(classifiedTickets)) if(v.category) categories.add(v.category);
+  if (!categories.size) return;
+
+  // Remove old category filter if exists
+  document.getElementById('categoryFilterWrap')?.remove();
+
+  const wrap = document.createElement('div');
+  wrap.id = 'categoryFilterWrap';
+  wrap.style.cssText = 'display:flex;align-items:center;gap:6px';
+
+  const lbl = document.createElement('span');
+  lbl.style.cssText = 'font-size:10.5px;font-weight:600;color:var(--muted)';
+  lbl.textContent = 'Topic:';
+  wrap.appendChild(lbl);
+
+  const sel = document.createElement('select');
+  sel.style.cssText = 'font-size:11.5px;padding:5px 10px;border-radius:var(--r8);border:1.5px solid var(--border2)';
+  sel.innerHTML = '<option value="">All Topics</option>' +
+    [...categories].sort().map(c=>`<option value="${c}">${c}</option>`).join('');
+  sel.onchange = () => { currentCategoryFilter = sel.value; currentPage=1; applyFilters(); };
+  wrap.appendChild(sel);
+
+  document.getElementById('inboxFilters')?.appendChild(wrap);
+}
+
 // ── Overview ──────────────────────────────────────────────
-function renderOverview(s) {
+function renderOverview(s, gleapType) {
   const resolveRate = s.total ? Math.round((s.closedCount/s.total)*100) : 0;
   const replyRate   = s.total ? Math.round((s.withReply/s.total)*100) : 0;
   const assignRate  = s.total ? Math.round((s.assignedCount/s.total)*100) : 0;
+  const type = gleapType || currentGleapType || 'ALL';
 
   let alerts = '';
   if (s.slaBreached > 0)     alerts += `<div class="alert-bar danger">⚠ ${s.slaBreached} ticket${s.slaBreached>1?'s':''} with SLA breached — review immediately</div>`;
   if (s.unassignedCount > 0) alerts += `<div class="alert-bar warning">⚡ ${s.unassignedCount} unassigned ticket${s.unassignedCount>1?'s':''} — assign now to avoid delays</div>`;
-  if (s.openCount === 0)     alerts += `<div class="alert-bar success">✅ All conversations are resolved — great work!</div>`;
+  if (s.openCount === 0 && s.total > 0) alerts += `<div class="alert-bar success">✅ All tickets are resolved — great work!</div>`;
+
+  // ── Type-specific KPI extra panel ──────────────────────
+  let typeKpis = '';
+  if (type === 'ALL') {
+    const breakdown = (s.typeBreakdown||[]).map(tb=>{
+      const icons = {INQUIRY:'💬',BUG:'🐛',FEATURE_REQUEST:'✨',CRASH:'💥'};
+      const colors = {INQUIRY:'var(--p600)',BUG:'var(--red)',FEATURE_REQUEST:'var(--blue)',CRASH:'var(--amber)'};
+      return `<div style="flex:1;min-width:100px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r12);padding:12px 10px;text-align:center">
+        <div style="font-size:20px;margin-bottom:2px">${icons[tb.type]||'📋'}</div>
+        <div style="font-size:22px;font-weight:800;color:${colors[tb.type]||'var(--ink)'}">${tb.count}</div>
+        <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px">${tb.type.replace('_',' ')}</div>
+      </div>`;
+    }).join('');
+    if (breakdown) typeKpis = `<div style="background:var(--surface3);border:1px solid var(--border);border-radius:var(--r16);padding:16px 20px;margin-bottom:16px">
+      <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:12px">📊 Tickets by Type</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">${breakdown}</div>
+    </div>`;
+  } else if (type === 'BUG') {
+    const critCount = (s.tickets||[]).filter(t=>t.priority==='CRITICAL'||t.priority==='HIGH').length;
+    const openBugs  = s.openCount;
+    const oldBugs   = (s.tickets||[]).filter(t=>t.isOpen && ticketAgeHrs(t)>72).length;
+    typeKpis = `<div style="background:rgba(239,68,68,0.05);border:1px solid rgba(239,68,68,0.18);border-radius:var(--r16);padding:16px 20px;margin-bottom:16px">
+      <div style="font-size:11px;font-weight:700;color:#991b1b;text-transform:uppercase;letter-spacing:0.6px;margin-bottom:12px">🐛 Bug Dashboard</div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap">
+        <div style="flex:1;min-width:110px;text-align:center"><div style="font-size:26px;font-weight:800;color:var(--red)">${openBugs}</div><div style="font-size:10px;font-weight:700;color:#991b1b;text-transform:uppercase">Open Bugs</div></div>
+        <div style="flex:1;min-width:110px;text-align:center"><div style="font-size:26px;font-weight:800;color:var(--amber)">${critCount}</div><div style="font-size:10px;font-weight:700;color:#92400e;text-transform:uppercase">Critical / High</div></div>
+        <div style="flex:1;min-width:110px;text-align:center"><div style="font-size:26px;font-weight:800;color:var(--red)">${oldBugs}${oldBugs>0?' 🔥':''}</div><div style="font-size:10px;font-weight:700;color:#991b1b;text-transform:uppercase">Open > 3 Days</div></div>
+        <div style="flex:1;min-width:110px;text-align:center"><div style="font-size:26px;font-weight:800;color:var(--green)">${s.closedCount}</div><div style="font-size:10px;font-weight:700;color:#065f46;text-transform:uppercase">Resolved</div></div>
+      </div>
+      ${(s.priorityBreakdown||[]).length ? `<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">${(s.priorityBreakdown||[]).map(p=>{
+        const pc={CRITICAL:'var(--red)',HIGH:'var(--amber)',MEDIUM:'var(--p500)',LOW:'var(--green)'}[p.priority]||'var(--muted)';
+        return `<span style="background:${pc}22;color:${pc};border-radius:99px;padding:2px 10px;font-size:10.5px;font-weight:700">${p.priority}: ${p.count}</span>`;
+      }).join('')}</div>` : ''}
+    </div>`;
+  } else if (type === 'FEATURE_REQUEST') {
+    typeKpis = `<div style="background:rgba(99,102,241,0.05);border:1px solid rgba(99,102,241,0.18);border-radius:var(--r16);padding:16px 20px;margin-bottom:16px">
+      <div style="font-size:11px;font-weight:700;color:#3730a3;text-transform:uppercase;letter-spacing:0.6px;margin-bottom:12px">✨ Feature Requests Dashboard</div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap">
+        <div style="flex:1;min-width:110px;text-align:center"><div style="font-size:26px;font-weight:800;color:var(--blue)">${s.total}</div><div style="font-size:10px;font-weight:700;color:#3730a3;text-transform:uppercase">Total Requests</div></div>
+        <div style="flex:1;min-width:110px;text-align:center"><div style="font-size:26px;font-weight:800;color:var(--amber)">${s.openCount}</div><div style="font-size:10px;font-weight:700;color:#92400e;text-transform:uppercase">Open / Under Review</div></div>
+        <div style="flex:1;min-width:110px;text-align:center"><div style="font-size:26px;font-weight:800;color:var(--green)">${s.closedCount}</div><div style="font-size:10px;font-weight:700;color:#065f46;text-transform:uppercase">Shipped / Closed</div></div>
+        <div style="flex:1;min-width:110px;text-align:center"><div style="font-size:26px;font-weight:800;color:var(--muted)">${s.unassignedCount}</div><div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase">Unreviewed</div></div>
+      </div>
+    </div>`;
+  } else if (type === 'CRASH') {
+    const recentCrashes = (s.tickets||[]).filter(t=>t.isOpen).length;
+    typeKpis = `<div style="background:rgba(249,115,22,0.05);border:1px solid rgba(249,115,22,0.18);border-radius:var(--r16);padding:16px 20px;margin-bottom:16px">
+      <div style="font-size:11px;font-weight:700;color:#9a3412;text-transform:uppercase;letter-spacing:0.6px;margin-bottom:12px">💥 Crash Reports Dashboard</div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap">
+        <div style="flex:1;min-width:110px;text-align:center"><div style="font-size:26px;font-weight:800;color:var(--amber)">${s.total}</div><div style="font-size:10px;font-weight:700;color:#9a3412;text-transform:uppercase">Total Crashes</div></div>
+        <div style="flex:1;min-width:110px;text-align:center"><div style="font-size:26px;font-weight:800;color:var(--red)">${recentCrashes}${recentCrashes>0?' 🔥':''}</div><div style="font-size:10px;font-weight:700;color:#991b1b;text-transform:uppercase">Unresolved</div></div>
+        <div style="flex:1;min-width:110px;text-align:center"><div style="font-size:26px;font-weight:800;color:var(--green)">${s.closedCount}</div><div style="font-size:10px;font-weight:700;color:#065f46;text-transform:uppercase">Fixed / Closed</div></div>
+        <div style="flex:1;min-width:110px;text-align:center"><div style="font-size:26px;font-weight:800;color:var(--p500)">${s.archivedCount}</div><div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase">Archived</div></div>
+      </div>
+    </div>`;
+  }
+
+  // Main KPI label varies by type
+  const mainLabel = {ALL:'All Tickets', INQUIRY:'Conversations', BUG:'Bug Reports', FEATURE_REQUEST:'Feature Requests', CRASH:'Crash Reports'}[type] || 'Tickets';
 
   document.getElementById('overviewContent').innerHTML = `
-    ${alerts ? `<div style="display:flex;flex-direction:column;gap:6px">${alerts}</div>` : ''}
+    ${alerts ? `<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px">${alerts}</div>` : ''}
+
+    ${typeKpis}
 
     ${renderPerformanceLeaderboard(s)}
 
@@ -899,10 +1197,10 @@ function renderOverview(s) {
 
     <div class="kpi-grid">
       <div class="kpi-card">
-        <div class="kpi-icon">💬</div>
+        <div class="kpi-icon">${{ALL:'🗂',INQUIRY:'💬',BUG:'🐛',FEATURE_REQUEST:'✨',CRASH:'💥'}[type]||'📋'}</div>
         <div class="kpi-value">${s.total}</div>
-        <div class="kpi-label">Total Conversations</div>
-        <div class="kpi-sub">INQUIRY type tickets</div>
+        <div class="kpi-label">Total ${mainLabel}</div>
+        <div class="kpi-sub">${type === 'ALL' ? 'All ticket types' : type.replace('_',' ').toLowerCase() + ' tickets'}</div>
       </div>
       <div class="kpi-card ${s.openCount>0?'amber':'green'}">
         <div class="kpi-icon">📬</div>
@@ -910,7 +1208,6 @@ function renderOverview(s) {
         <div class="kpi-label">Open / Active</div>
         <div class="kpi-sub">${s.closedCount} closed · ${s.archivedCount} archived</div>
       </div>
-
       <div class="kpi-card ${s.slaBreached>0?'red':''}">
         <div class="kpi-icon">⏱</div>
         <div class="kpi-value">${s.slaBreached}</div>
@@ -923,12 +1220,13 @@ function renderOverview(s) {
         <div class="kpi-label">Unassigned</div>
         <div class="kpi-sub">${s.assignedCount} assigned to agents</div>
       </div>
+      ${type === 'INQUIRY' || type === 'ALL' ? `
       <div class="kpi-card blue">
         <div class="kpi-icon">📞</div>
         <div class="kpi-value">${s.callRequestCount}</div>
         <div class="kpi-label">Call Requests</div>
         <div class="kpi-sub">call_flow = true tickets</div>
-      </div>
+      </div>` : ''}
       <div class="kpi-card">
         <div class="kpi-icon">🏢</div>
         <div class="kpi-value">${s.withCompany}</div>
@@ -1379,15 +1677,24 @@ function filterTickets() { applyFilters(); }
 
 function applyFilters() {
   const search = (document.getElementById('ticketSearch')?.value || '').toLowerCase();
-  let rows = [...allTickets];
+  // Start from the type-filtered set (respects top type switcher)
+  let rows = ticketsForType(currentGleapType);
 
-  if (currentTypeFilter === 'open')       rows = rows.filter(r=>r.isOpen);
-  else if (currentTypeFilter === 'closed') rows = rows.filter(r=>r.isClosed);
+  if (currentTypeFilter === 'open')            rows = rows.filter(r=>r.isOpen);
+  else if (currentTypeFilter === 'closed')     rows = rows.filter(r=>r.isClosed);
   else if (currentTypeFilter === 'unassigned') rows = rows.filter(r=>r.agent==='Unassigned');
   else if (currentTypeFilter === 'escalated')  rows = rows.filter(r=>r.isEscalated);
-  else if (currentTypeFilter === 'call')        rows = rows.filter(r=>r.isCallRequest);
-  else if (currentTypeFilter === 'sla')         rows = rows.filter(r=>r.slaBreached);
-  else if (currentTypeFilter === 'archived')    rows = rows.filter(r=>r.isArchived);
+  else if (currentTypeFilter === 'call')       rows = rows.filter(r=>r.isCallRequest);
+  else if (currentTypeFilter === 'sla')        rows = rows.filter(r=>r.slaBreached);
+  else if (currentTypeFilter === 'archived')   rows = rows.filter(r=>r.isArchived);
+
+  // Category filter (after AI classification)
+  if (currentCategoryFilter) {
+    rows = rows.filter(r => {
+      const cl = classifiedTickets[r.id || r.bugId];
+      return cl && cl.category === currentCategoryFilter;
+    });
+  }
 
   if (search) {
     rows = rows.filter(r =>
@@ -1404,6 +1711,13 @@ function applyFilters() {
   renderTicketList();
 }
 
+// Gleap type label & color helpers
+function gleapTypeBadge(gleapType) {
+  const labels = {INQUIRY:'💬 Inquiry', BUG:'🐛 Bug', FEATURE_REQUEST:'✨ Feature', CRASH:'💥 Crash'};
+  const label = labels[gleapType] || gleapType || 'Unknown';
+  return `<span class="badge-gleap badge-gleap-${gleapType||'UNKNOWN'}" style="border-radius:99px;font-size:10px;font-weight:700;padding:1px 7px">${label}</span>`;
+}
+
 function renderTicketList() {
   const total = filteredTickets.length;
   const pages = Math.ceil(total / PAGE_SIZE);
@@ -1413,14 +1727,18 @@ function renderTicketList() {
   document.getElementById('inboxCount').textContent = `${total} shown`;
 
   if (!slice.length) {
-    document.getElementById('ticketList').innerHTML = '<div class="empty-state"><div class="empty-icon">📭</div><div class="empty-text">No conversations match</div><div class="empty-sub">Try adjusting the filters or date range.</div></div>';
+    document.getElementById('ticketList').innerHTML = '<div class="empty-state"><div class="empty-icon">📭</div><div class="empty-text">No tickets match</div><div class="empty-sub">Try adjusting the filters or date range.</div></div>';
     document.getElementById('ticketPagination').innerHTML = '';
     return;
   }
 
   const html = slice.map(t => {
     const rowClass = t.isEscalated ? 'ticket-row escalated-row' : t.isCallRequest ? 'ticket-row call-row' : 'ticket-row';
+    const cl = classifiedTickets[t.id || t.bugId];
+    const catBadge = cl ? `<span class="badge-category">${escHtml(cl.category)}</span>` : '';
     const badges = [
+      currentGleapType === 'ALL' ? gleapTypeBadge(t.gleapType) : '',
+      catBadge,
       statusBadge(t.status),
       t.isEscalated ? '<span class="badge escalated">🚨 Escalated</span>' : '',
       t.isCallRequest ? '<span class="badge call">📞 Call</span>' : '',

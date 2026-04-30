@@ -320,6 +320,46 @@ async function gleapOne(id) {
   } catch { return null; }
 }
 
+// ── Detect bot-to-human handover time ───────────────────────
+// Reads the messages array chronologically and returns the timestamp of the
+// last bot/automated message (= when the bot finished and human queue started).
+// Falls back to createdAt if no bot messages are found.
+function getBotHandoverTime(t) {
+  const messages = t.messages || t.comments || [];
+  if (!messages.length) return t.createdAt || t.createdDate;
+
+  // Sort ascending by time
+  const sorted = [...messages].sort((a, b) => {
+    const ta = parseDt(a.createdAt || a.date || a.timestamp);
+    const tb = parseDt(b.createdAt || b.date || b.timestamp);
+    if (ta && tb) return ta - tb;
+    return 0;
+  });
+
+  let lastBotTime = null;
+
+  for (const msg of sorted) {
+    const isBotMsg =
+      msg.isBot === true ||
+      msg.type === 'BOT' || msg.type === 'bot' ||
+      msg.source === 'bot' || msg.source === 'BOT' ||
+      String(msg.author?.type || '').toLowerCase() === 'bot' ||
+      String(msg.authorType || '').toLowerCase() === 'bot' ||
+      // author name heuristic — no real name means automated
+      (!msg.author && !msg.authorName) ||
+      /^(bot|gleap bot|automated|assistant|system)$/i.test(
+        String(msg.author?.name || msg.authorName || msg.author || '').trim()
+      );
+
+    if (isBotMsg) {
+      const ts = msg.createdAt || msg.date || msg.timestamp;
+      if (ts) lastBotTime = ts;
+    }
+  }
+
+  return lastBotTime || t.createdAt || t.createdDate;
+}
+
 // ── Count agent responses ────────────────────────────────────
 function countAgentResponses(t, agentName) {
   if (!agentName || agentName === 'Unassigned') return 0;
@@ -372,7 +412,7 @@ function processTickets(tickets) {
       sentiment:String(t.sentiment||'neutral').toLowerCase(),
       isCallRequest:isCallRequest(t),
       createdAt:created, updatedAt:updated, firstAssignAt:firstAssign, closeAt:closeTime,
-      assignMins:minsBetween(created,firstAssign),
+      assignMins:minsBetween(getBotHandoverTime(t), firstAssign),
       firstResponseMins:getFirstResponseMins(t),
       closeMins:minsBetween(created,closeTime),
       hasAgentReply:Boolean(t.hasAgentReply),

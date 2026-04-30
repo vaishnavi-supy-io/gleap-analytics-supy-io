@@ -170,6 +170,20 @@ export function getLatestComment(t) {
   return '';
 }
 
+// ── Get first real human agent response time ─────────────────
+// Gleap does not return a messages array — only latestComment.
+// Checks: firstAgentReplyAt (when Gleap provides it) → latestComment.createdAt
+// when bot===false and kaiChat===false (human agent message).
+export function getAgentResponseTime(t) {
+  const fr = t.firstAgentReplyAt||t.firstAgentResponseAt||t.firstResponseAt||t.firstReplyAt;
+  if (fr) return fr;
+  const lc = t.latestComment;
+  if (lc && typeof lc === 'object' && lc.bot === false && lc.kaiChat === false && lc.user && lc.createdAt) {
+    return lc.createdAt;
+  }
+  return null;
+}
+
 // ── Detect bot-to-human handover time ───────────────────────
 // Reads the messages array chronologically and returns the timestamp of the
 // last bot/automated message (= when the bot finished and human queue started).
@@ -355,7 +369,7 @@ export function processTickets(tickets, projectId) {
       isCallRequest:isCallRequest(t),
       createdAt:created, updatedAt:updated, firstAssignAt:firstAssign, closeAt:closeTime,
       assignMins:minsBetween(getBotHandoverTime(t), firstAssign),
-      firstResponseMins:getFirstResponseMins(t),
+      firstResponseMins:minsBetween(created, getAgentResponseTime(t)),
       closeMins:minsBetween(created,closeTime),
       hasAgentReply:Boolean(t.hasAgentReply),
       slaBreached:Boolean(t.slaBreached),
@@ -378,12 +392,15 @@ export function computeStats(rows) {
   const callRows=rows.filter(r=>r.isCallRequest);
   const unassigned=rows.filter(r=>r.agent==='Unassigned');
 
+  const assignVals=rows.map(r=>r.assignMins).filter(v=>v!==null);
   const closeVals=rows.map(r=>r.closeMins).filter(v=>v!==null);
-  const repliedTickets=rows.filter(r=>r.hasAgentReply);
-  const repliedCloseTimes=repliedTickets.map(r=>r.closeMins).filter(v=>v!==null);
-  const avgFirstInteractionMins = repliedCloseTimes.length > 0 ? avg(repliedCloseTimes) * 0.35 : null;
+  const firstRespVals=rows.map(r=>r.firstResponseMins).filter(v=>v!==null);
 
-  console.log(`📊 Stats calc: ${rows.length} rows | replied: ${repliedCloseTimes.length} | avg first interaction: ${avgFirstInteractionMins} | close vals: ${closeVals.length}`);
+  // Real avg first interaction — from latestComment.createdAt (when bot===false)
+  // or firstAgentReplyAt when Gleap provides it. No estimation.
+  const avgFirstInteractionMins = firstRespVals.length > 0 ? avg(firstRespVals) : null;
+
+  console.log(`📊 Stats calc: ${rows.length} rows | firstResp samples: ${firstRespVals.length} | avg first interaction: ${avgFirstInteractionMins} | close vals: ${closeVals.length}`);
 
   const daily={};
   for (const r of rows) daily[r.day]=(daily[r.day]||0)+1;

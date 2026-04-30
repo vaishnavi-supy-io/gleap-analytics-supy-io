@@ -179,6 +179,20 @@ function getLatestComment(t) {
   return '';
 }
 
+// ── Get first real human agent response time ─────────────────
+// Gleap does not return a messages array — only latestComment.
+// Checks: firstAgentReplyAt (when Gleap provides it) → latestComment.createdAt
+// when bot===false and kaiChat===false (human agent message).
+function getAgentResponseTime(t) {
+  const fr = t.firstAgentReplyAt||t.firstAgentResponseAt||t.firstResponseAt||t.firstReplyAt;
+  if (fr) return fr;
+  const lc = t.latestComment;
+  if (lc && typeof lc === 'object' && lc.bot === false && lc.kaiChat === false && lc.user && lc.createdAt) {
+    return lc.createdAt;
+  }
+  return null;
+}
+
 async function gleapFetch(url, params={}) {
   const qs = new URLSearchParams(params).toString();
   const res = await fetch(qs?`${url}?${qs}`:url, { headers: GLEAP_HEADERS });
@@ -413,7 +427,7 @@ function processTickets(tickets) {
       isCallRequest:isCallRequest(t),
       createdAt:created, updatedAt:updated, firstAssignAt:firstAssign, closeAt:closeTime,
       assignMins:minsBetween(getBotHandoverTime(t), firstAssign),
-      firstResponseMins:getFirstResponseMins(t),
+      firstResponseMins:minsBetween(created, getAgentResponseTime(t)),
       closeMins:minsBetween(created,closeTime),
       hasAgentReply:Boolean(t.hasAgentReply),
       slaBreached:Boolean(t.slaBreached),
@@ -441,16 +455,11 @@ function computeStats(rows) {
   const closeVals=rows.map(r=>r.closeMins).filter(v=>v!==null);
   const firstRespVals=rows.map(r=>r.firstResponseMins).filter(v=>v!==null);
 
-  // NEW: Avg time to first agent interaction (for tickets with agent replies)
-  // Estimate: agents typically reply within first 30% of close time
-  const repliedTickets=rows.filter(r=>r.hasAgentReply);
-  const repliedCloseTimes=repliedTickets.map(r=>r.closeMins).filter(v=>v!==null);
-  const avgFirstInteractionMins = repliedCloseTimes.length > 0 
-    ? avg(repliedCloseTimes) * 0.35  // Estimate ~35% of close time is when reply happens
-    : null;
+  // Use real firstResponseMins (from latestComment or firstAgentReplyAt).
+  // Falls back to null — no fake estimation.
+  const avgFirstInteractionMins = firstRespVals.length > 0 ? avg(firstRespVals) : null;
 
-  // Debug: Log what we have
-  console.log(`📊 Stats calc: ${rows.length} rows | replied: ${repliedCloseTimes.length} | avg first interaction: ${avgFirstInteractionMins} | close vals: ${closeVals.length}`);
+  console.log(`📊 Stats calc: ${rows.length} rows | firstResp samples: ${firstRespVals.length} | avg first interaction: ${avgFirstInteractionMins} | close vals: ${closeVals.length}`);
 
   const daily={};
   for (const r of rows) daily[r.day]=(daily[r.day]||0)+1;

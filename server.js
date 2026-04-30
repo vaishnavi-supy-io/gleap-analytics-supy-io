@@ -758,21 +758,38 @@ app.get('/api/debug', async (req,res) => {
         id: sample?._id,
         title: sample?.title,
         createdAt: sample?.createdAt,
-        phone: sample?.phone,
-        phoneNumber: sample?.phoneNumber,
-        contact: sample?.contact,
+        updatedAt: sample?.updatedAt,
         hasAgentReply: sample?.hasAgentReply,
+        noHumanInteraction: sample?.noHumanInteraction,
+        queued: sample?.queued,
+        firstAssignmentAt: sample?.firstAssignmentAt,
+        firstAgentReplyAt: sample?.firstAgentReplyAt,
+        firstResponseAt: sample?.firstResponseAt,
+        latestComment: sample?.latestComment,
+        latestPublicComment: sample?.latestPublicComment,
+        messages: sample?.messages,
+        comments: sample?.comments,
         allKeys: Object.keys(sample||{}).sort()
       },
-      callSampleTicket: callTickets?{
+      callSampleTicket: callTickets ? {
         id: callTickets._id,
         title: callTickets.title,
+        createdAt: callTickets.createdAt,
+        updatedAt: callTickets.updatedAt,
+        hasAgentReply: callTickets.hasAgentReply,
+        noHumanInteraction: callTickets.noHumanInteraction,
+        queued: callTickets.queued,
+        firstAssignmentAt: callTickets.firstAssignmentAt,
+        firstAgentReplyAt: callTickets.firstAgentReplyAt,
+        firstResponseAt: callTickets.firstResponseAt,
+        latestComment: callTickets.latestComment,
+        latestPublicComment: callTickets.latestPublicComment,
+        messages: callTickets.messages,
         rawSession: callTickets.session,
         rawCustomData: callTickets.customData,
-        rawContact: callTickets.contact,
         extractedPhone: getPhone(callTickets),
         allKeys: Object.keys(callTickets).sort()
-      }:null
+      } : null
     });
   } catch(e) {
     res.status(500).json({ok:false,error:e.message});

@@ -1,0 +1,24 @@
+# ── Gleap Analytics v2 — Cloudflare Pages ─────────────────────────────────────
+# Deploy:
+#   CLOUDFLARE_API_TOKEN=<token> CLOUDFLARE_ACCOUNT_ID=<org-account-id> \
+#   npx wrangler pages deploy public --project-name gleap-analytics-supy-io
+#
+# account_id is intentionally omitted — supplied at deploy time via
+# CLOUDFLARE_ACCOUNT_ID env var so no IDs are hardcoded in source control.
+# ──────────────────────────────────────────────────────────────────────────────
+
+name = "gleap-analytics-supy-io"
+pages_build_output_dir = "public"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+# ── Local dev secrets (wrangler pages dev) ────────────────────────────────────
+# Copy .dev.vars.example → .dev.vars and fill in values.
+# .dev.vars is gitignored and never committed.
+
+# ── Production secrets (set once via CLI or CI) ───────────────────────────────
+# npx wrangler pages secret put GLEAP_API_KEY       --project-name gleap-analytics-supy-io
+# npx wrangler pages secret put PROJECT_ID          --project-name gleap-analytics-supy-io
+# npx wrangler pages secret put OPENROUTER_KEY      --project-name gleap-analytics-supy-io
+# npx wrangler pages secret put SLACK_WEBHOOK_URL   --project-name gleap-analytics-supy-io
+# npx wrangler pages secret put AI_MODEL            --project-name gleap-analytics-supy-io

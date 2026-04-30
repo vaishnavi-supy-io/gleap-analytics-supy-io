@@ -5,7 +5,11 @@
   "private": true,
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "pages:dev": "wrangler pages dev public --compatibility-date=2024-09-23",
+    "pages:deploy": "wrangler pages deploy public --project-name gleap-analytics-supy-io",
+    "deploy": "wrangler pages deploy public --project-name gleap-analytics-supy-io",
+    "deploy:ci": "wrangler pages deploy public --project-name gleap-analytics-supy-io --commit-dirty=true"
   },
   "dependencies": {
     "dotenv": "^16.3.1",
@@ -17,6 +21,7 @@
     "node": ">=18.0.0"
   },
   "devDependencies": {
-    "nodemon": "^3.1.14"
+    "nodemon": "^3.1.14",
+    "wrangler": "^3.114.17"
   }
 }

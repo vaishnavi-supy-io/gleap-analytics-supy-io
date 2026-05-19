@@ -149,7 +149,7 @@ function isEscalated(t) {
 }
 
 function isCallRequest(t) {
-  if (String(t.type||'').toUpperCase() !== 'INQUIRY') return false;
+  // Check explicit call_flow flags in formData / customData
   const fd = t.formData||{};
   if (typeof fd === 'object') {
     const cf = fd.call_flow;
@@ -161,8 +161,22 @@ function isCallRequest(t) {
       const v=cd[k]; if (v===true||String(v).toLowerCase()==='true') return true;
     }
   }
-  const title = String(t.title||'').toLowerCase().replace(/\s+/g, ' ').trim();
-  return ['request to access new call','request a call','phone call request','call request','callback request','callback','dial me','get in touch via phone','speak to agent','call me back'].some(kw=>title.includes(kw));
+  // Search ALL text content — most tickets have no title; user message is in formData.description
+  const texts = [
+    t.title||'',
+    (typeof fd==='object'?fd.description:'') || '',
+    (t.form?.description?.value) || '',
+    t.plainContent||'',
+  ].map(s=>String(s).toLowerCase().replace(/\s+/g,' ').trim()).join(' ');
+
+  return [
+    'request to access new call','request a call','phone call request',
+    'call request','callback request','call me back','call back',
+    'give me a call','schedule a call','arrange a call',
+    'please call me','can you call me','can someone call',
+    'reach me by phone','contact me by phone','speak over the phone',
+    'call me at','dial me','speak to agent',
+  ].some(kw=>texts.includes(kw));
 }
 
 function getLatestComment(t) {
@@ -231,23 +245,22 @@ async function findLastSkip() {
 async function fetchAllTickets(startDate, endDate, lastSkip) {
   const rangeStart=new Date(startDate), rangeEnd=new Date(endDate);
   const all=[], seen=new Set();
-  let skip=lastSkip, pages=0;
+  // Gleap API is sorted newest-first (skip=0 = most recent).
+  // Start at skip=0 and increment until a full page pre-dates rangeStart.
+  let skip=0, pages=0;
+  const MAX_PAGES = Math.ceil((lastSkip || 50000) / 50) + 50;
 
-  // max pages scales with lastSkip so we never miss tickets
-  const MAX_PAGES = Math.ceil(lastSkip / 50) + 50;
-
-  console.log(`📥 Fetching all tickets: ${startDate} → ${endDate}, starting at skip=${lastSkip}, max pages=${MAX_PAGES}`);
+  console.log(`📥 Fetching all tickets: ${startDate} → ${endDate}, max pages=${MAX_PAGES}`);
 
   while (pages < MAX_PAGES) {
-    if (skip < 0) break;
     let items;
     try {
       items = await gleapFetch('https://api.gleap.io/v3/tickets', { limit: 50, skip });
     } catch (e) {
       console.warn(`Fetch error at skip=${skip}:`, e.message);
-      skip -= 50; pages++; continue;
+      skip += 50; pages++; continue;
     }
-    if (!items.length) { skip -= 50; pages++; continue; }
+    if (!items.length) break;
 
     let oldCount = 0;
     for (const t of items) {
@@ -259,7 +272,7 @@ async function fetchAllTickets(startDate, endDate, lastSkip) {
       all.push(t); // all types included
     }
     if (oldCount === items.length) break;
-    skip -= 50; pages++;
+    skip += 50; pages++;
     await new Promise(r => setTimeout(r, 150));
   }
 
@@ -434,6 +447,7 @@ function processTickets(tickets) {
       agentResponseCount:countAgentResponses(t,getAgent(t)),
       aiSummary:t.aiSummary||'',
       latestComment:getLatestComment(t),
+      latestCommentIsBot:(()=>{const lc=t.latestComment;return !!(lc&&typeof lc==='object'&&(lc.bot===true||lc.kaiChat===true));})(),
       day:createdDt?createdDt.toISOString().slice(0,10):'unknown',
       hour:createdDt?createdDt.getUTCHours():-1,
       dayOfWeek:createdDt?['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][createdDt.getUTCDay()]:'unknown',

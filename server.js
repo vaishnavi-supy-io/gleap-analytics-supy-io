@@ -242,15 +242,15 @@ async function findLastSkip() {
 }
 
 // ── Fetch ALL tickets in date range ──────────────────────────
-async function fetchAllTickets(startDate, endDate, lastSkip) {
+async function fetchAllTickets(startDate, endDate) {
   const rangeStart=new Date(startDate), rangeEnd=new Date(endDate);
   const all=[], seen=new Set();
   // Gleap API is sorted newest-first (skip=0 = most recent).
   // Start at skip=0 and increment until a full page pre-dates rangeStart.
   let skip=0, pages=0;
-  const MAX_PAGES = Math.ceil((lastSkip || 50000) / 50) + 50;
+  const MAX_PAGES = 1000; // safety cap: 1000 × 50 = 50,000 tickets max
 
-  console.log(`📥 Fetching all tickets: ${startDate} → ${endDate}, max pages=${MAX_PAGES}`);
+  console.log(`📥 Fetching all tickets: ${startDate} → ${endDate}`);
 
   while (pages < MAX_PAGES) {
     let items;

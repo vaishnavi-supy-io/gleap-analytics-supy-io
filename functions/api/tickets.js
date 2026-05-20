@@ -1,6 +1,6 @@
 import {
-  getGleapHeaders, getCachedJson, setCachedJson,
-  findLastSkip, fetchAllTickets, enrichTickets, processTickets,
+  getGleapHeaders,
+  fetchAllTickets, enrichTickets, processTickets,
 } from '../_shared/gleap.js';
 
 export async function onRequestGet({ request, env }) {
@@ -17,13 +17,7 @@ export async function onRequestGet({ request, env }) {
 
     const gleapHeaders = getGleapHeaders(env);
 
-    let lastSkip = await getCachedJson('lastskip');
-    if (!lastSkip) {
-      lastSkip = await findLastSkip(gleapHeaders);
-      await setCachedJson('lastskip', lastSkip, 600);
-    }
-
-    let tickets = await fetchAllTickets(start, end, lastSkip, gleapHeaders);
+    let tickets = await fetchAllTickets(start, end, null, gleapHeaders);
     if (tickets.length <= 200) tickets = await enrichTickets(tickets, gleapHeaders);
     let rows = processTickets(tickets, env.PROJECT_ID);
 

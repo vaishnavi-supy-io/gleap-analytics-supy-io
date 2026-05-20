@@ -305,11 +305,12 @@ export async function findLastSkip(gleapHeaders) {
 // Fetches ALL ticket types (INQUIRY, BUG, FEATURE_REQUEST, CRASH, etc.)
 // Gleap API is sorted newest-first (skip=0 = most recent). We start at skip=0
 // and increment until every ticket on a page pre-dates rangeStart.
-export async function fetchAllTickets(startDate, endDate, lastSkip, gleapHeaders) {
+// MAX_PAGES is a safety cap — 1000 pages × 50 = 50,000 tickets max.
+export async function fetchAllTickets(startDate, endDate, _lastSkip, gleapHeaders) {
   const rangeStart=new Date(startDate), rangeEnd=new Date(endDate);
   const all=[], seen=new Set();
   let skip=0, pages=0;
-  const MAX_PAGES = Math.ceil((lastSkip || 50000) / 50) + 50;
+  const MAX_PAGES = 1000;
   console.log(`📥 Fetching all tickets: ${startDate} → ${endDate}, max pages=${MAX_PAGES}`);
 
   while (pages < MAX_PAGES) {
@@ -543,13 +544,7 @@ export function buildSlackDigest(stats, periodLabel) {
 }
 
 export async function runFullPipeline(start, end, gleapHeaders, projectId) {
-  let lastSkip = await getCachedJson('lastskip');
-  if (!lastSkip) {
-    lastSkip = await findLastSkip(gleapHeaders);
-    await setCachedJson('lastskip', lastSkip, 600);
-  }
-
-  let tickets = await fetchAllTickets(start, end, lastSkip, gleapHeaders);
+  let tickets = await fetchAllTickets(start, end, null, gleapHeaders);
   if (tickets.length <= 150) {
     tickets = await enrichTickets(tickets, gleapHeaders);
   } else {

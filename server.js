@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const path    = require('path');
+const fs      = require('fs');
 const fetch   = require('node-fetch');
 const pLimit  = require('p-limit');
 
@@ -582,9 +583,39 @@ function buildAIPrompt(stats) {
 // ── Pagination cache ──────────────────────────────────────────
 let cachedLastSkip = null, lastSkipTime = 0;
 
-// ── Analytics cache ───────────────────────────────────────────
-// key: "YYYY-MM-DD::YYYY-MM-DD" → { stats, rows, rawTickets, generatedAt, lastIncrementalAt }
+// ── Persistent analytics cache ────────────────────────────────
+// Survives server restarts by writing to / reading from disk.
+const CACHE_FILE = path.join(__dirname, '.analytics-cache.json');
 const analyticsCache = new Map();
+
+function loadCacheFromDisk() {
+  try {
+    if (!fs.existsSync(CACHE_FILE)) return;
+    const raw = fs.readFileSync(CACHE_FILE, 'utf8');
+    const entries = JSON.parse(raw);
+    let count = 0;
+    for (const [key, val] of Object.entries(entries)) {
+      analyticsCache.set(key, val);
+      count++;
+    }
+    console.log(`💾 Loaded ${count} cache entr${count === 1 ? 'y' : 'ies'} from disk`);
+  } catch (e) {
+    console.warn('⚠️  Could not load cache from disk:', e.message);
+  }
+}
+
+function saveCacheToDisk() {
+  try {
+    const obj = {};
+    for (const [key, val] of analyticsCache.entries()) obj[key] = val;
+    fs.writeFileSync(CACHE_FILE, JSON.stringify(obj), 'utf8');
+  } catch (e) {
+    console.warn('⚠️  Could not save cache to disk:', e.message);
+  }
+}
+
+// Load persisted cache immediately at startup
+loadCacheFromDisk();
 
 // ── Full pipeline (initial fetch for a date range) ──────────────
 async function runFullPipeline(start, end) {
@@ -653,6 +684,7 @@ async function incrementalRefresh(cacheKey, start, end) {
     }
     cached.lastIncrementalAt = new Date().toISOString();
     analyticsCache.set(cacheKey, cached);
+    saveCacheToDisk();
     console.log(`✅ Incremental done [${cacheKey}]: ${cached.rawTickets.length} tickets total`);
   } catch(e) {
     console.error(`❌ Incremental refresh failed [${cacheKey}]:`, e.message);
@@ -676,6 +708,7 @@ function startBackgroundWorker() {
       try {
         const result = await runFullPipeline(monthStart, monthEnd);
         analyticsCache.set(cacheKey, result);
+        saveCacheToDisk();
       } catch(e) { console.error('Background worker error:', e.message); }
     }
   }, REFRESH_INTERVAL_MS);
@@ -843,6 +876,7 @@ app.get('/api/analytics', async (req,res) => {
     console.log(`🔃 Cache miss [${cacheKey}] — running full pipeline`);
     const result = await runFullPipeline(start, end);
     analyticsCache.set(cacheKey, result);
+    saveCacheToDisk();
     res.json({ ok: true, stats: result.stats, generatedAt: result.generatedAt, fromCache: false });
   } catch(e) {
     console.error(e);

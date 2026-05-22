@@ -28,8 +28,12 @@ const CLOSED_STATUSES   = new Set(['CLOSED','DONE','RESOLVED','COMPLETED']);
 const OPEN_STATUSES     = new Set(['OPEN','IN_PROGRESS','PENDING','ACTIVE','INPROGRESS']);
 const ARCHIVED_STATUSES = new Set(['ARCHIVED']);
 
-function gleapLink(bugId) {
-  return `https://app.gleap.io/projects/${PROJECT_ID}/bugs/${bugId}`;
+function gleapLink(ticketType, id, bugId) {
+  const type = String(ticketType || '').toUpperCase();
+  if (type === 'INQUIRY') return `https://app.gleap.io/projects/${PROJECT_ID}/inquiries/${id}`;
+  if (type === 'FEATURE_REQUEST') return `https://app.gleap.io/projects/${PROJECT_ID}/feature-requests/${id}`;
+  if (type === 'CRASH') return `https://app.gleap.io/projects/${PROJECT_ID}/crashes/${id}`;
+  return `https://app.gleap.io/projects/${PROJECT_ID}/bugs/${bugId || id}`;
 }
 
 // ── Helpers ─────────────────────────────────────────────────
@@ -423,13 +427,15 @@ function processTickets(tickets) {
     const closeTime=isClosed?updated:null;
     const createdDt=parseDt(created);
     const bugId=t.bugId||t._id||'';
+    const rawId=t._id||t.id||'';
+    const ticketType=String(t.type||t.ticketType||'UNKNOWN').toUpperCase();
     const linked=t.linkedTickets||t.linkedBugs||t.links||[];
 
     return {
-      id:t._id||t.id||'', bugId,
-      gleapLink:gleapLink(bugId),
+      id:rawId, bugId,
+      gleapLink:gleapLink(ticketType, rawId, bugId),
       title:t.title||'(No title)',
-      gleapType:String(t.type||t.ticketType||'UNKNOWN').toUpperCase(),
+      gleapType:ticketType,
       contact:getContact(t), email:getEmail(t), company:getCompany(t), phone:getPhone(t),
       agent:getAgent(t),
       status:statusRaw,

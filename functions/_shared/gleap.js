@@ -27,8 +27,12 @@ export function getGleapHeaders(env) {
   };
 }
 
-export function gleapLink(bugId, projectId) {
-  return `https://app.gleap.io/projects/${projectId}/bugs/${bugId}`;
+export function gleapLink(ticketType, id, bugId, projectId) {
+  const type = String(ticketType || '').toUpperCase();
+  if (type === 'INQUIRY') return `https://app.gleap.io/projects/${projectId}/inquiries/${id}`;
+  if (type === 'FEATURE_REQUEST') return `https://app.gleap.io/projects/${projectId}/feature-requests/${id}`;
+  if (type === 'CRASH') return `https://app.gleap.io/projects/${projectId}/crashes/${id}`;
+  return `https://app.gleap.io/projects/${projectId}/bugs/${bugId || id}`;
 }
 
 export function parseDt(s) { if (!s) return null; try { return new Date(s); } catch { return null; } }
@@ -368,12 +372,14 @@ export function processTickets(tickets, projectId) {
     const closeTime=isClosed?updated:null;
     const createdDt=parseDt(created);
     const bugId=t.bugId||t._id||'';
+    const rawId=t._id||t.id||'';
+    const ticketType=String(t.type||t.ticketType||'UNKNOWN').toUpperCase();
     const linked=t.linkedTickets||t.linkedBugs||t.links||[];
     return {
-      id:t._id||t.id||'', bugId,
-      gleapLink:gleapLink(bugId, projectId),
+      id:rawId, bugId,
+      gleapLink:gleapLink(ticketType, rawId, bugId, projectId),
       title:t.title||'(No title)',
-      gleapType:String(t.type||t.ticketType||'UNKNOWN').toUpperCase(),
+      gleapType:ticketType,
       contact:getContact(t), email:getEmail(t), company:getCompany(t), phone:getPhone(t),
       agent:getAgent(t),
       status:statusRaw,

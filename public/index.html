@@ -950,8 +950,8 @@ function statsForType(fullStats, type) {
   const unassigned   = rows.filter(r=>r.agent==='Unassigned');
   const closeVals    = rows.map(r=>r.closeMins).filter(v=>v!==null);
   const repliedRows  = rows.filter(r=>r.hasAgentReply);
-  const repliedClose = repliedRows.map(r=>r.closeMins).filter(v=>v!==null);
-  const avgFirstInt  = repliedClose.length ? (repliedClose.reduce((a,b)=>a+b,0)/repliedClose.length)*0.35 : null;
+  const firstRespVals = rows.map(r=>r.firstResponseMins).filter(v=>v!==null);
+  const avgFirstInt  = firstRespVals.length ? firstRespVals.reduce((a,b)=>a+b,0)/firstRespVals.length : null;
   const fmtMins = m => {
     if (m===null||m===undefined||isNaN(m)) return 'N/A';
     if (m<1) return '<1 min'; if (m<60) return `${Math.round(m)} min`;
@@ -1393,7 +1393,7 @@ function renderUnassignedQueue() {
       <td style="padding:10px 12px;font-size:10.5px;font-weight:700;color:var(--p600);white-space:nowrap">#${escHtml(t.bugId)}</td>
       <td style="padding:10px 12px;max-width:300px">
         <div style="font-size:12px;font-weight:600;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:280px">${escHtml(t.title || 'No subject')}</div>
-        ${t.latestComment ? `<div style="font-size:10.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:280px">"${escHtml(t.latestComment.slice(0, 90))}"</div>` : ''}
+        ${t.latestComment ? `<div style="font-size:10.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:280px">${t.latestCommentIsBot?'🤖 ':''}${escHtml(t.latestComment.slice(0, 90))}</div>` : ''}
       </td>
       <td style="padding:10px 12px">
         <div style="font-size:11.5px;font-weight:600;color:var(--ink)">${escHtml(t.contact || '—')}</div>
@@ -1405,7 +1405,7 @@ function renderUnassignedQueue() {
         ${t.slaBreached ? '<span style="background:rgba(239,68,68,0.1);color:var(--red);padding:1px 7px;border-radius:99px;font-size:10px;font-weight:700">SLA ⚠</span>' : ''}
       </td>
       <td style="padding:10px 12px">
-        <a href="javascript:void(0)" onclick="openTicketModal(${JSON.stringify(t).replace(/"/g, '&quot;')})" class="gleap-link" style="cursor:pointer;font-size:11px">Open ↗</a>
+        <a href="${escHtml(t.gleapLink)}" target="_blank" rel="noopener" class="gleap-link" style="cursor:pointer;font-size:11px">Open ↗</a>
       </td>
     </tr>`).join('');
 
@@ -1638,14 +1638,14 @@ function renderCalls(s) {
         <div class="call-detail-row">👤 <strong>${escHtml(c.agent)}</strong></div>
         <div class="call-detail-row">🗓 <strong>${c.createdAt?c.createdAt.slice(0,10):'—'}</strong></div>
         ${c.assignMins!==null?`<div class="call-detail-row">⚡ Assigned in <strong>${formatMins(c.assignMins)}</strong></div>`:''}
-        ${c.closeMins!==null?`<div class="call-detail-row">✅ Closed in <strong>${formatMins(c.closeMins)}</strong></div>`:''}
+        ${c.closeMins!==null?`<div class="call-detail-row">✅ ~Closed in <strong>${formatMins(c.closeMins)}</strong></div>`:''}
       </div>
       <div class="call-card-footer">
         <div style="display:flex;gap:6px">
           ${c.hasAgentReply?'<span class="badge replied">Replied</span>':'<span class="badge danger" style="background:rgba(239,68,68,0.1);color:var(--red)">No Reply</span>'}
           ${c.slaBreached?'<span class="badge sla">SLA ⚠</span>':''}
         </div>
-        <a href="javascript:void(0)" onclick="openTicketModal(${JSON.stringify(c).replace(/"/g, '&quot;')})" class="gleap-link" style="cursor:pointer">Open ↗</a>
+        <a href="${escHtml(c.gleapLink)}" target="_blank" rel="noopener" class="gleap-link" style="cursor:pointer">Open ↗</a>
       </div>
     </div>
   `).join('');
@@ -1764,15 +1764,15 @@ function renderTicketList() {
           <span style="font-size:11px;color:var(--muted)">👤 ${escHtml(t.agent)}</span>
           ${badges}
         </div>
-        ${t.latestComment?`<div class="ticket-comment">"${escHtml(t.latestComment)}"</div>`:''}
+        ${t.latestComment?`<div class="ticket-comment">${t.latestCommentIsBot?'🤖 ':''}${escHtml(t.latestComment)}</div>`:''}
         <div class="timing-row" style="margin-top:6px">
           ${t.assignMins!==null?`<span class="timing-chip">⚡ Assign: ${formatMins(t.assignMins)}</span>`:''}
-          ${t.firstResponseMins!==null?`<span class="timing-chip">💬 1st Resp: ${formatMins(t.firstResponseMins)}</span>`:''}
-          ${t.closeMins!==null?`<span class="timing-chip">✅ Close: ${formatMins(t.closeMins)}</span>`:''}
+          ${t.firstResponseMins!==null?`<span class="timing-chip">💬 Resp: ${formatMins(t.firstResponseMins)}</span>`:''}
+          ${t.closeMins!==null?`<span class="timing-chip">✅ ~Close: ${formatMins(t.closeMins)}</span>`:''}
         </div>
       </div>
       <div class="ticket-right">
-        <a href="javascript:void(0)" onclick="openTicketModal(${JSON.stringify(t).replace(/"/g, '&quot;')})" class="gleap-link" style="cursor:pointer">Open ↗</a>
+        <a href="${escHtml(t.gleapLink)}" target="_blank" rel="noopener" class="gleap-link" style="cursor:pointer">Open ↗</a>
         ${t.aiSummary?`<div style="font-size:10px;color:var(--faint);max-width:160px;text-align:right;margin-top:4px">${escHtml(t.aiSummary.slice(0,80))}…</div>`:''}
       </div>
     </div>`;
@@ -2093,18 +2093,18 @@ function openTicketModal(ticket) {
           <div class="modal-value">${formatMins(ticket.assignMins)}</div>
         </div>` : ''}
         ${ticket.firstResponseMins !== null ? `<div class="modal-field">
-          <div class="modal-label">Time to 1st Response</div>
+          <div class="modal-label">Agent Response Time <span style="font-size:10px;color:var(--faint)">(latest human reply)</span></div>
           <div class="modal-value">${formatMins(ticket.firstResponseMins)}</div>
         </div>` : ''}
         ${ticket.closeMins !== null ? `<div class="modal-field">
-          <div class="modal-label">Time to Close</div>
+          <div class="modal-label">Time to Close <span style="font-size:10px;color:var(--faint)">(≈ last update)</span></div>
           <div class="modal-value">${formatMins(ticket.closeMins)}</div>
         </div>` : ''}
       </div>
       
       ${ticket.latestComment ? `<div class="modal-section full">
         <div class="modal-field">
-          <div class="modal-label">Latest Comment</div>
+          <div class="modal-label">Latest Comment${ticket.latestCommentIsBot?' <span style="font-size:10px;color:var(--faint)">🤖 bot message</span>':''}</div>
           <div class="modal-value" style="font-style:italic;max-height:100px;overflow-y:auto">"${escHtml(ticket.latestComment)}"</div>
         </div>
       </div>` : ''}

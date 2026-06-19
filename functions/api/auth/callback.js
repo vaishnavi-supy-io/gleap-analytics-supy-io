@@ -11,9 +11,15 @@ export async function onRequestGet({ request, env }) {
     return Response.redirect('/login?error=no_code', 302);
   }
 
-  // Decode the original destination from state
+  // Decode the original destination from state — validate it is a same-origin relative path
+  // to prevent open redirect attacks (e.g. state encoding next=//evil.com)
   let next = '/';
-  try { next = JSON.parse(atob(state)).next || '/'; } catch {}
+  try {
+    const candidate = JSON.parse(atob(state)).next;
+    if (typeof candidate === 'string' && candidate.startsWith('/') && !candidate.startsWith('//') && !candidate.startsWith('/\\')) {
+      next = candidate;
+    }
+  } catch {}
 
   // Exchange code for tokens
   const redirectUri = `${url.origin}/api/auth/callback`;

@@ -11,15 +11,26 @@ export async function onRequestGet({ request, env }) {
     return Response.redirect('/login?error=no_code', 302);
   }
 
-  // Decode the original destination from state — validate it is a same-origin relative path
-  // to prevent open redirect attacks (e.g. state encoding next=//evil.com)
+  // Verify CSRF nonce: cookie set in login.js must match nonce embedded in state
+  const cookieHeader = request.headers.get('Cookie') || '';
+  const cookieNonce = cookieHeader.split(';').map(c => c.trim())
+    .find(c => c.startsWith('oauth_state='))?.slice('oauth_state='.length) || '';
+
   let next = '/';
   try {
-    const candidate = JSON.parse(atob(state)).next;
+    const decoded = JSON.parse(atob(state));
+    // Reject if nonce is missing or doesn't match the cookie
+    if (!decoded.nonce || decoded.nonce !== cookieNonce) {
+      return Response.redirect('/login?error=invalid_state', 302);
+    }
+    // Validate next is a same-origin relative path (prevent open redirect)
+    const candidate = decoded.next;
     if (typeof candidate === 'string' && candidate.startsWith('/') && !candidate.startsWith('//') && !candidate.startsWith('/\\')) {
       next = candidate;
     }
-  } catch {}
+  } catch {
+    return Response.redirect('/login?error=invalid_state', 302);
+  }
 
   // Exchange code for tokens
   const redirectUri = `${url.origin}/api/auth/callback`;

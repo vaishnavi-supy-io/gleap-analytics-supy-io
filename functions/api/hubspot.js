@@ -24,7 +24,7 @@ export async function onRequest({ request, env }) {
   try {
     if (action === 'get_owner') {
       const email = url.searchParams.get('email');
-      if (!email) return Response.json({ error: 'email required' }, { status: 400 });
+      if (!email || !email.endsWith('@supy.io')) return Response.json({ error: 'valid @supy.io email required' }, { status: 400 });
 
       const res = await fetch(
         `https://api.hubapi.com/crm/v3/owners?email=${encodeURIComponent(email)}&limit=1`,

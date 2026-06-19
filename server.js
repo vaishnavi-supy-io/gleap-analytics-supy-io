@@ -1080,6 +1080,11 @@ const ALLOWED_HS_PROPERTIES = new Set([
 app.all('/api/hubspot', async (req, res) => {
   if (req.method === 'OPTIONS') return res.status(204).end();
 
+  // Restrict to loopback — this endpoint is for local dev only; Cloudflare Pages uses functions/api/hubspot.js with full auth
+  const ip = req.ip || req.socket?.remoteAddress || '';
+  const isLocal = ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
+  if (!isLocal) return res.status(403).json({ error: 'Forbidden' });
+
   const HS_TOKEN = process.env.HUBSPOT_TOKEN;
   if (!HS_TOKEN) return res.status(500).json({ error: 'HUBSPOT_TOKEN env var not set' });
 

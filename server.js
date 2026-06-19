@@ -1,11 +1,20 @@
 require('dotenv').config();
 const express = require('express');
 const path    = require('path');
+const fs      = require('fs');
 const fetch   = require('node-fetch');
 const pLimit  = require('p-limit');
+const rateLimit = require('express-rate-limit');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
+
+const fileRouteLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per window
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
@@ -14,7 +23,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 const GLEAP_API_KEY    = process.env.GLEAP_API_KEY;
 const PROJECT_ID       = process.env.PROJECT_ID;
 const OPENROUTER_KEY   = process.env.OPENROUTER_KEY;
-const AI_MODEL         = process.env.AI_MODEL || 'anthropic/claude-sonnet-4-6';
+const AI_MODEL         = process.env.AI_MODEL || 'google/gemini-3.1-flash-lite';
 const SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL || '';
 
 const GLEAP_HEADERS = {
@@ -179,12 +188,22 @@ function getLatestComment(t) {
   return '';
 }
 
-async function gleapFetch(url, params={}) {
+async function gleapFetch(url, params={}, retries=3) {
   const qs = new URLSearchParams(params).toString();
-  const res = await fetch(qs?`${url}?${qs}`:url, { headers: GLEAP_HEADERS });
-  if (!res.ok) throw new Error(`Gleap API ${res.status}: ${await res.text().catch(()=>'')}`);
-  const d = await res.json();
-  return Array.isArray(d)?d:(d.data||d.tickets||d.items||[]);
+  const fullUrl = qs ? `${url}?${qs}` : url;
+  for (let attempt = 0; attempt < retries; attempt++) {
+    const res = await fetch(fullUrl, { headers: GLEAP_HEADERS });
+    if (res.status === 503 || res.status === 429) {
+      const delay = (attempt + 1) * 2000;
+      console.warn(`Gleap API ${res.status} — retrying in ${delay}ms (attempt ${attempt+1}/${retries})`);
+      await new Promise(r => setTimeout(r, delay));
+      continue;
+    }
+    if (!res.ok) throw new Error(`Gleap API ${res.status}: ${await res.text().catch(()=>'')}`);
+    const d = await res.json();
+    return Array.isArray(d) ? d : (d.data||d.tickets||d.items||[]);
+  }
+  throw new Error(`Gleap API unavailable after ${retries} retries`);
 }
 
 // ── FIX: Binary search to find actual last skip ──────────────
@@ -210,31 +229,29 @@ async function findLastSkip() {
     await new Promise(r => setTimeout(r, 120));
   }
   console.log(`✅ Last skip found: ${last}`);
+  if (last > 0) saveSkipCache(last);
   return last;
 }
 
 // ── Fetch INQUIRY tickets in date range ──────────────────────
+// Scans newest-first (skip=0) so it stops as soon as tickets predate rangeStart.
 async function fetchInboxTickets(startDate, endDate, lastSkip) {
   const rangeStart=new Date(startDate), rangeEnd=new Date(endDate);
   const all=[], seen=new Set();
-  let skip=lastSkip, pages=0;
-
-  // FIX: max pages now scales with lastSkip so we never miss tickets
-  // e.g. lastSkip=2000 → max 2000/50+50 = 90 pages; lastSkip=50000 → max 1050 pages
+  let skip=0, pages=0;
   const MAX_PAGES = Math.ceil(lastSkip / 50) + 50;
 
-  console.log(`📥 Fetching tickets: ${startDate} → ${endDate}, starting at skip=${lastSkip}, max pages=${MAX_PAGES}`);
+  console.log(`📥 Fetching tickets: ${startDate} → ${endDate}, scanning newest-first, max pages=${MAX_PAGES}`);
 
   while (pages < MAX_PAGES) {
-    if (skip < 0) break;
     let items;
     try {
       items = await gleapFetch('https://api.gleap.io/v3/tickets', { limit: 50, skip });
     } catch (e) {
       console.warn(`Fetch error at skip=${skip}:`, e.message);
-      skip -= 50; pages++; continue;
+      skip += 50; pages++; continue;
     }
-    if (!items.length) { skip -= 50; pages++; continue; }
+    if (!items.length) break;
 
     let oldCount = 0;
     for (const t of items) {
@@ -246,7 +263,7 @@ async function fetchInboxTickets(startDate, endDate, lastSkip) {
       if (String(t.type||t.ticketType||'').toUpperCase() === 'INQUIRY') all.push(t);
     }
     if (oldCount === items.length) break;
-    skip -= 50; pages++;
+    skip += 50; pages++;
     await new Promise(r => setTimeout(r, 150));
   }
 
@@ -505,8 +522,26 @@ function buildAIPrompt(stats) {
   return `You are a customer success team lead reviewing your inbox analytics.\n\nPERIOD OVERVIEW:\n- Total INQUIRY tickets: ${stats.total}\n- Open: ${stats.openCount} | Closed: ${stats.closedCount} | Archived: ${stats.archivedCount}\n- Escalated: ${stats.escalatedCount} | Unassigned: ${stats.unassignedCount} | SLA breached: ${stats.slaBreached}\n- Call requests: ${stats.callRequestCount}\n\nTIMING (benchmarks: assign <15min, first response <30min, close <4hrs):\n- Avg time to assign: ${stats.avgAssignFmt}\n- Avg first response: ${stats.avgFirstRespFmt}\n- Avg time to close: ${stats.avgCloseFmt}\n\nAGENT PERFORMANCE:\n${agentTable}\n\nOPEN TICKETS:\n${openList||'None'}\n\nTOP COMPANIES: ${(stats.topCompanies||[]).slice(0,5).map(c=>`${c.name}(${c.count})`).join(', ')}\n\nGive me a sharp team lead report:\n\n**1. INBOX HEALTH SCORE: X/10** — one sentence why.\n\n**2. TOP 3 URGENT ACTIONS** — most critical open/unassigned tickets to handle RIGHT NOW.\n\n**3. RESPONSE SPEED ANALYSIS** — vs benchmark. Who is fastest/slowest?\n\n**4. ESCALATION PATTERNS** — ${stats.escalatedCount} escalations. What does this signal?\n\n**5. AGENT COACHING NOTES** — specific feedback for each agent by name.\n\n**6. THIS WEEK'S 5-POINT ACTION PLAN** — exact steps to take now.\n\nBe direct, use real numbers, name names.`;
 }
 
-// ── Pagination cache ──────────────────────────────────────────
+// ── Pagination cache — persisted to disk so restarts don't re-discover ───────
+const SKIP_CACHE_FILE = path.join(__dirname, '.skip-cache.json');
 let cachedLastSkip = null, lastSkipTime = 0;
+
+function loadSkipCache() {
+  try {
+    const d = JSON.parse(fs.readFileSync(SKIP_CACHE_FILE, 'utf8'));
+    if (d.skip && d.ts && (Date.now() - d.ts) < 24 * 60 * 60 * 1000) {
+      cachedLastSkip = d.skip;
+      lastSkipTime   = d.ts;
+      console.log(`💾 Loaded lastSkip=${cachedLastSkip} from disk cache`);
+    }
+  } catch { /* no cache yet */ }
+}
+
+function saveSkipCache(skip) {
+  try { fs.writeFileSync(SKIP_CACHE_FILE, JSON.stringify({ skip, ts: Date.now() })); } catch {}
+}
+
+loadSkipCache();
 
 // ── Analytics cache ───────────────────────────────────────────
 // key: "YYYY-MM-DD::YYYY-MM-DD" → { stats, rows, rawTickets, generatedAt, lastIncrementalAt }
@@ -515,8 +550,15 @@ const analyticsCache = new Map();
 // ── Full pipeline (initial fetch for a date range) ──────────────
 async function runFullPipeline(start, end) {
   if (!cachedLastSkip || (Date.now() - lastSkipTime) > 600000) {
-    cachedLastSkip = await findLastSkip();
-    lastSkipTime = Date.now();
+    try {
+      cachedLastSkip = await findLastSkip();
+      lastSkipTime = Date.now();
+    } catch(e) {
+      // If findLastSkip fails entirely and we have no cached value, re-load from disk
+      loadSkipCache();
+      if (!cachedLastSkip) throw new Error(`Cannot determine ticket range: ${e.message}`);
+      console.warn(`findLastSkip failed — using disk-cached lastSkip=${cachedLastSkip}`);
+    }
   }
 
   let tickets = await fetchInboxTickets(start, end, cachedLastSkip);
@@ -665,8 +707,22 @@ app.get('/api/debug', async (req,res) => {
 app.get('/api/analytics', async (req,res) => {
   try {
     const now   = new Date();
-    const start = req.query.start || new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-    const end   = req.query.end   || now.toISOString();
+    const rawStart = req.query.start;
+    const rawEnd   = req.query.end;
+
+    if (rawStart !== undefined && typeof rawStart !== 'string') {
+      return res.status(400).json({ ok: false, error: 'Invalid "start" query parameter' });
+    }
+    if (rawEnd !== undefined && typeof rawEnd !== 'string') {
+      return res.status(400).json({ ok: false, error: 'Invalid "end" query parameter' });
+    }
+
+    const start = (typeof rawStart === 'string')
+      ? rawStart
+      : new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    const end   = (typeof rawEnd === 'string')
+      ? rawEnd
+      : now.toISOString();
     const force = req.query.force === 'true';
 
     // Stable cache key — date-only so minor second differences reuse same entry
@@ -684,9 +740,14 @@ app.get('/api/analytics', async (req,res) => {
     }
 
     console.log(`🔃 Cache miss [${cacheKey}] — running full pipeline`);
-    const result = await runFullPipeline(start, end);
-    analyticsCache.set(cacheKey, result);
-    res.json({ ok: true, stats: result.stats, generatedAt: result.generatedAt, fromCache: false });
+    try {
+      const result = await runFullPipeline(start, end);
+      analyticsCache.set(cacheKey, result);
+      res.json({ ok: true, stats: result.stats, generatedAt: result.generatedAt, fromCache: false });
+    } catch(e) {
+      console.error(`Pipeline failed [${cacheKey}]:`, e.message);
+      res.status(503).json({ ok: false, error: 'Gleap API temporarily unavailable. Please try again in a moment.', detail: e.message });
+    }
   } catch(e) {
     console.error(e);
     res.status(500).json({ok:false,error:e.message});
@@ -728,6 +789,60 @@ app.get('/api/tickets', async (req,res) => {
   } catch(e) {
     console.error(e);
     res.status(500).json({ok:false,error:e.message});
+  }
+});
+
+function buildAISystemContext(stats) {
+  const slim = {
+    ...stats,
+    openTickets: (stats.openTickets||[]).slice(0,15).map(t=>({bugId:t.bugId,title:t.title,contact:t.contact,company:t.company,agent:t.agent,slaBreached:t.slaBreached,isEscalated:t.isEscalated})),
+    tickets:undefined, escalatedTickets:undefined, callTickets:undefined, daily:undefined, hourly:undefined, dow:undefined, statusBreakdown:undefined,
+  };
+  const agentTable=(slim.agents||[]).map(a=>`  ${a.name}: ${a.handled} handled, ${a.open} open, reply rate ${a.replyRate}%, avg first resp ${a.avgFirstRespFmt}, avg close ${a.avgCloseFmt}, escalated ${a.escalated||0}`).join('\n');
+  const openList=(slim.openTickets||[]).map(t=>`  #${t.bugId} | ${t.contact}@${t.company||'?'} | ${t.agent} | SLA:${t.slaBreached?'BREACHED':'OK'} | esc:${t.isEscalated}`).join('\n');
+  return `You are an AI analyst for a B2B SaaS customer success team. Answer questions about the inbox analytics data below. Be concise and specific — use real numbers, name agents by name. If asked to write a formal report, use the section structure: HEALTH SCORE, URGENT ACTIONS, RESPONSE SPEED, ESCALATION PATTERNS, AGENT COACHING, ACTION PLAN.
+
+PERIOD OVERVIEW:
+- Total INQUIRY tickets: ${slim.total} | Open: ${slim.openCount} | Closed: ${slim.closedCount} | Archived: ${slim.archivedCount}
+- Escalated: ${slim.escalatedCount} | Unassigned: ${slim.unassignedCount} | SLA breached: ${slim.slaBreached} | Call requests: ${slim.callRequestCount}
+
+TIMING (benchmarks: assign <15min, first resp <30min, close <4h):
+- Avg assign: ${slim.avgAssignFmt} | Avg first resp: ${slim.avgFirstRespFmt} | Avg close: ${slim.avgCloseFmt}
+
+AGENT PERFORMANCE:
+${agentTable||'  (no agent data)'}
+
+OPEN TICKETS (sample):
+${openList||'  None'}
+
+TOP COMPANIES: ${(slim.topCompanies||[]).slice(0,5).map(c=>`${c.name}(${c.count})`).join(', ')||'N/A'}`;
+}
+
+app.post('/api/ai-chat', async (req, res) => {
+  try {
+    if (!OPENROUTER_KEY) return res.status(500).json({ok:false,error:'OPENROUTER_KEY not configured. Add to .env'});
+    const { messages, stats, makeReport } = req.body;
+    if (!Array.isArray(messages) || messages.length === 0) return res.status(400).json({ok:false,error:'messages array required'});
+
+    const systemContent = stats ? buildAISystemContext(stats) : 'You are a customer success analyst. Answer questions about inbox performance data.';
+    const history = messages.slice(-20); // cap context at 20 turns
+    if (makeReport) {
+      history.push({ role:'user', content:'Based on our conversation, write a formal team lead report with: **1. INBOX HEALTH SCORE: X/10** (one sentence why) **2. TOP 3 URGENT ACTIONS** (critical tickets to handle now) **3. RESPONSE SPEED ANALYSIS** (vs benchmarks, fastest/slowest agents) **4. ESCALATION PATTERNS** (what do the escalations signal) **5. AGENT COACHING NOTES** (specific feedback per agent) **6. THIS WEEK\'S 5-POINT ACTION PLAN** (exact steps). Be direct, use real numbers, name names.' });
+    }
+
+    const timeoutPromise = new Promise((_,reject) => setTimeout(()=>reject(new Error('AI API timeout after 30s')), 30000));
+    const fetchPromise = fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method:'POST',
+      headers:{'Authorization':`Bearer ${OPENROUTER_KEY}`,'Content-Type':'application/json','HTTP-Referer':'https://gleap-analytics.app','X-Title':'Gleap Analytics'},
+      body: JSON.stringify({ model:AI_MODEL, messages:[{role:'system',content:systemContent},...history], max_tokens: makeReport?3000:800, temperature:0.3 }),
+    });
+    const aiResp = await Promise.race([fetchPromise, timeoutPromise]);
+    if (!aiResp.ok) { const t=await aiResp.text(); console.error(`AI chat error ${aiResp.status}:`,t.slice(0,200)); return res.status(502).json({ok:false,error:`AI API returned ${aiResp.status}`}); }
+    const data = await aiResp.json();
+    res.json({ ok:true, reply: data.choices?.[0]?.message?.content || 'No response generated.' });
+  } catch(e) {
+    console.error('AI Chat Error:', e.message);
+    res.status(500).json({ ok:false, error: e.message||'Server error' });
   }
 });
 
@@ -866,9 +981,17 @@ app.get('/api/digest', async (req, res) => {
     const defaultStart = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate()).toISOString();
     const defaultEnd   = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate(), 23, 59, 59, 999).toISOString();
 
-    const start  = req.query.start || defaultStart;
-    const end    = req.query.end   || defaultEnd;
-    const dry    = req.query.dry === 'true'; // ?dry=true → return payload, don't post
+    const rawStart = req.query.start;
+    const rawEnd   = req.query.end;
+
+    if ((rawStart !== undefined && typeof rawStart !== 'string') ||
+        (rawEnd !== undefined && typeof rawEnd !== 'string')) {
+      return res.status(400).json({ ok: false, error: 'Invalid query parameters: start/end must be strings.' });
+    }
+
+    const start = (typeof rawStart === 'string' && rawStart.trim() !== '') ? rawStart : defaultStart;
+    const end   = (typeof rawEnd === 'string' && rawEnd.trim() !== '') ? rawEnd : defaultEnd;
+    const dry   = req.query.dry === 'true'; // ?dry=true → return payload, don't post
 
     const periodLabel = `${start.slice(0,10)} → ${end.slice(0,10)}`;
 
@@ -947,7 +1070,56 @@ app.get('/api/cache-status', (req, res) => {
   res.json({ ok: true, entries, cachedLastSkip });
 });
 
-app.get('*',(req,res)=>res.sendFile(path.join(__dirname,'public','index.html')));
+// ── HubSpot proxy ─────────────────────────────────────────────
+const ALLOWED_HS_PROPERTIES = new Set([
+  'hs_ticket_id','subject','content','hs_pipeline_stage','hs_pipeline',
+  'hubspot_owner_id','createdate','hs_lastmodifieddate','hs_ticket_priority',
+  'hs_object_id','hs_ticket_category',
+]);
+
+app.all('/api/hubspot', async (req, res) => {
+  if (req.method === 'OPTIONS') return res.status(204).end();
+
+  const HS_TOKEN = process.env.HUBSPOT_TOKEN;
+  if (!HS_TOKEN) return res.status(500).json({ error: 'HUBSPOT_TOKEN env var not set' });
+
+  const action = req.query.action;
+  try {
+    if (action === 'get_owner') {
+      const email = req.query.email;
+      if (!email || !email.endsWith('@supy.io'))
+        return res.status(400).json({ error: 'valid @supy.io email required' });
+      const r = await fetch(
+        `https://api.hubapi.com/crm/v3/owners?email=${encodeURIComponent(email)}&limit=1`,
+        { headers: { Authorization: `Bearer ${HS_TOKEN}` } }
+      );
+      return res.status(r.status).json(await r.json());
+    }
+    if (action === 'get_tickets') {
+      const incoming = req.body || {};
+      // Rebuild payload from allowlisted fields only — never forward req.body verbatim
+      const payload = {
+        filterGroups: incoming.filterGroups || [],
+        sorts:        (incoming.sorts || []).slice(0, 5),
+        properties:   (incoming.properties || []).filter(p => ALLOWED_HS_PROPERTIES.has(p)),
+        limit:        Math.min(Number(incoming.limit) || 100, 200),
+        after:        incoming.after != null ? String(incoming.after) : undefined,
+      };
+      if (payload.after == null) delete payload.after;
+      const r = await fetch('https://api.hubapi.com/crm/v3/objects/tickets/search', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${HS_TOKEN}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      return res.status(r.status).json(await r.json());
+    }
+    return res.status(400).json({ error: 'Unknown action' });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('*', fileRouteLimiter, (req,res)=>res.sendFile(path.join(__dirname,'public','index.html')));
 app.listen(PORT, () => {
   console.log(`✅ Gleap Analytics v2 → http://localhost:${PORT}`);
   startBackgroundWorker();

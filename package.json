@@ -5,18 +5,24 @@
   "private": true,
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "pages:dev": "wrangler pages dev public --compatibility-date=2024-09-23",
+    "pages:deploy": "wrangler pages deploy public --project-name gleap-dashboard",
+    "deploy": "wrangler pages deploy public --project-name gleap-dashboard",
+    "deploy:ci": "wrangler pages deploy public --project-name gleap-dashboard --commit-dirty=true"
   },
   "dependencies": {
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
     "node-fetch": "^2.7.0",
-    "p-limit": "^3.1.0"
+    "p-limit": "^3.1.0",
+    "express-rate-limit": "^8.3.2"
   },
   "engines": {
     "node": ">=18.0.0"
   },
   "devDependencies": {
-    "nodemon": "^3.1.14"
+    "nodemon": "^3.1.14",
+    "wrangler": "^3.114.17"
   }
 }

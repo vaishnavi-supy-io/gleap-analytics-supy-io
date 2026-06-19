@@ -1,0 +1,2287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Team Hub — Supy</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<!-- Supabase JS client (CDN) -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+:root {
+  --navy:#321e57;--purple:#503390;--bright:#7b51bf;--light-purple:#efedfa;
+  --bg:#f4f1fa;--white:#fff;--dark:#1A1A2E;--mid:#888;--border:#e5e0f0;
+  --green:#40c798;--green-d:#1A8A5C;--green-l:#E8FAF0;
+  --blue:#109ae7;--blue-d:#1E5FA8;--blue-l:#EBF3FC;
+  --amber:#B8860B;--amber-l:#FEF9EC;
+  --red:#c2260c;--red-l:#FEE2E2;--red-d:#DC2626;
+  --orange:#fb763c;--orange-l:#FEF0EA;--orange-d:#C2450C;
+  --yellow:#fcd34d;--yellow-l:#FEF9E7;--yellow-d:#7A5700;
+  --shadow:0 1px 3px rgba(0,0,0,0.07);--shadow-md:0 2px 8px rgba(0,0,0,0.10);
+  --r:8px;--r-lg:12px;
+  font-family:'DM Sans',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--dark);min-height:100vh;font-size:13px}
+
+/* ── LOADING SCREEN ── */
+#loadingScreen{position:fixed;inset:0;background:var(--navy);display:flex;align-items:center;justify-content:center;z-index:2000;flex-direction:column;gap:16px}
+.loading-logo{width:48px;height:48px;background:var(--purple);border-radius:14px;display:flex;align-items:center;justify-content:center}
+.loading-logo svg{width:28px;height:28px}
+.loading-text{color:#c0b0e0;font-size:13px;font-weight:500}
+@keyframes pulse{0%,100%{opacity:0.4}50%{opacity:1}}
+.loading-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#7b51bf;margin:0 2px;animation:pulse 1.2s ease-in-out infinite}
+.loading-dot:nth-child(2){animation-delay:0.2s}
+.loading-dot:nth-child(3){animation-delay:0.4s}
+.db-status{font-size:11px;color:#9070c0;margin-top:4px}
+
+/* ── LOGIN ── */
+#loginScreen{position:fixed;inset:0;background:var(--navy);display:none;align-items:center;justify-content:center;z-index:1000;flex-direction:column}
+.login-card{background:var(--white);border-radius:16px;padding:36px 32px;width:340px;box-shadow:0 8px 32px rgba(0,0,0,0.25)}
+.login-logo{display:flex;align-items:center;gap:10px;margin-bottom:28px;justify-content:center}
+.login-logo-icon{width:38px;height:38px;background:var(--purple);border-radius:10px;display:flex;align-items:center;justify-content:center}
+.login-logo-icon svg{width:22px;height:22px}
+.login-title{font-size:22px;font-weight:700;color:var(--navy)}
+.login-sub{font-size:12px;color:var(--mid);margin-bottom:20px;text-align:center}
+.login-field{margin-bottom:14px}
+.login-field label{font-size:11px;font-weight:600;color:var(--purple);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:5px}
+.login-field select,.login-field input{width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:var(--r);font-size:13px;color:var(--dark);outline:none;font-family:inherit;background:var(--white)}
+.login-field select:focus,.login-field input:focus{border-color:var(--purple)}
+.login-btn{width:100%;padding:11px;background:var(--purple);color:#fff;border:none;border-radius:var(--r);font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;margin-top:4px;transition:background 0.15s;display:flex;align-items:center;justify-content:center;gap:8px}
+.login-btn:hover{background:#4A2A8A}
+.login-btn:disabled{opacity:0.6;cursor:not-allowed}
+
+/* ── APP SHELL ── */
+#app{display:none;height:100vh;flex-direction:column}
+.topbar{background:var(--navy);padding:0 20px;height:52px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.topbar-left{display:flex;align-items:center;gap:12px}
+.t-logo{width:28px;height:28px;background:var(--purple);border-radius:7px;display:flex;align-items:center;justify-content:center}
+.t-logo svg{width:16px;height:16px}
+.t-name{font-size:15px;font-weight:700;color:#fff}
+.t-badge{font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;letter-spacing:0.5px}
+.badge-admin{background:#fcd34d;color:#321e57}
+.badge-user{background:var(--green);color:#fff}
+.topbar-right{display:flex;align-items:center;gap:10px}
+.t-user{font-size:12px;color:#c0b0e0;font-weight:500}
+.t-date{font-size:11px;color:#9070c0}
+.dubai-clock{display:flex;align-items:center;gap:6px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:5px 10px}
+.dubai-flag{font-size:14px;line-height:1}
+.dubai-time-wrap{display:flex;flex-direction:column;align-items:flex-end}
+.dubai-time{font-size:13px;font-weight:700;color:#fff;font-family:'DM Mono',monospace;letter-spacing:0.5px}
+.dubai-label{font-size:9px;color:#9070c0;font-weight:600;letter-spacing:0.5px;text-transform:uppercase}
+/* DB sync indicator */
+.sync-indicator{display:flex;align-items:center;gap:4px;font-size:10px;color:#9070c0;padding:4px 8px;border-radius:6px;transition:all 0.3s}
+.sync-indicator.syncing{color:#fcd34d}
+.sync-indicator.synced{color:#40c798}
+.sync-indicator.error{color:#fb763c}
+.sync-dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0}
+@keyframes spin-s{to{transform:rotate(360deg)}}
+.sync-spin{width:10px;height:10px;border:1.5px solid rgba(252,211,77,0.3);border-top-color:#fcd34d;border-radius:50%;animation:spin-s 0.7s linear infinite}
+.t-logout{padding:5px 12px;background:transparent;border:1px solid rgba(255,255,255,0.2);border-radius:6px;color:#c0b0e0;font-size:11px;cursor:pointer;font-family:inherit;transition:all 0.15s}
+.t-logout:hover{background:rgba(255,255,255,0.1);color:#fff}
+
+/* ── TABS ── */
+.tab-nav{background:var(--white);border-bottom:2px solid var(--border);padding:0 20px;display:flex;gap:0;flex-shrink:0;box-shadow:0 1px 4px rgba(80,51,144,0.06)}
+.tab-btn{padding:13px 18px;font-size:12px;font-weight:600;color:var(--mid);border:none;background:transparent;cursor:pointer;border-bottom:2.5px solid transparent;margin-bottom:-2px;font-family:inherit;transition:all 0.15s;display:flex;align-items:center;gap:6px;letter-spacing:0.1px}
+.tab-btn.active{color:var(--purple);border-bottom-color:var(--purple);background:linear-gradient(to bottom,transparent,rgba(80,51,144,0.03))}
+.tab-btn:hover:not(.active){color:var(--dark);background:rgba(80,51,144,0.04)}
+.tab-icon{display:inline-flex;align-items:center;vertical-align:middle}
+.content{flex:1;overflow-y:auto;padding:20px}
+
+/* ── CARDS / PANELS ── */
+.panel{background:var(--white);border-radius:14px;box-shadow:0 1px 3px rgba(0,0,0,0.06),0 4px 12px rgba(80,51,144,0.07);margin-bottom:16px;overflow:hidden;border:1px solid var(--border)}
+.panel-hdr{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:linear-gradient(135deg,#fdfcff 0%,var(--white) 100%)}
+.panel-title{font-size:13px;font-weight:700;color:var(--navy)}
+.panel-sub{font-size:11px;color:var(--mid);margin-top:1px}
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+.stat-card{background:var(--white);border-radius:14px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,0.06),0 4px 12px rgba(80,51,144,0.07);display:flex;align-items:center;gap:14px;border:1px solid var(--border);transition:box-shadow 0.2s,transform 0.2s;position:relative;overflow:hidden}
+.stat-card:hover{box-shadow:var(--shadow-md);transform:translateY(-1px)}
+.stat-card::after{content:'';position:absolute;bottom:0;left:0;right:0;height:3px;border-radius:0 0 14px 14px}
+.stat-icon-wrap{width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.stat-body{}
+.stat-n{font-size:26px;font-weight:800;line-height:1;margin-bottom:3px}
+.stat-l{font-size:11px;color:var(--mid);font-weight:500}
+.stat-card-green .stat-icon-wrap{background:var(--green-l);color:var(--green-d)}
+.stat-card-green .stat-n{color:var(--green-d)}
+.stat-card-green::after{background:var(--green)}
+.stat-card-amber .stat-icon-wrap{background:var(--amber-l);color:var(--amber)}
+.stat-card-amber .stat-n{color:var(--amber)}
+.stat-card-amber::after{background:var(--amber)}
+.stat-card-purple .stat-icon-wrap{background:var(--light-purple);color:var(--purple)}
+.stat-card-purple .stat-n{color:var(--purple)}
+.stat-card-purple::after{background:var(--purple)}
+.stat-card-red .stat-icon-wrap{background:var(--red-l);color:var(--red-d)}
+.stat-card-red .stat-n{color:var(--red-d)}
+.stat-card-red::after{background:var(--red-d)}
+.stat-card-muted .stat-icon-wrap{background:var(--bg);color:var(--mid)}
+.stat-card-muted .stat-n{color:var(--mid)}
+.stat-card-muted::after{background:var(--border)}
+
+/* ── SCHEDULE TABLE ── */
+.sched-wrap{overflow-x:auto}
+.sched-table{width:100%;border-collapse:collapse;min-width:900px}
+.sched-table th{padding:9px 10px;text-align:center;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap;color:#fff}
+.sched-table th:first-child{text-align:left;padding-left:16px;min-width:130px;background:var(--purple)}
+.sched-table th:nth-child(2){min-width:100px;background:var(--purple)}
+.th-day{background:var(--purple)}
+.th-weekend{background:#3d2870}
+.sched-table td{padding:7px 8px;text-align:center;border-bottom:1px solid var(--bg);font-size:12px;vertical-align:middle}
+.sched-table td:first-child{text-align:left;padding-left:16px;font-weight:600}
+.sched-table tr:hover td{background:#faf8ff}
+.sect-row td{background:var(--navy);color:#fff;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;text-align:center;padding:5px 10px}
+.td-weekend{background:#faf8ff}
+.shift-pill{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;transition:all 0.12s;white-space:nowrap}
+.shift-pill:hover{filter:brightness(0.92);transform:scale(1.03)}
+.pill-off{background:#f0edf8;color:#9b8abf;font-style:italic}
+.pill-vl{background:#EBF3FC;color:var(--blue-d)}
+.pill-sl{background:#FEE2E2;color:var(--red-d)}
+.pill-offset{background:var(--yellow-l);color:var(--yellow-d)}
+.pill-work{cursor:pointer}
+.week-nav{display:flex;align-items:center;gap:10px}
+.wk-btn{padding:5px 10px;border:1px solid var(--border);border-radius:6px;background:var(--white);color:var(--purple);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit}
+.wk-btn:hover{background:var(--light-purple)}
+.wk-label{font-size:12px;font-weight:600;color:var(--navy);min-width:200px;text-align:center}
+
+/* ── ATTENDANCE ── */
+.att-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:16px}
+.member-card{border:1px solid var(--border);border-radius:12px;padding:14px;cursor:pointer;transition:all 0.2s;position:relative;overflow:hidden}
+.member-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+.mc-idle::before{background:var(--border)}
+.mc-in::before{background:var(--green)}
+.mc-break::before{background:var(--amber)}
+.mc-out::before{background:#9b8abf}
+.mc-dayoff::before{background:#e0d8f5}
+.member-card:hover:not(.mc-dayoff){border-color:var(--purple);box-shadow:0 4px 14px rgba(80,51,144,0.12);transform:translateY(-1px)}
+.mc-avatar{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;margin-bottom:8px}
+.mc-name{font-size:13px;font-weight:700;color:var(--navy);margin-bottom:1px}
+.mc-team{font-size:10px;color:var(--mid);margin-bottom:7px;font-weight:500}
+.mc-status{font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px;display:inline-block;letter-spacing:0.2px}
+.mc-time{font-size:10px;color:var(--mid);margin-top:6px;font-family:'DM Mono',monospace}
+.mc-schd{font-size:10px;color:var(--blue-d);margin-top:4px;background:var(--blue-l);padding:2px 7px;border-radius:4px;display:inline-flex;align-items:center;gap:3px}
+.mc-tickets{display:inline-flex;align-items:center;gap:4px;margin-top:5px;background:#FEF0EA;color:#C2450C;border-radius:20px;padding:3px 9px;font-size:10px;font-weight:700;border:1px solid #fcd4b8}
+.mc-idle{border-color:var(--border)}
+.mc-in{border-color:#b8ecd7;background:linear-gradient(135deg,var(--green-l) 0%,#f5fdf9 100%)}
+.mc-break{border-color:#f5e4a0;background:linear-gradient(135deg,var(--amber-l) 0%,#fffdf5 100%)}
+.mc-out{border-color:#d4cce8;background:linear-gradient(135deg,#f7f5fe 0%,#faf8ff 100%);opacity:0.85}
+.mc-dayoff{border-color:#e0d8f5;background:#f8f6fd;opacity:0.6;cursor:default}
+.s-idle{background:#f0edf8;color:var(--purple)}
+.s-in{background:#d1fae5;color:#065f46;font-weight:800}
+.s-break{background:#fef3c7;color:#92400e;font-weight:800}
+.s-out{background:#ede9f8;color:#6b5b8a}
+.s-dayoff{background:var(--light-purple);color:#9b8abf}
+
+/* ── LOG TABLE ── */
+.log-filter-row{display:flex;align-items:center;gap:10px;padding:12px 18px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+.log-filter-row label{font-size:11px;font-weight:600;color:var(--purple);text-transform:uppercase;letter-spacing:0.5px}
+.log-filter-row input[type=date]{padding:5px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;color:var(--dark);outline:none;font-family:inherit}
+.log-filter-row input[type=date]:focus{border-color:var(--purple)}
+.log-filter-row select{padding:5px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;color:var(--dark);outline:none;font-family:inherit;background:var(--white)}
+.log-filter-btn{padding:5px 12px;background:var(--purple);color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit}
+.log-filter-btn:hover{background:#4A2A8A}
+.log-table{width:100%;border-collapse:collapse}
+.log-table th{padding:9px 14px;text-align:left;background:var(--purple);color:#fff;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px}
+.log-table td{padding:9px 14px;border-bottom:1px solid var(--bg);font-size:12px}
+.log-table tr:hover td{background:#faf8ff}
+.a-in{background:var(--green-l);color:var(--green-d);padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700}
+.a-bs{background:var(--amber-l);color:var(--amber);padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700}
+.a-be{background:var(--blue-l);color:var(--blue-d);padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700}
+.a-out{background:#f0edf8;color:var(--purple);padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700}
+
+/* ── FLAGS ── */
+.flag-row{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.flag{font-size:9px;font-weight:700;padding:2px 8px;border-radius:10px;display:inline-flex;align-items:center;gap:3px}
+.flag-late{background:#FEE2E2;color:#DC2626}
+.flag-early{background:#FEF9EC;color:#B8860B}
+.flag-break{background:#EBF3FC;color:#1E5FA8}
+.flags-panel{margin:0 16px 14px;background:linear-gradient(135deg,#fffdf0 0%,#fefce8 100%);border:1px solid #f0d060;border-radius:10px;padding:12px 16px}
+.flags-panel-title{font-size:10px;font-weight:800;color:#7A5700;margin-bottom:8px;display:flex;align-items:center;gap:5px;text-transform:uppercase;letter-spacing:0.8px}
+.flags-list{display:flex;flex-direction:column;gap:5px}
+.flag-item{display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,0.75);border:1px solid rgba(240,208,96,0.4);border-radius:7px;padding:5px 10px}
+.flag-item-name{font-size:11px;font-weight:700;color:var(--navy)}
+.empty{padding:32px;text-align:center;color:var(--mid);font-size:13px}
+
+/* ── MODAL / OVERLAY ── */
+.overlay{display:none;position:fixed;inset:0;background:rgba(50,30,87,0.35);z-index:500;align-items:center;justify-content:center}
+.overlay.open{display:flex}
+.modal{background:var(--white);border-radius:14px;width:760px;max-width:96vw;box-shadow:0 8px 32px rgba(0,0,0,0.18);overflow:hidden;max-height:92vh;overflow-y:auto;display:flex;flex-direction:column}
+.modal-hdr{padding:18px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:linear-gradient(135deg,#1a0e35 0%,var(--navy) 60%,#3d2070 100%);position:sticky;top:0;z-index:10;flex-shrink:0}
+.modal-hdr-title{font-size:14px;font-weight:700;color:#fff}
+.modal-hdr-sub{font-size:11px;color:#b0a0d0;margin-top:1px}
+.modal-close{background:transparent;border:none;color:#b0a0d0;font-size:18px;cursor:pointer;padding:2px 6px}
+.modal-close:hover{color:#fff}
+.modal-body{padding:20px;flex:1}
+.modal-avatar{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;margin:0 auto 12px}
+.modal-name{font-size:16px;font-weight:700;text-align:center;color:var(--navy)}
+.modal-team-lbl{font-size:11px;color:var(--mid);text-align:center;margin-bottom:4px}
+.modal-schd{font-size:12px;color:var(--blue-d);text-align:center;background:var(--blue-l);padding:4px 12px;border-radius:6px;margin-bottom:14px;display:inline-block;width:100%}
+.modal-curr{font-size:12px;color:var(--mid);text-align:center;margin-bottom:16px}
+.action-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.act-btn{padding:11px 8px;border-radius:8px;border:none;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;transition:all 0.15s}
+.act-btn:disabled{opacity:0.3;cursor:not-allowed}
+.act-btn:not(:disabled):hover{filter:brightness(0.93)}
+.ab-in{background:var(--green-l);color:var(--green-d)}
+.ab-break{background:var(--amber-l);color:var(--amber)}
+.ab-resume{background:var(--blue-l);color:var(--blue-d)}
+.ab-out{background:var(--red-l);color:var(--red-d)}
+.btn-cancel{width:100%;padding:9px;border-radius:8px;border:1px solid var(--border);background:transparent;font-size:12px;color:var(--mid);cursor:pointer;font-family:inherit}
+.btn-cancel:hover{background:var(--bg)}
+.form-field{margin-bottom:14px}
+.form-field label{font-size:11px;font-weight:600;color:var(--purple);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:5px}
+.form-field input,.form-field select,.form-field textarea{width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:var(--r);font-size:13px;color:var(--dark);outline:none;font-family:inherit}
+.form-field input:focus,.form-field select:focus{border-color:var(--purple)}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.save-btn{width:100%;padding:10px;background:var(--purple);color:#fff;border:none;border-radius:var(--r);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;margin-top:4px;display:flex;align-items:center;justify-content:center;gap:8px}
+.save-btn:hover{background:#4A2A8A}
+.del-btn{width:100%;padding:9px;background:var(--red-l);color:var(--red-d);border:none;border-radius:var(--r);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;margin-top:6px}
+.del-btn:hover{background:#fcc}
+.bot-bar{padding:10px 18px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--white);flex-shrink:0}
+.bot-bar span{font-size:11px;color:var(--mid)}
+.export-btn{padding:7px 14px;background:var(--purple);color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;transition:all 0.15s;box-shadow:0 1px 3px rgba(80,51,144,0.25)}
+.export-btn:hover{background:#4A2A8A;box-shadow:0 2px 6px rgba(80,51,144,0.35);transform:translateY(-1px)}
+.admin-only{display:none}
+body.is-admin .admin-only{display:flex}
+
+/* ── SHIFT EDITOR ── */
+.copy-day{padding:8px 4px;text-align:center;cursor:pointer;font-size:11px;font-weight:600;color:var(--mid);border-right:1px solid var(--border);transition:all 0.12s;user-select:none}
+.copy-day:last-child{border-right:none}
+.copy-day.selected{background:var(--purple);color:#fff}
+.copy-day.is-source{background:var(--light-purple);color:var(--purple);cursor:default;font-weight:700}
+.copy-day.weekend{background:#faf8ff}
+.copy-day.weekend.selected{background:#3d2870;color:#fff}
+.shift-types{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:14px}
+.st-opt{padding:7px 4px;border-radius:7px;border:1.5px solid var(--border);text-align:center;cursor:pointer;font-size:11px;font-weight:600;transition:all 0.12s;color:var(--mid)}
+.st-opt:hover,.st-opt.selected{border-color:var(--purple);color:var(--purple);background:var(--light-purple)}
+.st-work.selected{border-color:var(--green-d);color:var(--green-d);background:var(--green-l)}
+.st-off.selected{border-color:#9b8abf;color:#9b8abf;background:#f0edf8}
+.st-vl.selected{border-color:var(--blue-d);color:var(--blue-d);background:var(--blue-l)}
+.st-sl.selected{border-color:var(--red-d);color:var(--red-d);background:var(--red-l)}
+.st-offset.selected{border-color:var(--yellow-d);color:var(--yellow-d);background:var(--yellow-l)}
+
+/* ── HUBSPOT TICKETS ── */
+.tickets-section{margin-top:16px;border-top:1px solid var(--border);padding-top:14px}
+.tickets-section-title{font-size:12px;font-weight:700;color:var(--navy);margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.tickets-loading{font-size:11px;color:var(--mid);text-align:center;padding:16px;display:flex;align-items:center;justify-content:center;gap:6px}
+.tickets-empty{font-size:11px;color:var(--mid);text-align:center;padding:16px;background:var(--bg);border-radius:8px}
+.ticket-table-wrap{overflow-x:auto;border-radius:8px;box-shadow:var(--shadow)}
+.ticket-table{width:100%;border-collapse:collapse;font-size:11px;min-width:580px}
+.ticket-table th{padding:8px 10px;text-align:left;background:var(--purple);color:#fff;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;white-space:nowrap}
+.ticket-table td{padding:8px 10px;border-bottom:1px solid var(--bg);vertical-align:middle}
+.ticket-table tr:last-child td{border-bottom:none}
+.ticket-table tr:hover td{background:#faf8ff}
+.ticket-name{font-weight:600;color:var(--navy);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block}
+.pipeline-badge{padding:2px 7px;border-radius:20px;font-size:9px;font-weight:700;white-space:nowrap}
+.pipeline-onboarding{background:var(--blue-l);color:var(--blue-d)}
+.pipeline-operations{background:var(--orange-l);color:var(--orange-d)}
+.ticket-status-open{background:var(--green-l);color:var(--green-d);padding:2px 7px;border-radius:20px;font-size:9px;font-weight:700}
+.ticket-due{font-family:'DM Mono',monospace;font-size:10px;color:var(--mid);white-space:nowrap}
+.ticket-link{display:inline-flex;align-items:center;gap:3px;padding:3px 8px;background:var(--light-purple);color:var(--purple);border-radius:5px;font-size:10px;font-weight:700;text-decoration:none;white-space:nowrap;transition:all 0.12s}
+.ticket-link:hover{background:var(--purple);color:#fff}
+.hs-error{font-size:11px;color:var(--red-d);background:var(--red-l);border-radius:8px;padding:10px;text-align:center;margin-top:8px}
+
+/* ── ADMIN PANEL ── */
+.admin-panel-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+.admin-section{background:var(--white);border-radius:14px;box-shadow:0 1px 3px rgba(0,0,0,0.06),0 4px 12px rgba(80,51,144,0.07);overflow:hidden;border:1px solid var(--border)}
+.admin-section-hdr{padding:13px 16px;background:linear-gradient(135deg,#2a1650 0%,var(--purple) 100%);color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.admin-section-hdr span{font-size:10px;color:rgba(255,255,255,0.6);font-weight:400}
+.admin-section-body{padding:14px 16px}
+.member-mgmt-row{display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--bg);gap:8px}
+.member-mgmt-row:last-child{border-bottom:none}
+.member-mgmt-info{display:flex;align-items:center;gap:8px}
+.member-mgmt-avatar{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0}
+.member-mgmt-name{font-size:12px;font-weight:700;color:var(--navy)}
+.member-mgmt-team{font-size:10px;color:var(--mid)}
+.member-mgmt-actions{display:flex;gap:4px;flex-shrink:0}
+.mgmt-btn{padding:3px 9px;border:none;border-radius:5px;font-size:10px;font-weight:700;cursor:pointer;font-family:inherit;transition:all 0.12s}
+.mgmt-btn-pw{background:var(--blue-l);color:var(--blue-d)}
+.mgmt-btn-pw:hover{background:var(--blue-d);color:#fff}
+.mgmt-btn-del{background:var(--red-l);color:var(--red-d)}
+.mgmt-btn-del:hover{background:var(--red-d);color:#fff}
+.mgmt-btn-edit{background:var(--light-purple);color:var(--purple)}
+.mgmt-btn-edit:hover{background:var(--purple);color:#fff}
+.add-member-form{background:var(--bg);border-radius:8px;padding:12px;margin-top:10px}
+.add-member-form-title{font-size:11px;font-weight:700;color:var(--navy);margin-bottom:10px;display:flex;align-items:center;gap:4px}
+.preset-mgmt-row{display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--bg)}
+.preset-mgmt-row:last-child{border-bottom:none}
+.preset-label{font-size:12px;font-weight:600;color:var(--navy);font-family:'DM Mono',monospace}
+.pw-badge{font-size:10px;background:var(--green-l);color:var(--green-d);padding:1px 7px;border-radius:10px;font-weight:700}
+.pw-none-badge{font-size:10px;background:var(--bg);color:var(--mid);padding:1px 7px;border-radius:10px}
+
+/* ── WEEK RANGE LIMIT HINT ── */
+.week-limit-hint{font-size:10px;color:var(--mid);text-align:center;margin-top:6px}
+
+/* ── TOAST ── */
+#toast{position:fixed;bottom:24px;right:24px;background:var(--navy);color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;font-weight:600;z-index:9999;opacity:0;transition:opacity 0.3s;pointer-events:none;max-width:320px}
+#toast.show{opacity:1}
+
+/* spinner */
+@keyframes spin{to{transform:rotate(360deg)}}
+.spinner{width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--purple);border-radius:50%;animation:spin 0.7s linear infinite;display:inline-block;flex-shrink:0}
+.btn-spinner{width:14px;height:14px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 0.7s linear infinite;flex-shrink:0}
+</style>
+</head>
+<body>
+
+<div id="toast"></div>
+
+<!-- LOADING -->
+<div id="loadingScreen">
+  <div class="loading-logo">
+    <svg viewBox="0 0 24 24" fill="none"><path d="M5 17.5C5 14 8 12 12 12C16 12 19 10 19 6.5C19 3.5 16.5 2 14 2" stroke="white" stroke-width="2.5" stroke-linecap="round"/><path d="M19 6.5C19 10 16 12 12 12C8 12 5 14 5 17.5C5 20.5 7.5 22 10 22" stroke="white" stroke-width="2.5" stroke-linecap="round"/></svg>
+  </div>
+  <div class="loading-text">Connecting to database<span class="loading-dot"></span><span class="loading-dot"></span><span class="loading-dot"></span></div>
+  <div class="db-status" id="dbStatus">Initialising…</div>
+</div>
+
+<!-- LOGIN -->
+<div id="loginScreen">
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="login-logo-icon">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M5 17.5C5 14 8 12 12 12C16 12 19 10 19 6.5C19 3.5 16.5 2 14 2" stroke="white" stroke-width="2.5" stroke-linecap="round"/><path d="M19 6.5C19 10 16 12 12 12C8 12 5 14 5 17.5C5 20.5 7.5 22 10 22" stroke="white" stroke-width="2.5" stroke-linecap="round"/></svg>
+      </div>
+      <div class="login-title">Team Hub</div>
+    </div>
+    <div class="login-sub">Sign in to access your workspace</div>
+    <div class="login-field">
+      <label>Who are you?</label>
+      <select id="loginName">
+        <option value="">— Select your name —</option>
+        <option>Giri</option><option>Hayzel</option><option>Pamela</option><option>Stephanie</option>
+        <option>Satyesh</option><option>Aanchal</option><option>Insha</option>
+        <option>Dheeraj</option><option>Raneem</option><option>Tushar</option>
+        <option>Royston</option><option>Abha</option><option>Malaks</option>
+        <option>Anoushka</option><option>Bhumi</option><option>Rashmeet</option>
+        <option>Kapil</option><option>Jahanvi</option>
+      </select>
+    </div>
+    <div class="login-field" id="adminPasswordField" style="display:none">
+      <label>Admin Password</label>
+      <input type="password" id="adminPassword" placeholder="Enter admin password">
+    </div>
+    <button class="login-btn" id="loginBtn" onclick="doLogin()">Sign In <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" style="vertical-align:middle;margin-left:2px"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg></button>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app" style="display:none;height:100vh;display:none;flex-direction:column">
+  <div class="topbar">
+    <div class="topbar-left">
+      <div class="t-logo">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M5 17.5C5 14 8 12 12 12C16 12 19 10 19 6.5C19 3.5 16.5 2 14 2" stroke="white" stroke-width="2.5" stroke-linecap="round"/><path d="M19 6.5C19 10 16 12 12 12C8 12 5 14 5 17.5C5 20.5 7.5 22 10 22" stroke="white" stroke-width="2.5" stroke-linecap="round"/></svg>
+      </div>
+      <span class="t-name">Team Hub</span>
+      <span class="t-badge" id="roleBadge"></span>
+    </div>
+    <div class="topbar-right">
+      <span class="t-user" id="topUser"></span>
+      <div id="syncIndicator" class="sync-indicator" title="Database sync status">
+        <div class="sync-dot"></div><span id="syncText">Live</span>
+      </div>
+      <div class="dubai-clock">
+        <span class="dubai-flag">🇦🇪</span>
+        <div class="dubai-time-wrap">
+          <span class="dubai-time" id="dubaiTime">--:--:--</span>
+          <span class="dubai-label">Dubai (GST)</span>
+        </div>
+      </div>
+      <span class="t-date" id="topDate"></span>
+      <button class="t-logout" onclick="doLogout()">Sign Out</button>
+    </div>
+  </div>
+  <div class="tab-nav">
+    <button class="tab-btn active" onclick="switchTab('attendance')" id="tab-attendance"><span class="tab-icon"><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></span> Attendance</button>
+    <button class="tab-btn" onclick="switchTab('schedule')" id="tab-schedule" style="display:none"><span class="tab-icon"><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 9v7.5"/></svg></span> Schedule</button>
+    <button class="tab-btn" onclick="switchTab('log')" id="tab-log" style="display:none"><span class="tab-icon"><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75M6.75 3h10.5A2.25 2.25 0 0119.5 5.25v13.5A2.25 2.25 0 0117.25 21H6.75A2.25 2.25 0 014.5 18.75V5.25A2.25 2.25 0 016.75 3z"/></svg></span> Attendance Log</button>
+    <button class="tab-btn" onclick="switchTab('adminpanel')" id="tab-adminpanel" style="display:none"><span class="tab-icon"><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75"/></svg></span> Admin</button>
+    <button class="tab-btn" onclick="switchTab('gleap')" id="tab-gleap"><span class="tab-icon"><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/></svg></span> Gleap Dashboard</button>
+  </div>
+  <div style="flex:1;overflow:hidden;display:flex;flex-direction:column">
+
+  <!-- ATTENDANCE TAB -->
+  <div id="tab-attendance-content" class="content" style="flex:1;overflow-y:auto">
+    <div class="stats-row" id="attStats"></div>
+    <div class="panel">
+      <div class="panel-hdr">
+        <div><div class="panel-title">Team — Today's Attendance</div><div class="panel-sub" id="attSubtitle">Tap your card to clock in, take a break, or clock out</div></div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span id="ticketLastRefreshed" style="font-size:10px;color:var(--mid)"></span>
+          <button class="export-btn" id="refreshTicketsBtn" onclick="refreshAllTickets()" title="Refresh HubSpot ticket counts" style="background:var(--navy);display:inline-flex;align-items:center;gap:5px"><svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z"/><path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6z"/></svg> Refresh Tickets</button>
+          <button class="export-btn admin-only" onclick="exportCSV()" style="display:none">Export CSV</button>
+        </div>
+      </div>
+      <div id="flagsPanel" style="display:none" class="flags-panel">
+        <div class="flags-panel-title" style="display:flex;align-items:center;gap:5px"><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 3v1.5M3 21v-6m0 0l2.77-.693a9 9 0 016.208.682l.108.054a9 9 0 006.086.71l3.114-.732a48.524 48.524 0 01-.005-10.499l-3.11.732a9 9 0 01-6.085-.711l-.108-.054a9 9 0 00-6.208-.682L3 4.5M3 15V4.5"/></svg> Attendance Flags</div>
+        <div class="flags-list" id="flagsList"></div>
+      </div>
+      <div class="att-grid" id="memberGrid"></div>
+    </div>
+  </div>
+
+  <!-- SCHEDULE TAB -->
+  <div id="tab-schedule-content" class="content" style="display:none;flex:1;overflow-y:auto">
+    <div class="panel">
+      <div class="panel-hdr">
+        <div><div class="panel-title">Weekly Schedule</div><div class="panel-sub" id="schedSubtitle"></div></div>
+        <div class="week-nav">
+          <button class="wk-btn" onclick="changeWeek(-1)" style="display:inline-flex;align-items:center;gap:4px"><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5"/></svg> Prev</button>
+          <span class="wk-label" id="weekLabel"></span>
+          <button class="wk-btn" onclick="changeWeek(1)" style="display:inline-flex;align-items:center;gap:4px">Next <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg></button>
+        </div>
+      </div>
+      <div class="sched-wrap"><table class="sched-table" id="schedTable"></table></div>
+    </div>
+  </div>
+
+
+  <!-- ADMIN PANEL TAB -->
+  <div id="tab-adminpanel-content" class="content" style="display:none;flex:1;overflow-y:auto">
+    <div class="admin-panel-grid">
+      <!-- Member Management -->
+      <div class="admin-section">
+        <div class="admin-section-hdr" style="display:flex;align-items:center;gap:6px"><svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"/></svg> Team Members <span>Add, remove, set passwords</span></div>
+        <div class="admin-section-body">
+          <div id="memberMgmtList"></div>
+          <div class="add-member-form">
+            <div class="add-member-form-title" style="display:flex;align-items:center;gap:5px"><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg> Add New Member</div>
+            <div class="form-row" style="margin-bottom:8px">
+              <div class="form-field" style="margin-bottom:0"><label>Name</label><input type="text" id="newMemberName" placeholder="Full name"></div>
+              <div class="form-field" style="margin-bottom:0"><label>Team</label>
+                <select id="newMemberTeam">
+                  <option value="QA">QA</option>
+                  <option value="Implementation">Implementation</option>
+                  <option value="Gleap Support">Gleap Support</option>
+                  <option value="Gleap + Ops">Gleap + Ops</option>
+                  <option value="Operations">Operations</option>
+                  <option value="Sales Upload">Sales Upload</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-row" style="margin-bottom:8px">
+              <div class="form-field" style="margin-bottom:0"><label>Email</label><input type="email" id="newMemberEmail" placeholder="name@supy.io"></div>
+              <div class="form-field" style="margin-bottom:0"><label>Password</label><input type="password" id="newMemberPassword" placeholder="Login password"></div>
+            </div>
+            <button class="save-btn" onclick="addNewMember()" style="margin-top:4px">Add Member</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Preset Shift Times -->
+      <div class="admin-section">
+        <div class="admin-section-hdr" style="display:flex;align-items:center;gap:6px"><svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> Schedule Presets <span>Manage shift time presets</span></div>
+        <div class="admin-section-body">
+          <div id="presetMgmtList"></div>
+          <div class="add-member-form">
+            <div class="add-member-form-title" style="display:flex;align-items:center;gap:5px"><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg> Add Preset</div>
+            <div class="form-row" style="margin-bottom:8px">
+              <div class="form-field" style="margin-bottom:0"><label>Label (optional)</label><input type="text" id="newPresetLabel" placeholder="e.g. Morning Shift"></div>
+              <div class="form-field" style="margin-bottom:0"><label>Hours</label><input type="text" id="newPresetHours" placeholder="e.g. 8:00 AM - 5:00 PM"></div>
+            </div>
+            <button class="save-btn" onclick="addNewPreset()" style="margin-top:4px">Add Preset</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bulk Schedule Editor -->
+    <div class="panel">
+      <div class="panel-hdr">
+        <div>
+          <div class="panel-title" style="display:flex;align-items:center;gap:6px"><svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5"/></svg> Bulk Schedule Editor</div>
+          <div class="panel-sub">Apply a shift to multiple members and weeks at once (up to 8 weeks ahead)</div>
+        </div>
+      </div>
+      <div style="padding:16px">
+        <div class="form-row" style="margin-bottom:12px">
+          <div class="form-field" style="margin-bottom:0">
+            <label>Member(s)</label>
+            <select id="bulkMember" style="height:34px">
+              <option value="__all__">All Members</option>
+            </select>
+          </div>
+          <div class="form-field" style="margin-bottom:0">
+            <label>Day of Week</label>
+            <select id="bulkDay">
+              <option value="0">Monday</option>
+              <option value="1">Tuesday</option>
+              <option value="2">Wednesday</option>
+              <option value="3">Thursday</option>
+              <option value="4">Friday</option>
+              <option value="5">Saturday</option>
+              <option value="6">Sunday</option>
+              <option value="__weekdays__">All Weekdays (Mon-Fri)</option>
+              <option value="__alldays__">All Days</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row" style="margin-bottom:12px">
+          <div class="form-field" style="margin-bottom:0">
+            <label>Shift / Leave Type</label>
+            <select id="bulkShiftType" onchange="toggleBulkHours()">
+              <option value="work">Work Shift (custom hours)</option>
+              <option value="off">Time Off</option>
+              <option value="vl">Vacation Leave</option>
+              <option value="sl">Sick Leave</option>
+              <option value="offset">Offset Day</option>
+              <option value="al">Annual Leave</option>
+            </select>
+          </div>
+          <div class="form-field" style="margin-bottom:0" id="bulkHoursField">
+            <label>Hours / Preset</label>
+            <select id="bulkPresetSelect" onchange="applyBulkPreset()">
+              <option value="">select preset or type below</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-field" id="bulkCustomField" style="margin-bottom:12px">
+          <label>Custom Hours</label>
+          <input type="text" id="bulkCustomHours" placeholder="e.g. 9:00 AM - 6:00 PM">
+        </div>
+        <div class="form-row" style="margin-bottom:12px">
+          <div class="form-field" style="margin-bottom:0">
+            <label>From Week</label>
+            <select id="bulkFromWeek"></select>
+          </div>
+          <div class="form-field" style="margin-bottom:0">
+            <label>To Week</label>
+            <select id="bulkToWeek"></select>
+          </div>
+        </div>
+        <button class="save-btn" onclick="applyBulkSchedule()">Apply to Schedule</button>
+        <div id="bulkResult" style="margin-top:10px;font-size:12px;color:var(--green-d)"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- GLEAP DASHBOARD TAB -->
+  <div id="tab-gleap-content" style="display:none;padding:0;overflow:hidden">
+    <iframe
+      src="https://gleap-dashboard.pages.dev"
+      style="width:100%;height:calc(100vh - 98px);border:none;display:block"
+      title="Gleap Dashboard"
+      allow="fullscreen"
+    ></iframe>
+  </div>
+
+  <!-- LOG TAB -->
+  <div id="tab-log-content" class="content" style="display:none;flex:1;overflow-y:auto">
+    <div class="panel">
+      <div class="panel-hdr">
+        <div><div class="panel-title">Attendance Log</div><div class="panel-sub" id="logCount">Loading…</div></div>
+        <div style="display:flex;gap:8px">
+          <button class="export-btn" onclick="exportCSV()">Export CSV</button>
+        </div>
+      </div>
+      <!-- Filter row (admin sees all; member sees only own) -->
+      <div class="log-filter-row" id="logFilterRow">
+        <label>Date</label>
+        <input type="date" id="logDateFilter">
+        <label style="margin-left:8px">Member</label>
+        <select id="logMemberFilter"><option value="">All</option></select>
+        <button class="log-filter-btn" onclick="loadLog()">Apply</button>
+        <button class="log-filter-btn" style="background:var(--mid)" onclick="resetLogFilter()">Today</button>
+      </div>
+      <div id="logBody"><div class="empty">Loading…</div></div>
+    </div>
+  </div>
+
+  </div>
+</div>
+
+<!-- ATTENDANCE MODAL (admin view / self) -->
+<div class="overlay" id="attModal">
+  <div class="modal">
+    <div class="modal-hdr">
+      <div><div class="modal-hdr-title" id="am-title">Attendance</div><div class="modal-hdr-sub" id="am-sub"></div></div>
+      <button class="modal-close" onclick="closeAttModal()"><svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-avatar" id="am-avatar"></div>
+      <div class="modal-name" id="am-name"></div>
+      <div class="modal-team-lbl" id="am-team"></div>
+      <div class="modal-schd" id="am-schd"></div>
+      <div class="modal-curr" id="am-curr"></div>
+      <div class="action-grid">
+        <button class="act-btn ab-in"     id="btn-in"     onclick="doAtt('in')" style="display:inline-flex;align-items:center;justify-content:center;gap:5px"><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 010 1.972l-11.54 6.347a1.125 1.125 0 01-1.667-.986V5.653z"/></svg> Clock In</button>
+        <button class="act-btn ab-break"  id="btn-break"  onclick="doAtt('break')" style="display:inline-flex;align-items:center;justify-content:center;gap:5px"><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25v13.5m-7.5-13.5v13.5"/></svg> Start Break</button>
+        <button class="act-btn ab-resume" id="btn-resume" onclick="doAtt('resume')" style="display:inline-flex;align-items:center;justify-content:center;gap:5px"><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 010 1.972l-11.54 6.347a1.125 1.125 0 01-1.667-.986V5.653z"/></svg> End Break</button>
+        <button class="act-btn ab-out"    id="btn-out"    onclick="doAtt('out')" style="display:inline-flex;align-items:center;justify-content:center;gap:5px"><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 7.5A2.25 2.25 0 017.5 5.25h9a2.25 2.25 0 012.25 2.25v9a2.25 2.25 0 01-2.25 2.25h-9a2.25 2.25 0 01-2.25-2.25v-9z"/></svg> Clock Out</button>
+      </div>
+      <button class="btn-cancel" onclick="closeAttModal()">Cancel</button>
+      <div class="tickets-section">
+        <div class="tickets-section-title" style="display:flex;align-items:center;gap:5px"><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z"/><path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6z"/></svg> Active Tickets <span id="am-ticket-count" style="background:var(--orange-l);color:var(--orange-d);padding:1px 8px;border-radius:20px;font-size:10px"></span></div>
+        <div id="am-tickets-body"><div class="tickets-loading"><span class="spinner"></span> Loading…</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ADMIN: EDIT LOG ENTRY -->
+<div class="overlay" id="editAttModal">
+  <div class="modal">
+    <div class="modal-hdr">
+      <div><div class="modal-hdr-title" style="display:flex;align-items:center;gap:6px"><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125"/></svg> Edit Log Entry</div><div class="modal-hdr-sub" id="ea-sub">Admin Override</div></div>
+      <button class="modal-close" onclick="closeEditAtt()"><svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-field"><label>Team Member</label><input type="text" id="ea-name" readonly style="background:#f4f1fa"></div>
+      <div class="form-row">
+        <div class="form-field"><label>Action</label>
+          <select id="ea-action">
+            <option value="Clock In">Clock In</option>
+            <option value="Break Start">Break Start</option>
+            <option value="Break End">Break End</option>
+            <option value="Clock Out">Clock Out</option>
+          </select>
+        </div>
+        <div class="form-field"><label>Time</label><input type="time" id="ea-time"></div>
+      </div>
+      <div class="form-field"><label>Note (reason for edit)</label><input type="text" id="ea-note" placeholder="e.g. System error, forgot to clock in"></div>
+      <button class="save-btn" id="saveEditBtn" onclick="saveEditAtt()">Save Changes</button>
+      <button class="del-btn" onclick="deleteLogEntry()">Delete Entry</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADMIN: EDIT SCHEDULE -->
+<div class="overlay" id="editSchedModal">
+  <div class="modal">
+    <div class="modal-hdr">
+      <div><div class="modal-hdr-title" id="es-title">Edit Shift</div><div class="modal-hdr-sub" id="es-sub"></div></div>
+      <button class="modal-close" onclick="closeEditSched()"><svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div style="margin-bottom:12px;font-size:12px;color:var(--mid)">Select shift type:</div>
+      <div class="shift-types">
+        <div class="st-opt st-work" onclick="selectShiftType('work')">Work Shift</div>
+        <div class="st-opt st-off"  onclick="selectShiftType('off')">Time Off</div>
+        <div class="st-opt st-vl"   onclick="selectShiftType('vl')">Vacation Leave</div>
+        <div class="st-opt st-sl"   onclick="selectShiftType('sl')">Sick Leave</div>
+        <div class="st-opt st-offset" onclick="selectShiftType('offset')">Offset Day</div>
+        <div class="st-opt" onclick="selectShiftType('al')">Annual Leave</div>
+      </div>
+      <div id="es-time-section">
+        <div class="form-field"><label>Preset Shifts</label>
+          <select id="es-preset" onchange="applyPreset()">
+            <option value="">— Select preset —</option>
+          </select>
+        </div>
+        <div class="form-field"><label>Custom Hours</label>
+          <input type="text" id="es-custom" placeholder="e.g. 9:00 AM - 5:00 PM">
+        </div>
+      </div>
+      <div style="margin-bottom:14px;border:1px solid var(--border);border-radius:8px;overflow:hidden">
+        <div style="padding:8px 12px;background:var(--bg);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+          <span style="font-size:11px;font-weight:700;color:var(--purple);text-transform:uppercase;letter-spacing:0.5px">Also copy to</span>
+          <div style="display:flex;gap:10px">
+            <button onclick="selectAllDays(true)"  style="font-size:10px;font-weight:700;color:var(--purple);background:none;border:none;cursor:pointer">All</button>
+            <button onclick="selectAllDays(false)" style="font-size:10px;font-weight:700;color:var(--mid);background:none;border:none;cursor:pointer">None</button>
+            <button onclick="selectWeekdays()"     style="font-size:10px;font-weight:700;color:var(--green-d);background:none;border:none;cursor:pointer">Weekdays</button>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(7,1fr)" id="copyDayGrid"></div>
+      </div>
+      <button class="save-btn" id="saveShiftBtn" onclick="saveShiftCell()">Save Shift</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════════
+//  CONFIGURATION — replace these two values
+// ══════════════════════════════════════════════════════════════
+const SUPABASE_URL  = 'https://gdzgykpphdkeepjsdhcl.supabase.co';   // e.g. https://xxxx.supabase.co
+const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdkemd5a3BwaGRrZWVwanNkaGNsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg0Njk4ODksImV4cCI6MjA5NDA0NTg4OX0.zwf9nPFRcNv7I83ivu9w0MMgemRvtSGlmgxfV-F_qiw';      // public anon key — safe in browser
+
+// HubSpot calls are proxied through /api/hubspot
+// The actual token lives in Netlify environment variables (HUBSPOT_TOKEN)
+// and is never exposed to the browser.
+const HS_PROXY = '/api/hubspot';
+const HS_PIPELINE_IDS = ['824860808', '45360784'];
+const PIPELINE_NAMES  = {'824860808':'Onboarding', '45360784':'Operations'};
+
+// ══════════════════════════════════════════════════════════════
+//  SUPABASE CLIENT
+// ══════════════════════════════════════════════════════════════
+let sb; // will be set in init()
+
+// ══════════════════════════════════════════════════════════════
+//  TEAM DATA
+// ══════════════════════════════════════════════════════════════
+const ADMINS = ['Giri', 'Hayzel'];
+const ADMIN_PASSWORD = 'Supy2026Admin!';
+
+let TEAM_META = {
+  'Giri':      {team:'QA',             color:'#40c798',bg:'#E8F5EE',txt:'#1A8A5C'},
+  'Hayzel':    {team:'QA',             color:'#40c798',bg:'#E8F5EE',txt:'#1A8A5C'},
+  'Pamela':    {team:'Implementation', color:'#109ae7',bg:'#E8F3FC',txt:'#1E5FA8'},
+  'Stephanie': {team:'Implementation', color:'#109ae7',bg:'#E8F3FC',txt:'#1E5FA8'},
+  'Satyesh':   {team:'Implementation', color:'#109ae7',bg:'#E8F3FC',txt:'#1E5FA8'},
+  'Aanchal':   {team:'Implementation', color:'#109ae7',bg:'#E8F3FC',txt:'#1E5FA8'},
+  'Insha':     {team:'Implementation', color:'#109ae7',bg:'#E8F3FC',txt:'#1E5FA8'},
+  'Dheeraj':   {team:'Gleap Support',  color:'#fb763c',bg:'#FEF0EA',txt:'#C2450C'},
+  'Raneem':    {team:'Gleap Support',  color:'#fb763c',bg:'#FEF0EA',txt:'#C2450C'},
+  'Tushar':    {team:'Gleap Support',  color:'#fb763c',bg:'#FEF0EA',txt:'#C2450C'},
+  'Royston':   {team:'Gleap + Ops',    color:'#E6A800',bg:'#FEF9E7',txt:'#7A5700'},
+  'Abha':      {team:'Gleap + Ops',    color:'#E6A800',bg:'#FEF9E7',txt:'#7A5700'},
+  'Malaks':    {team:'Operations',     color:'#7b51bf',bg:'#F0EDF8',txt:'#503390'},
+  'Anoushka':  {team:'Operations',     color:'#7b51bf',bg:'#F0EDF8',txt:'#503390'},
+  'Bhumi':     {team:'Operations',     color:'#7b51bf',bg:'#F0EDF8',txt:'#503390'},
+  'Rashmeet':  {team:'Sales Upload',   color:'#c2260c',bg:'#FCE8E8',txt:'#C2260C'},
+  'Kapil':     {team:'Sales Upload',   color:'#c2260c',bg:'#FCE8E8',txt:'#C2260C'},
+  'Jahanvi':   {team:'Sales Upload',   color:'#c2260c',bg:'#FCE8E8',txt:'#C2260C'},
+};
+let SECTIONS = ['QA','Implementation','Gleap Support','Gleap + Ops','Operations','Sales Upload'];
+let MEMBERS  = Object.keys(TEAM_META);
+const DAYS     = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+
+let DEFAULT_SHIFTS = {
+  'QA':            {wd:'9:30 AM - 6:30 PM',  sat:'TIME OFF',          sun:'TIME OFF'},
+  'Implementation':{wd:'9:30 AM - 6:30 PM',  sat:'TIME OFF',          sun:'TIME OFF'},
+  'Gleap Support': {wd:'9:30 AM - 6:30 PM',  sat:'9:30 AM - 6:30 PM', sun:'TIME OFF'},
+  'Gleap + Ops':   {wd:'9:30 AM - 6:30 PM',  sat:'TIME OFF',          sun:'TIME OFF'},
+  'Operations':    {wd:'10:00 AM - 7:00 PM', sat:'TIME OFF',          sun:'TIME OFF'},
+  'Sales Upload':  {wd:'10:00 AM - 7:00 PM', sat:'TIME OFF',          sun:'TIME OFF'},
+};
+
+let MEMBER_EMAIL = {
+  'Giri':'giri@supy.io','Hayzel':'hayzel@supy.io','Pamela':'pamela@supy.io',
+  'Stephanie':'stephanie@supy.io','Satyesh':'satyesh@supy.io','Aanchal':'aanchal@supy.io',
+  'Insha':'insha@supy.io','Dheeraj':'dheeraj@supy.io','Raneem':'raneem@supy.io',
+  'Tushar':'tushar@supy.io','Royston':'royston@supy.io','Abha':'abha@supy.io',
+  'Malaks':'malaks@supy.io','Anoushka':'anoushka@supy.io','Bhumi':'bhumi@supy.io',
+  'Rashmeet':'rashmeet@supy.io','Kapil':'kapil@supy.io','Jahanvi':'jahanvi@supy.io',
+};
+
+// ══════════════════════════════════════════════════════════════
+//  APP STATE (populated from DB on login)
+// ══════════════════════════════════════════════════════════════
+let currentUser = null, currentRole = null;
+// Dynamic team data (can be modified by admin at runtime)
+let memberPasswords = {}; // name -> password string (empty string = no password required)
+// Preset shifts (editable by admin)
+let SHIFT_PRESETS = [
+  {label:'1:00 AM – 10:00 AM', value:'1:00 AM - 10:00 AM'},
+  {label:'4:00 AM – 1:00 PM',  value:'4:00 AM - 1:00 PM'},
+  {label:'9:30 AM – 6:30 PM',  value:'9:30 AM - 6:30 PM'},
+  {label:'10:00 AM – 7:00 PM', value:'10:00 AM - 7:00 PM'},
+  {label:'7:00 PM – 1:00 AM',  value:'7:00 PM - 1:00 AM'},
+];
+let editingPasswordMember = null;
+let editingMemberOldName  = null;
+let weekOffset  = 0;
+let scheduleData = {};  // key -> shift string (populated from DB)
+let attState    = {};   // per member, today's state
+let attLog      = [];   // today's log (local copy, written to DB on each action)
+let activeAttMember  = null;
+let editingLogIdx    = null;
+let editingLogId     = null; // DB row id
+let editingSchedKey  = null;
+let editingShiftType = 'work';
+let memberTicketCounts = {};
+let memberTicketOldest = {}; // name -> oldest open ticket createdate string
+const ownerIdCache   = {};
+const ticketCache    = {};
+
+// Load last-known ticket counts from localStorage so cards show instantly on refresh
+// Cache version bump — clears stale zeros saved when proxy was broken
+const TICKET_CACHE_VERSION = '3';
+try {
+  if (localStorage.getItem('teamhub_ticket_cache_v') !== TICKET_CACHE_VERSION) {
+    localStorage.removeItem('teamhub_ticket_counts');
+    localStorage.removeItem('teamhub_ticket_oldest');
+    localStorage.removeItem('teamhub_ticket_refreshed');
+    localStorage.setItem('teamhub_ticket_cache_v', TICKET_CACHE_VERSION);
+  }
+  const saved = localStorage.getItem('teamhub_ticket_counts');
+  if (saved) memberTicketCounts = JSON.parse(saved);
+  const savedOldest = localStorage.getItem('teamhub_ticket_oldest');
+  if (savedOldest) memberTicketOldest = JSON.parse(savedOldest);
+} catch(e) {}
+
+function saveTicketCountsToCache() {
+  try {
+    localStorage.setItem('teamhub_ticket_counts', JSON.stringify(memberTicketCounts));
+    localStorage.setItem('teamhub_ticket_oldest', JSON.stringify(memberTicketOldest));
+    localStorage.setItem('teamhub_ticket_refreshed', Date.now().toString());
+  } catch(e) {}
+  updateTicketRefreshedLabel();
+}
+
+function updateTicketRefreshedLabel() {
+  const el = document.getElementById('ticketLastRefreshed');
+  if (!el) return;
+  try {
+    const ts = parseInt(localStorage.getItem('teamhub_ticket_refreshed') || '0');
+    if (!ts) { el.textContent = ''; return; }
+    const diff = Math.floor((Date.now() - ts) / 60000);
+    const time = new Date(ts).toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'});
+    const dot = diff < 1 ? '#22c55e' : diff < 60 ? '#f59e0b' : '#ef4444';
+    el.innerHTML = `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${dot};margin-right:4px;vertical-align:middle"></span>Tickets: ${diff < 1 ? 'just now' : diff < 60 ? `${diff}m ago (${time})` : `${Math.floor(diff/60)}h ago (${time})`}`;
+  } catch(e) { el.textContent = ''; }
+}
+
+const TODAY_ISO = new Date().toISOString().split('T')[0]; // "YYYY-MM-DD"
+
+MEMBERS.forEach(n => {
+  attState[n] = {status:'idle', clockIn:null, clockOut:null, breakStart:null, totalBreak:0};
+});
+
+// ══════════════════════════════════════════════════════════════
+//  SYNC INDICATOR
+// ══════════════════════════════════════════════════════════════
+function setSyncState(state) {
+  // state: 'syncing' | 'synced' | 'error'
+  const el = document.getElementById('syncIndicator');
+  const txt = document.getElementById('syncText');
+  if (!el) return;
+  el.className = 'sync-indicator ' + state;
+  el.innerHTML = state === 'syncing'
+    ? `<div class="sync-spin"></div><span id="syncText">Saving…</span>`
+    : state === 'error'
+    ? `<div class="sync-dot"></div><span id="syncText">Offline</span>`
+    : `<div class="sync-dot"></div><span id="syncText">Live</span>`;
+}
+
+// ══════════════════════════════════════════════════════════════
+//  SUPABASE HELPERS
+// ══════════════════════════════════════════════════════════════
+
+// Load today's attendance state for all members
+async function dbLoadAttendanceState() {
+  const {data, error} = await sb.from('attendance_state')
+    .select('*')
+    .eq('state_date', TODAY_ISO);
+  if (error) { console.error('load state:', error); return; }
+  (data || []).forEach(row => {
+    attState[row.name] = {
+      status:     row.status,
+      clockIn:    row.clock_in,
+      clockOut:   row.clock_out,
+      breakStart: row.break_start,
+      totalBreak: row.total_break || 0,
+    };
+  });
+}
+
+// Upsert one member's state
+async function dbSaveAttendanceState(name) {
+  const s = attState[name];
+  setSyncState('syncing');
+  const {error} = await sb.from('attendance_state').upsert({
+    name,
+    status:      s.status,
+    clock_in:    s.clockIn,
+    clock_out:   s.clockOut,
+    break_start: s.breakStart,
+    total_break: s.totalBreak,
+    state_date:  TODAY_ISO,
+    updated_at:  new Date().toISOString(),
+  }, {onConflict: 'name'});
+  setSyncState(error ? 'error' : 'synced');
+  if (error) console.error('save state:', error);
+}
+
+// Load today's attendance log
+async function dbLoadLog(dateFilter, memberFilter) {
+  let query = sb.from('attendance_log')
+    .select('*')
+    .eq('log_date', dateFilter || TODAY_ISO)
+    .order('ts', {ascending: false});
+  if (memberFilter) query = query.eq('name', memberFilter);
+  const {data, error} = await query;
+  if (error) { console.error('load log:', error); return []; }
+  return data || [];
+}
+
+// Insert a new log entry; returns the inserted row
+async function dbInsertLog(entry) {
+  setSyncState('syncing');
+  const {data, error} = await sb.from('attendance_log').insert({
+    name:       entry.name,
+    team:       entry.team,
+    action:     entry.action,
+    ts:         entry.ts,
+    worked:     entry.worked || '',
+    brk:        entry.brk || '',
+    note:       entry.note || '',
+    edited_by:  entry.editedBy || '',
+    log_date:   TODAY_ISO,
+  }).select().single();
+  setSyncState(error ? 'error' : 'synced');
+  if (error) console.error('insert log:', error);
+  return data;
+}
+
+// Update existing log entry
+async function dbUpdateLog(id, fields) {
+  setSyncState('syncing');
+  const {error} = await sb.from('attendance_log').update({
+    action:    fields.action,
+    ts:        fields.ts,
+    note:      fields.note || '',
+    edited_by: fields.editedBy || '',
+  }).eq('id', id);
+  setSyncState(error ? 'error' : 'synced');
+  if (error) console.error('update log:', error);
+}
+
+// Delete log entry
+async function dbDeleteLog(id) {
+  setSyncState('syncing');
+  const {error} = await sb.from('attendance_log').delete().eq('id', id);
+  setSyncState(error ? 'error' : 'synced');
+  if (error) console.error('delete log:', error);
+}
+
+// Load schedule data
+async function dbLoadSchedule() {
+  const {data, error} = await sb.from('schedule_data').select('*');
+  if (error) { console.error('load sched:', error); return; }
+  scheduleData = {};
+  (data || []).forEach(row => { scheduleData[row.sched_key] = row.shift_value; });
+}
+
+// Upsert schedule cell
+async function dbSaveScheduleCell(key, name, dayIdx, wkOffset, value) {
+  setSyncState('syncing');
+  const {error} = await sb.from('schedule_data').upsert({
+    sched_key:   key,
+    name,
+    day_idx:     dayIdx,
+    week_offset: wkOffset,
+    shift_value: value,
+    set_by:      currentUser,
+    updated_at:  new Date().toISOString(),
+  }, {onConflict: 'sched_key'});
+  setSyncState(error ? 'error' : 'synced');
+  if (error) console.error('save sched:', error);
+}
+
+// ── TEAM CONFIG (members, passwords, presets) ─────────────────
+async function dbLoadTeamConfig() {
+  if (!sb) return;
+  const {data, error} = await sb.from('team_config').select('*');
+  if (error) { console.error('load team_config:', error); return; }
+  (data || []).forEach(row => {
+    if (row.key === 'members') {
+      // Restore custom members added by admin
+      const saved = row.value; // {name: {team,color,bg,txt,email}, ...}
+      Object.entries(saved).forEach(([name, meta]) => {
+        if (!TEAM_META[name]) {
+          TEAM_META[name] = {team: meta.team, color: meta.color, bg: meta.bg, txt: meta.txt};
+          MEMBER_EMAIL[name] = meta.email || '';
+          if (!MEMBERS.includes(name)) MEMBERS.push(name);
+          attState[name] = {status:'idle', clockIn:null, clockOut:null, breakStart:null, totalBreak:0};
+        }
+      });
+    }
+    if (row.key === 'passwords') {
+      Object.assign(memberPasswords, row.value);
+    }
+    if (row.key === 'presets') {
+      // Replace presets with saved ones
+      SHIFT_PRESETS.length = 0;
+      (row.value || []).forEach(p => SHIFT_PRESETS.push(p));
+    }
+  });
+}
+
+async function dbSaveTeamConfig(key, value) {
+  if (!sb) return;
+  setSyncState('syncing');
+  const {error} = await sb.from('team_config').upsert({
+    key,
+    value,
+    updated_at: new Date().toISOString(),
+  }, {onConflict: 'key'});
+  setSyncState(error ? 'error' : 'synced');
+  if (error) console.error('save team_config:', error);
+}
+
+// Save all members meta (only non-default ones added by admin)
+async function dbSaveMembers() {
+  const defaultNames = ['Giri','Hayzel','Pamela','Stephanie','Satyesh','Aanchal','Insha',
+    'Dheeraj','Raneem','Tushar','Royston','Abha','Malaks','Anoushka','Bhumi',
+    'Rashmeet','Kapil','Jahanvi'];
+  // Save ALL members so edits to existing ones persist too
+  const toSave = {};
+  MEMBERS.forEach(name => {
+    const m = TEAM_META[name];
+    if (m) toSave[name] = {...m, email: MEMBER_EMAIL[name] || ''};
+  });
+  await dbSaveTeamConfig('members', toSave);
+}
+
+async function dbSavePasswords() {
+  await dbSaveTeamConfig('passwords', memberPasswords);
+}
+
+async function dbSavePresets() {
+  await dbSaveTeamConfig('presets', SHIFT_PRESETS);
+}
+
+// ══════════════════════════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════════════════════════
+function showLogin(msg) {
+  // Check for saved session on this device (valid for 12 hours)
+  try {
+    const raw = localStorage.getItem('teamhub_session');
+    if (raw) {
+      const session = JSON.parse(raw);
+      const age = Date.now() - (session.savedAt || 0);
+      if (session.name && age < 12 * 60 * 60 * 1000) {
+        // Auto-resume — skip login screen
+        document.getElementById('loadingScreen').style.display = 'none';
+        resumeSession(session.name, session.role).catch(() => {
+          // Resume failed — fall through to login screen
+          localStorage.removeItem('teamhub_session');
+          document.getElementById('loginScreen').style.display = 'flex';
+          if (msg) setTimeout(() => toast(msg), 300);
+        });
+        return;
+      }
+    }
+  } catch(e) {}
+  document.getElementById('loadingScreen').style.display = 'none';
+  document.getElementById('loginScreen').style.display = 'flex';
+  if (msg) setTimeout(() => toast(msg), 300);
+}
+
+async function initDB() {
+  if (typeof supabase === 'undefined' || !SUPABASE_URL || SUPABASE_URL === 'YOUR_SUPABASE_PROJECT_URL') {
+    document.getElementById('dbStatus').textContent = typeof supabase === 'undefined'
+      ? '[Offline] Supabase library not loaded'
+      : '[Offline] Not configured';
+    showLogin();
+    return;
+  }
+  try {
+    sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+    const race = await Promise.race([
+      sb.from('attendance_state').select('name').limit(1),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('Timeout')), 4000))
+    ]);
+    if (race.error) throw race.error;
+    document.getElementById('dbStatus').textContent = '✓ Connected';
+    // Load team config early so passwords & custom members are ready at login screen
+    await dbLoadTeamConfig();
+    rebuildLoginSelect();
+    showLogin();
+  } catch(e) {
+    document.getElementById('dbStatus').textContent = 'Offline — ' + (e.message || 'failed');
+    showLogin('Database unavailable — changes will not persist');
+  }
+}
+
+async function init() {
+  // Always show login within 6s no matter what
+  const safetyNet = setTimeout(() => showLogin('Took too long — proceeding offline'), 6000);
+  try {
+    await initDB();
+  } catch(e) {
+    showLogin();
+  } finally {
+    clearTimeout(safetyNet);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  HELPERS
+// ══════════════════════════════════════════════════════════════
+function initials(n){return n.slice(0,2).toUpperCase()}
+function fmt(ts){if(!ts)return '--';return new Date(ts).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}
+function fmtDur(ms){if(!ms||ms<0)return '--';const h=Math.floor(ms/3600000),m=Math.floor((ms%3600000)/60000);return h>0?h+'h '+m+'m':m+'m'}
+function getMonday(offset=0){const d=new Date();d.setDate(d.getDate()-d.getDay()+1+offset*7);d.setHours(0,0,0,0);return d}
+function fmtDate(d){return d.toLocaleDateString('en-GB',{day:'2-digit',month:'short'})}
+function schedKey(name,dayIdx,wk){return `${name}__${dayIdx}__${wk}`}
+function getShift(name,dayIdx,wk=weekOffset){
+  const k=schedKey(name,dayIdx,wk);
+  if(scheduleData[k]!==undefined)return scheduleData[k];
+  const def=DEFAULT_SHIFTS[TEAM_META[name].team];
+  return dayIdx===5?def.sat:dayIdx===6?def.sun:def.wd;
+}
+function isOff(val){return !val||val==='TIME OFF'||val==='VACATION LEAVE'||val==='SICK LEAVE'||val==='OFFSET'||val==='ANNUAL LEAVE'||val==='AL'}
+function pillClass(val){
+  if(!val||val==='TIME OFF')return 'pill-off';
+  if(val==='VACATION LEAVE')return 'pill-vl';
+  if(val==='SICK LEAVE')return 'pill-sl';
+  if(val==='OFFSET')return 'pill-offset';
+  if(val==='ANNUAL LEAVE'||val==='AL')return 'pill-vl';
+  return 'pill-work';
+}
+function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+function toast(msg,dur=2600){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),dur);
+}
+function updateDubaiClock(){
+  const s=new Date().toLocaleTimeString('en-GB',{timeZone:'Asia/Dubai',hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  document.getElementById('dubaiTime').textContent=s;
+}
+function updateTopDate(){
+  document.getElementById('topDate').textContent=new Date().toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
+}
+
+// ══════════════════════════════════════════════════════════════
+//  LOGIN / LOGOUT
+// ══════════════════════════════════════════════════════════════
+document.getElementById('loginName').addEventListener('change', function() {
+  const isAdmin = ADMINS.includes(this.value);
+  const hasMemberPw = !isAdmin && memberPasswords[this.value];
+  const showPwField = isAdmin || hasMemberPw;
+  document.getElementById('adminPasswordField').style.display = showPwField ? 'block' : 'none';
+  document.getElementById('adminPasswordField').querySelector('label').textContent = isAdmin ? 'Admin Password' : 'Password';
+  document.getElementById('adminPassword').value = '';
+});
+
+async function doLogin() {
+  const name = document.getElementById('loginName').value;
+  if (!name) { toast('Please select your name'); return; }
+  const isAdmin = ADMINS.includes(name);
+  if (isAdmin) {
+    if (document.getElementById('adminPassword').value !== ADMIN_PASSWORD) {
+      toast('❌ Incorrect admin password'); return;
+    }
+    currentRole = 'admin';
+  } else {
+    const requiredPw = memberPasswords[name];
+    if (requiredPw) {
+      const entered = document.getElementById('adminPassword').value;
+      if (entered !== requiredPw) { toast('❌ Incorrect password'); return; }
+    }
+    currentRole = 'user';
+  }
+  currentUser = name;
+
+  const btn = document.getElementById('loginBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="btn-spinner"></div> Loading…';
+
+  // Load data from DB
+  if (sb) {
+    await dbLoadTeamConfig(); // ensures passwords/members are fresh
+    rebuildLoginSelect();
+    await dbLoadAttendanceState();
+    await dbLoadSchedule();
+    const logData = await dbLoadLog(TODAY_ISO, null);
+    attLog = logData.map(r => ({
+      id:       r.id,
+      name:     r.name,
+      team:     r.team,
+      action:   r.action,
+      ts:       r.ts,
+      worked:   r.worked,
+      brk:      r.brk,
+      note:     r.note,
+      editedBy: r.edited_by,
+    }));
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = 'Sign In →';
+
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+
+  if (currentRole === 'admin') {
+    document.body.classList.add('is-admin');
+    document.getElementById('tab-schedule').style.display = '';
+    document.getElementById('tab-log').style.display = '';
+    document.getElementById('tab-adminpanel').style.display = '';
+    document.querySelector('.export-btn.admin-only').style.display = 'inline-block';
+  } else {
+    document.body.classList.remove('is-admin');
+    document.getElementById('tab-schedule').style.display = 'none';
+    document.getElementById('tab-log').style.display = 'none';
+    document.getElementById('tab-adminpanel').style.display = 'none';
+  }
+
+  document.getElementById('roleBadge').textContent = currentRole === 'admin' ? 'ADMIN' : 'MEMBER';
+  document.getElementById('roleBadge').className = 't-badge ' + (currentRole === 'admin' ? 'badge-admin' : 'badge-user');
+  document.getElementById('topUser').textContent = name;
+  updateTopDate(); updateDubaiClock();
+  renderAttendance();
+  if (currentRole === 'admin') renderLog();
+
+  // Populate log member filter
+  const sel = document.getElementById('logMemberFilter');
+  sel.innerHTML = '<option value="">All Members</option>';
+  MEMBERS.forEach(m => {
+    const o = document.createElement('option');
+    o.value = m; o.textContent = m;
+    sel.appendChild(o);
+  });
+  document.getElementById('logDateFilter').value = TODAY_ISO;
+
+  // Clear in-memory cache so login always fetches fresh counts
+  Object.keys(ticketCache).forEach(k => delete ticketCache[k]);
+  Object.keys(ownerIdCache).forEach(k => delete ownerIdCache[k]);
+
+  // Fetch current user first (immediate), then all others in background
+  fetchTicketsForMember(name).then(t => {
+    memberTicketCounts[name] = t.length;
+    saveTicketCountsToCache();
+    renderAttendance();
+  });
+  // All members — regardless of role — fetched sequentially to avoid 429
+  const others = MEMBERS.filter(m => m !== name);
+  others.forEach((m, i) => {
+    setTimeout(() => {
+      fetchTicketsForMember(m).then(t => {
+        memberTicketCounts[m] = t.length;
+        saveTicketCountsToCache();
+        renderAttendance();
+      });
+    }, (i + 1) * 400);
+  });
+
+  // Save session to localStorage for this device
+  try {
+    localStorage.setItem('teamhub_session', JSON.stringify({
+      name,
+      role: currentRole,
+      savedAt: Date.now(),
+    }));
+  } catch(e) {}
+
+  // Subscribe to real-time updates from other users
+  if (sb) setupRealtime();
+  // Refresh preset dropdowns
+  refreshPresetSelects();
+  updateTicketRefreshedLabel();
+}
+
+function doLogout() {
+  try { localStorage.removeItem('teamhub_session'); } catch(e) {}
+  currentUser = null; currentRole = null;
+  document.body.classList.remove('is-admin');
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('adminPassword').value = '';
+  document.getElementById('adminPasswordField').style.display = 'none';
+  document.getElementById('loginName').value = '';
+  // Clear caches
+  Object.keys(ticketCache).forEach(k => delete ticketCache[k]);
+  Object.keys(ownerIdCache).forEach(k => delete ownerIdCache[k]);
+  // Reset local state
+  MEMBERS.forEach(n => {
+    attState[n] = {status:'idle', clockIn:null, clockOut:null, breakStart:null, totalBreak:0};
+  });
+  attLog = []; scheduleData = {};
+  if (realtimeChannel) { sb.removeChannel(realtimeChannel); realtimeChannel = null; }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  REAL-TIME SYNC (Supabase Realtime)
+//  When another user clocks in on a different browser, this
+//  fires and refreshes the attendance grid automatically.
+// ══════════════════════════════════════════════════════════════
+let realtimeChannel = null;
+function setupRealtime() {
+  if (!sb) return;
+  realtimeChannel = sb
+    .channel('attendance_changes')
+    .on('postgres_changes', {event: '*', schema: 'public', table: 'attendance_state'}, async (payload) => {
+      const row = payload.new;
+      if (!row || !row.name) return;
+      attState[row.name] = {
+        status:     row.status,
+        clockIn:    row.clock_in,
+        clockOut:   row.clock_out,
+        breakStart: row.break_start,
+        totalBreak: row.total_break || 0,
+      };
+      renderAttendance();
+    })
+    .on('postgres_changes', {event: 'INSERT', schema: 'public', table: 'attendance_log'}, async (payload) => {
+      const row = payload.new;
+      if (!row || row.log_date !== TODAY_ISO) return;
+      // Add to local log if not already there
+      if (!attLog.find(e => e.id === row.id)) {
+        attLog.unshift({
+          id: row.id, name: row.name, team: row.team, action: row.action,
+          ts: row.ts, worked: row.worked, brk: row.brk, note: row.note, editedBy: row.edited_by,
+        });
+        if (document.getElementById('tab-log-content').style.display !== 'none') renderLog();
+      }
+    })
+    .subscribe();
+}
+
+// ══════════════════════════════════════════════════════════════
+//  TABS
+// ══════════════════════════════════════════════════════════════
+function switchTab(tab) {
+  ['attendance','schedule','log','adminpanel','gleap'].forEach(t => {
+    const contentEl = document.getElementById('tab-'+t+'-content');
+    if (contentEl) contentEl.style.display = t === tab ? 'block' : 'none';
+    const tabEl = document.getElementById('tab-'+t);
+    if (tabEl) tabEl.classList.toggle('active', t === tab);
+  });
+  if (tab === 'schedule') renderSchedule();
+  if (tab === 'log') loadLog();
+  if (tab === 'adminpanel') renderAdminPanel();
+}
+
+// ══════════════════════════════════════════════════════════════
+//  FLAGS
+// ══════════════════════════════════════════════════════════════
+function parseShiftTimes(shift) {
+  if (!shift || isOff(shift)) return null;
+  const m = shift.match(/(\d+):(\d+)\s*(AM|PM)\s*[-–]\s*(\d+):(\d+)\s*(AM|PM)/i);
+  if (!m) return null;
+  let [,sh,sm,sAP,eh,em,eAP] = m;
+  sh=parseInt(sh);sm=parseInt(sm);eh=parseInt(eh);em=parseInt(em);
+  if(sAP.toUpperCase()==='PM'&&sh!==12)sh+=12;
+  if(sAP.toUpperCase()==='AM'&&sh===12)sh=0;
+  if(eAP.toUpperCase()==='PM'&&eh!==12)eh+=12;
+  if(eAP.toUpperCase()==='AM'&&eh===12)eh=0;
+  return {startH:sh,startM:sm,endH:eh,endM:em,overnight:eh<sh||(eh===sh&&em<sm)};
+}
+function todayAt(h,m,nextDay=false){const d=new Date();d.setHours(h,m,0,0);if(nextDay)d.setDate(d.getDate()+1);return d.getTime()}
+const LATE_GRACE_MS=15*60*1000, EARLY_GRACE_MS=15*60*1000, BREAK_LIMIT_MS=60*60*1000;
+function getFlags(name){
+  const s=attState[name];
+  const di=(new Date().getDay()+6)%7;
+  const times=parseShiftTimes(getShift(name,di,0));
+  const flags=[];
+  if(times&&s.clockIn){const ss=todayAt(times.startH,times.startM);if(s.clockIn>ss+LATE_GRACE_MS)flags.push({type:'late',label:`Late Clock In (+${Math.round((s.clockIn-ss)/60000)}m)`})}
+  if(times&&s.clockOut){const se=todayAt(times.endH,times.endM,times.overnight);if(s.clockOut<se-EARLY_GRACE_MS)flags.push({type:'early',label:`Early Clock Out (-${Math.round((se-s.clockOut)/60000)}m)`})}
+  let tb=s.totalBreak||0;if(s.status==='break'&&s.breakStart)tb+=Date.now()-s.breakStart;
+  if(tb>BREAK_LIMIT_MS)flags.push({type:'break',label:`Long Break (${fmtDur(tb)})`});
+  return flags;
+}
+
+// ══════════════════════════════════════════════════════════════
+//  ATTENDANCE RENDER
+// ══════════════════════════════════════════════════════════════
+function renderAttendance() {
+  const flagIcon=(t)=>t==='late'?'<svg width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:2px"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>':t==='early'?'<svg width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:2px"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8.688c0-.864.933-1.405 1.683-.977l7.108 4.062a1.125 1.125 0 010 1.953l-7.108 4.062A1.125 1.125 0 013 16.81V8.688zM12.75 8.688c0-.864.933-1.405 1.683-.977l7.108 4.062a1.125 1.125 0 010 1.953l-7.108 4.062a1.125 1.125 0 01-1.683-.977V8.688z"/></svg>':'<svg width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:2px"><path stroke-linecap="round" stroke-linejoin="round" d="M15.362 5.214A8.252 8.252 0 0112 21 8.25 8.25 0 016.038 7.048 8.287 8.287 0 009 9.6a8.983 8.983 0 013.361-6.867 8.21 8.21 0 003 2.48z"/></svg>';
+  let inC=0,brC=0,outC=0;
+  MEMBERS.forEach(n=>{const s=attState[n].status;if(s==='in')inC++;else if(s==='break')brC++;else if(s==='out')outC++;});
+  const allFlags=[];
+  MEMBERS.forEach(n=>getFlags(n).forEach(f=>allFlags.push({name:n,...f})));
+  const fp=document.getElementById('flagsPanel');
+  if(allFlags.length){
+    fp.style.display='block';
+    document.getElementById('flagsList').innerHTML=allFlags.map(f=>`<div class="flag-item"><span class="flag flag-${f.type}">${flagIcon(f.type)}${f.label}</span><span class="flag-item-name">${f.name}</span></div>`).join('');
+  }else{fp.style.display='none';}
+  document.getElementById('attStats').innerHTML=`
+    <div class="stat-card stat-card-green">
+      <div class="stat-icon-wrap"><svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></div>
+      <div class="stat-body"><div class="stat-n">${inC}</div><div class="stat-l">Clocked In</div></div>
+    </div>
+    <div class="stat-card stat-card-amber">
+      <div class="stat-icon-wrap"><svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25v13.5m-7.5-13.5v13.5"/></svg></div>
+      <div class="stat-body"><div class="stat-n">${brC}</div><div class="stat-l">On Break</div></div>
+    </div>
+    <div class="stat-card stat-card-purple">
+      <div class="stat-icon-wrap"><svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9"/></svg></div>
+      <div class="stat-body"><div class="stat-n">${outC}</div><div class="stat-l">Clocked Out</div></div>
+    </div>
+    <div class="stat-card ${allFlags.length?'stat-card-red':'stat-card-muted'}">
+      <div class="stat-icon-wrap"><svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 3v1.5M3 21v-6m0 0l2.77-.693a9 9 0 016.208.682l.108.054a9 9 0 006.086.71l3.114-.732a48.524 48.524 0 01-.005-10.499l-3.11.732a9 9 0 01-6.085-.711l-.108-.054a9 9 0 00-6.208-.682L3 4.5M3 15V4.5"/></svg></div>
+      <div class="stat-body"><div class="stat-n">${allFlags.length}</div><div class="stat-l">Flags Today</div></div>
+    </div>`;
+  const di=(new Date().getDay()+6)%7;
+  document.getElementById('memberGrid').innerHTML=MEMBERS.map(name=>{
+    const m=TEAM_META[name],s=attState[name];
+    const shift=getShift(name,di,0);
+    const dayOff=isOff(shift);
+    const cls=dayOff?'mc-dayoff':s.status==='in'?'mc-in':s.status==='break'?'mc-break':s.status==='out'?'mc-out':'mc-idle';
+    const sCls=dayOff?'s-dayoff':s.status==='in'?'s-in':s.status==='break'?'s-break':s.status==='out'?'s-out':'s-idle';
+    const sLbl=dayOff?shift:s.status==='idle'?'Not started':s.status==='in'?'Clocked in':s.status==='break'?'On break':'Clocked out';
+    const now=Date.now();
+    let timeHtml='';
+    if(s.status==='in'&&s.clockIn){
+      const worked=now-s.clockIn-(s.totalBreak||0);
+      timeHtml=`<div class="mc-time">In: ${fmt(s.clockIn)} · <span style="color:var(--green-d);font-weight:600">${fmtDur(worked)} worked</span></div>`;
+    } else if(s.status==='break'&&s.breakStart){
+      const brk=now-s.breakStart;
+      const worked=s.clockIn?now-s.clockIn-(s.totalBreak||0)-brk:0;
+      timeHtml=`<div class="mc-time">In: ${fmt(s.clockIn)} · <span style="color:var(--amber-d,#b45309);font-weight:600">Break: ${fmtDur(brk)}</span>${worked>0?' · '+fmtDur(worked)+' worked':''}</div>`;
+    } else if(s.status==='out'&&s.clockIn&&s.clockOut){
+      const worked=s.clockOut-s.clockIn-(s.totalBreak||0);
+      timeHtml=`<div class="mc-time">In: ${fmt(s.clockIn)} · Out: ${fmt(s.clockOut)} · ${fmtDur(worked)} total</div>`;
+    } else if(s.status==='idle'){
+      const shiftT=getShift(name,(new Date().getDay()+6)%7,0);
+      const times=parseShiftTimes(shiftT);
+      if(times){const ss=todayAt(times.startH,times.startM);if(now>ss+LATE_GRACE_MS)timeHtml=`<div class="mc-time" style="color:#ef4444;font-weight:600">⚠ Shift started ${fmtDur(now-ss)} ago</div>`;}
+    }
+    const time=timeHtml;
+    const canClick=currentRole==='admin'||(currentUser===name&&!dayOff);
+    const flags=getFlags(name);
+    const flagsHtml=flags.length?`<div class="flag-row">${flags.map(f=>`<span class="flag flag-${f.type}">${flagIcon(f.type)}${f.label}</span>`).join('')}</div>`:'';
+    const tc=memberTicketCounts[name]||0;
+    const oldestDate=memberTicketOldest[name];
+    const oldestLabel=oldestDate?(()=>{const d=Math.floor((Date.now()-new Date(oldestDate).getTime())/86400000);return d===0?' · oldest today':` · oldest ${d}d ago`;})():'';
+    const ticketBadge=tc>0?`<div class="mc-tickets"><svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:3px"><path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z"/><path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6z"/></svg>${tc} ticket${tc!==1?'s':''}${oldestLabel}</div>`:'';
+    return `<div class="member-card ${cls}" onclick="${canClick?`openAttModal('${name}')`:''}" style="${flags.length&&!dayOff?'border-color:#DC2626;':''}${!canClick?'cursor:default;opacity:'+(dayOff?'0.6':'0.75'):''}">
+      ${!canClick&&!dayOff?`<div style="position:absolute;top:8px;right:8px;opacity:0.3"><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"/></svg></div>`:''}
+      <div class="mc-avatar" style="background:${m.bg};color:${m.txt}">${initials(name)}</div>
+      <div class="mc-name">${name}</div>
+      <div class="mc-team">${m.team}</div>
+      <span class="mc-status ${sCls}">${sLbl}</span>
+      <div class="mc-schd"><svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:3px"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5"/></svg>${shift}</div>
+      ${time}${ticketBadge}${flagsHtml}
+    </div>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════════════════════
+//  ATTENDANCE MODAL
+// ══════════════════════════════════════════════════════════════
+function openAttModal(name) {
+  if (currentRole !== 'admin' && name !== currentUser) { toast('You can only manage your own attendance'); return; }
+  activeAttMember = name;
+  const m=TEAM_META[name],s=attState[name];
+  const shift=getShift(name,(new Date().getDay()+6)%7,0);
+  const av=document.getElementById('am-avatar');
+  av.textContent=initials(name);av.style.background=m.bg;av.style.color=m.txt;
+  document.getElementById('am-title').textContent=name;
+  document.getElementById('am-sub').textContent=currentRole==='admin'?'Admin Control':'My Attendance';
+  document.getElementById('am-name').textContent=name;
+  document.getElementById('am-team').textContent=m.team;
+  document.getElementById('am-schd').textContent='Scheduled: '+shift;
+  const curr=s.status==='idle'?'Not started':s.status==='in'?'Clocked in at '+fmt(s.clockIn):s.status==='break'?'On break since '+fmt(s.breakStart):'Clocked out at '+fmt(s.clockOut);
+  document.getElementById('am-curr').textContent='Status: '+curr;
+  document.getElementById('btn-in').disabled=s.status!=='idle';
+  document.getElementById('btn-break').disabled=s.status!=='in';
+  document.getElementById('btn-resume').disabled=s.status!=='break';
+  document.getElementById('btn-out').disabled=!['in','break'].includes(s.status);
+  document.getElementById('attModal').classList.add('open');
+  loadTicketsIntoModal(name,'am-ticket-count','am-tickets-body');
+}
+function closeAttModal(){document.getElementById('attModal').classList.remove('open');activeAttMember=null;}
+
+async function doAtt(action) {
+  const name=activeAttMember||currentUser;
+  if (!name) return;
+  if (currentRole!=='admin'&&name!==currentUser){toast('⛔ You can only manage your own attendance');closeAttModal();return;}
+  const s=attState[name];
+  const t=Date.now();
+  let entry = {name, team:TEAM_META[name].team, ts:t, worked:'', brk:'', note:'', editedBy:''};
+
+  if(action==='in'){s.status='in';s.clockIn=t;entry.action='Clock In';}
+  else if(action==='break'){s.status='break';s.breakStart=t;entry.action='Break Start';}
+  else if(action==='resume'){s.totalBreak+=(t-s.breakStart);s.status='in';s.breakStart=null;entry.action='Break End';}
+  else if(action==='out'){
+    if(s.status==='break')s.totalBreak+=(t-s.breakStart);
+    s.status='out';s.clockOut=t;
+    entry.action='Clock Out';
+    entry.worked=fmtDur(s.clockOut-s.clockIn-s.totalBreak);
+    entry.brk=fmtDur(s.totalBreak);
+  }
+
+  closeAttModal();
+  renderAttendance();
+
+  // Write to DB
+  if (sb) {
+    const dbRow = await dbInsertLog(entry);
+    if (dbRow) entry.id = dbRow.id;
+    await dbSaveAttendanceState(name);
+  }
+  // Add to local log cache
+  attLog.unshift(entry);
+  if (document.getElementById('tab-log-content').style.display !== 'none') renderLog();
+  toast(`${name}: ${entry.action} recorded ✓`);
+}
+
+// ══════════════════════════════════════════════════════════════
+//  SCHEDULE
+// ══════════════════════════════════════════════════════════════
+function changeWeek(dir){
+  const maxFuture = currentRole === 'admin' ? 8 : 4;
+  const newOffset = weekOffset + dir;
+  if (newOffset < -8) { toast('Cannot go back more than 8 weeks'); return; }
+  if (newOffset > maxFuture) { toast(`Cannot go more than ${maxFuture} weeks ahead`); return; }
+  weekOffset = newOffset;
+  renderSchedule();
+}
+function renderSchedule(){
+  const mon=getMonday(weekOffset);
+  const dates=DAYS.map((_,i)=>{const d=new Date(mon);d.setDate(mon.getDate()+i);return d});
+  document.getElementById('weekLabel').textContent=fmtDate(dates[0])+' – '+fmtDate(dates[6])+' '+dates[0].getFullYear();
+  document.getElementById('schedSubtitle').textContent=weekOffset===0?'Current week':weekOffset<0?`${Math.abs(weekOffset)} week(s) ago`:`${weekOffset} week(s) ahead`;
+  const isAdmin=currentRole==='admin';
+  let html=`<thead><tr><th style="background:#503390">MEMBER</th><th style="background:#503390">TEAM</th>${DAYS.map((d,i)=>`<th class="${i>=5?'th-weekend':'th-day'}">${d}<br><span style="font-size:9px;opacity:0.75;font-weight:400">${fmtDate(dates[i])}</span></th>`).join('')}</tr></thead><tbody>`;
+  SECTIONS.forEach(sec=>{
+    html+=`<tr class="sect-row"><td colspan="9">${sec}</td></tr>`;
+    MEMBERS.filter(n=>TEAM_META[n].team===sec).forEach(name=>{
+      const m=TEAM_META[name];
+      html+=`<tr><td style="font-weight:700;color:#321e57">${name}</td><td><span style="background:${m.bg};color:${m.txt};padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700">${sec}</span></td>${DAYS.map((_,i)=>{
+        const val=getShift(name,i,weekOffset),isWe=i>=5,pc=pillClass(val),ps=pc==='pill-work'?`background:${m.bg};color:${m.txt}`:'';
+        return `<td class="${isWe?'td-weekend':''}"><span class="shift-pill ${pc}" style="${ps};${!isAdmin?'cursor:default':''}" ${isAdmin?`onclick="openSchedEdit('${name}',${i})"`:``}>${val}</span></td>`;
+      }).join('')}</tr>`;
+    });
+  });
+  html+='</tbody>';
+  document.getElementById('schedTable').innerHTML=html;
+}
+
+function openSchedEdit(name,dayIdx){
+  if(currentRole!=='admin'){toast('⛔ Only admins can edit the schedule');return;}
+  const mon=getMonday(weekOffset);const d=new Date(mon);d.setDate(mon.getDate()+dayIdx);
+  editingSchedKey={name,dayIdx,wk:weekOffset};editingShiftType='work';
+  document.getElementById('es-title').textContent=name+' — '+DAYS[dayIdx];
+  document.getElementById('es-sub').textContent=fmtDate(d)+' | Current: '+getShift(name,dayIdx,weekOffset);
+  document.getElementById('es-preset').value='';document.getElementById('es-custom').value='';
+  document.getElementById('es-time-section').style.display='block';
+  document.querySelectorAll('.st-opt').forEach(el=>el.classList.remove('selected'));
+  document.querySelector('.st-work').classList.add('selected');
+  document.getElementById('copyDayGrid').innerHTML=DAYS.map((day,i)=>{
+    const isSrc=i===dayIdx,isWe=i>=5;
+    return `<div class="copy-day${isSrc?' is-source':''}${isWe?' weekend':''}" id="copy-day-${i}" onclick="toggleCopyDay(${i},${dayIdx})">${day}<br><span style="font-size:9px;opacity:0.7">${isSrc?'this':'—'}</span></div>`;
+  }).join('');
+  document.getElementById('editSchedModal').classList.add('open');
+}
+function selectShiftType(type){editingShiftType=type;document.querySelectorAll('.st-opt').forEach(el=>el.classList.remove('selected'));event.target.classList.add('selected');const show=type==='work';document.getElementById('es-time-section').style.display=show?'block':'none';if(!show){document.getElementById('es-preset').value='';document.getElementById('es-custom').value='';}}
+function applyPreset(){const v=document.getElementById('es-preset').value;if(v)document.getElementById('es-custom').value=v;}
+function toggleCopyDay(i,src){if(i===src)return;const el=document.getElementById('copy-day-'+i);el.classList.toggle('selected');el.querySelector('span').textContent=el.classList.contains('selected')?'copy':'—';}
+function selectAllDays(on){const src=editingSchedKey?editingSchedKey.dayIdx:-1;DAYS.forEach((_,i)=>{if(i===src)return;const el=document.getElementById('copy-day-'+i);if(!el)return;if(on){el.classList.add('selected');el.querySelector('span').textContent='copy';}else{el.classList.remove('selected');el.querySelector('span').textContent='—';}});}
+function selectWeekdays(){const src=editingSchedKey?editingSchedKey.dayIdx:-1;DAYS.forEach((_,i)=>{if(i===src)return;const el=document.getElementById('copy-day-'+i);if(!el)return;if(i<5){el.classList.add('selected');el.querySelector('span').textContent='copy';}else{el.classList.remove('selected');el.querySelector('span').textContent='—';}});}
+
+async function saveShiftCell(){
+  if(currentRole!=='admin'){toast('⛔ Only admins can edit the schedule');return;}
+  if(!editingSchedKey)return;
+  const {name,dayIdx,wk}=editingSchedKey;
+  let val;
+  if(editingShiftType==='work'){val=document.getElementById('es-custom').value.trim();if(!val){toast('Please enter shift hours');return}}
+  else val={'off':'TIME OFF','vl':'VACATION LEAVE','sl':'SICK LEAVE','offset':'OFFSET','al':'ANNUAL LEAVE'}[editingShiftType];
+  const key=schedKey(name,dayIdx,wk);
+  scheduleData[key]=val;
+  // Copy to selected days
+  const copies=[];
+  DAYS.forEach((_,i)=>{if(i===dayIdx)return;const el=document.getElementById('copy-day-'+i);if(el&&el.classList.contains('selected')){const k=schedKey(name,i,wk);scheduleData[k]=val;copies.push({key:k,dayIdx:i});}});
+  closeEditSched();renderSchedule();
+  // Persist to DB
+  if(sb){
+    await dbSaveScheduleCell(key,name,dayIdx,wk,val);
+    for(const c of copies) await dbSaveScheduleCell(c.key,name,c.dayIdx,wk,val);
+  }
+  toast(`${name} shift updated ✓${copies.length?' + copied to '+copies.map(c=>DAYS[c.dayIdx]).join(', '):''}`)
+}
+function closeEditSched(){document.getElementById('editSchedModal').classList.remove('open');editingSchedKey=null;}
+
+// ══════════════════════════════════════════════════════════════
+//  LOG
+// ══════════════════════════════════════════════════════════════
+async function loadLog() {
+  const dateFilter   = document.getElementById('logDateFilter')?.value || TODAY_ISO;
+  const memberFilter = currentRole === 'admin' ? (document.getElementById('logMemberFilter')?.value || '') : currentUser;
+  document.getElementById('logBody').innerHTML = '<div class="empty">Loading…</div>';
+  let rows;
+  if (sb) {
+    rows = await dbLoadLog(dateFilter, memberFilter || null);
+  } else {
+    rows = attLog.filter(e => (!memberFilter || e.name === memberFilter));
+  }
+  document.getElementById('logCount').textContent = rows.length + ' entr' + (rows.length === 1 ? 'y' : 'ies') + ' for ' + dateFilter;
+  renderLogRows(rows);
+}
+
+function resetLogFilter() {
+  document.getElementById('logDateFilter').value = TODAY_ISO;
+  document.getElementById('logMemberFilter').value = '';
+  loadLog();
+}
+
+function renderLog() {
+  // Quick render from local cache for today
+  const memberFilter = currentRole === 'admin' ? '' : currentUser;
+  const rows = memberFilter ? attLog.filter(e => e.name === memberFilter) : attLog;
+  document.getElementById('logCount').textContent = rows.length + ' entr' + (rows.length === 1 ? 'y' : 'ies') + ' today';
+  renderLogRows(rows);
+}
+
+function renderLogRows(rows) {
+  const body = document.getElementById('logBody');
+  if (!rows.length) { body.innerHTML = '<div class="empty">No entries for this selection</div>'; return; }
+  const isAdmin = currentRole === 'admin';
+  const actionCls = {'Clock In':'a-in','Break Start':'a-bs','Break End':'a-be','Clock Out':'a-out'};
+  body.innerHTML = `<table class="log-table">
+    <thead><tr>
+      <th>Member</th><th>Team</th><th>Action</th><th>Time</th>
+      <th>Worked</th><th>Break</th>${isAdmin?'<th>Note</th><th>Edit</th>':''}
+    </tr></thead>
+    <tbody>${rows.map((e, i) => `<tr>
+      <td style="font-weight:600">${e.name}</td>
+      <td style="color:#888">${e.team}</td>
+      <td><span class="${actionCls[e.action]||'a-in'}">${e.action}</span>${e.editedBy?`<span style="font-size:10px;color:#888;margin-left:4px">✎ ${e.editedBy}</span>`:''}</td>
+      <td style="font-family:'DM Mono',monospace">${fmt(e.ts)}</td>
+      <td>${e.worked||'—'}</td>
+      <td>${e.brk||'—'}</td>
+      ${isAdmin?`<td style="color:#888;font-size:11px">${e.note||''}</td><td><button onclick="openEditAtt(${i},${e.id||'null'})" style="padding:3px 10px;background:#efedfa;color:#503390;border:none;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer">Edit</button></td>`:''}
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
+
+function openEditAtt(idx, dbId) {
+  if(currentRole!=='admin'){toast('⛔ Only admins can edit records');return;}
+  editingLogIdx = idx;
+  editingLogId  = dbId;
+  const e = attLog[idx];
+  document.getElementById('ea-sub').textContent = (e.name||'') + ' — Admin Override';
+  document.getElementById('ea-name').value   = e.name;
+  document.getElementById('ea-action').value = e.action;
+  const d=new Date(e.ts);
+  document.getElementById('ea-time').value = d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0');
+  document.getElementById('ea-note').value = e.note||'';
+  document.getElementById('editAttModal').classList.add('open');
+}
+
+async function saveEditAtt() {
+  if(currentRole!=='admin'){toast('⛔ Only admins can edit');return;}
+  if(editingLogIdx===null)return;
+  const e=attLog[editingLogIdx];
+  const timeVal=document.getElementById('ea-time').value;
+  if(!timeVal){toast('Please enter a time');return}
+  const [h,mm]=timeVal.split(':').map(Number);
+  const newTs=new Date(e.ts);newTs.setHours(h,mm,0,0);
+  const updated={...e, action:document.getElementById('ea-action').value, ts:newTs.getTime(), note:document.getElementById('ea-note').value, editedBy:currentUser};
+  attLog[editingLogIdx]=updated;
+  if(sb && editingLogId) await dbUpdateLog(editingLogId, updated);
+  closeEditAtt();renderLog();renderAttendance();
+  toast('Entry updated ✓');
+}
+
+async function deleteLogEntry() {
+  if(currentRole!=='admin'){toast('⛔ Only admins can delete');return;}
+  if(!confirm('Delete this log entry?'))return;
+  if(sb && editingLogId) await dbDeleteLog(editingLogId);
+  attLog.splice(editingLogIdx,1);
+  closeEditAtt();renderLog();
+  toast('Entry deleted');
+}
+
+function closeEditAtt(){document.getElementById('editAttModal').classList.remove('open');editingLogIdx=null;editingLogId=null;}
+
+// ══════════════════════════════════════════════════════════════
+//  EXPORT CSV
+// ══════════════════════════════════════════════════════════════
+async function exportCSV() {
+  let rows;
+  if (sb) {
+    const dateFilter   = document.getElementById('logDateFilter')?.value || TODAY_ISO;
+    const memberFilter = currentRole === 'admin' ? (document.getElementById('logMemberFilter')?.value || '') : currentUser;
+    rows = await dbLoadLog(dateFilter, memberFilter || null);
+  } else {
+    rows = attLog;
+  }
+  if (!rows.length) { toast('No data to export'); return; }
+  const csv = [['Name','Team','Action','Time','Worked','Break','Note','Edited By'],
+    ...rows.map(e => [e.name,e.team,e.action,fmt(e.ts),e.worked||'',e.brk||'',e.note||'',e.editedBy||''])
+  ].map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
+  const a=Object.assign(document.createElement('a'),{href:URL.createObjectURL(new Blob([csv],{type:'text/csv'})),download:'attendance_'+TODAY_ISO+'.csv'});
+  a.click();URL.revokeObjectURL(a.href);
+  toast('CSV exported ✓');
+}
+
+// ══════════════════════════════════════════════════════════════
+//  HUBSPOT TICKETS
+// ══════════════════════════════════════════════════════════════
+async function getOwnerId(name) {
+  if (ownerIdCache[name]) return ownerIdCache[name];
+  const email = MEMBER_EMAIL[name];
+  if (!email) return null;
+  try {
+    const res = await fetch(`${HS_PROXY}?action=get_owner&email=${encodeURIComponent(email)}`);
+    if (!res.ok) return null;
+    const d = await res.json();
+    const id = d.results?.[0]?.id;
+    if (id) ownerIdCache[name] = id;
+    return id;
+  } catch { return null; }
+}
+
+async function fetchTicketsForMember(name) {
+  if (ticketCache[name] !== undefined) return ticketCache[name];
+  const ownerId = await getOwnerId(name);
+  if (!ownerId) { ticketCache[name] = []; return []; }
+  const results = [];
+  for (const pid of HS_PIPELINE_IDS) {
+    try {
+      const res = await fetch(`${HS_PROXY}?action=get_tickets`, {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          filterGroups:[{filters:[
+            {propertyName:'hubspot_owner_id',operator:'EQ',value:ownerId},
+            {propertyName:'hs_pipeline',operator:'EQ',value:pid},
+          ]}],
+          properties:['subject','hs_pipeline','hs_pipeline_stage','createdate','hs_lastmodifieddate'],
+          limit:50,
+          sorts:[{propertyName:'createdate',direction:'DESCENDING'}]
+        })
+      });
+      if (!res.ok) continue;
+      const d = await res.json();
+      (d.results||[]).forEach(t=>results.push({...t,_pid:pid}));
+    } catch {}
+  }
+  const seen=new Set();
+  const deduped=results.filter(t=>{if(seen.has(t.id))return false;seen.add(t.id);return true;});
+  // track oldest open ticket creation date for card display
+  const dates = deduped.map(t=>t.properties?.createdate).filter(Boolean).map(d=>new Date(d).getTime()).filter(n=>!isNaN(n));
+  memberTicketOldest[name] = dates.length ? new Date(Math.min(...dates)).toISOString() : null;
+  ticketCache[name] = deduped;
+  return deduped;
+}
+
+async function loadTicketsIntoModal(name, countId, bodyId) {
+  const bodyEl = document.getElementById(bodyId);
+  const countEl = document.getElementById(countId);
+  if (!bodyEl) return;
+  bodyEl.innerHTML = `<div class="tickets-loading"><span class="spinner"></span> Loading tickets…</div>`;
+  if (countEl) countEl.textContent = '';
+  try {
+    const tickets = await fetchTicketsForMember(name);
+    if (countEl) countEl.textContent = tickets.length ? `${tickets.length} open` : '';
+    memberTicketCounts[name] = tickets.length;
+    saveTicketCountsToCache();
+    if (!tickets.length) { bodyEl.innerHTML = `<div class="tickets-empty">✅ No open tickets assigned</div>`; return; }
+    bodyEl.innerHTML = `<div class="ticket-table-wrap"><table class="ticket-table">
+      <thead><tr>
+        <th>Ticket Name</th>
+        <th>Pipeline</th>
+        <th>Status</th>
+        <th>Created</th>
+        <th>Updated</th>
+        <th>Open</th>
+      </tr></thead>
+      <tbody>${tickets.map(t=>{
+        const p=t.properties||{};
+        const pid=t._pid;
+        const pName=PIPELINE_NAMES[pid]||pid;
+        const pCls=pid==='824860808'?'pipeline-onboarding':'pipeline-operations';
+        const fmtD=iso=>iso?new Date(iso).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):'—';
+        const hsUrl=`https://app.hubspot.com/contacts/9423176/record/0-5/${t.id}`;
+        return `<tr>
+          <td><span class="ticket-name" title="${escHtml(p.subject||'')}">${escHtml(p.subject||'(Untitled)')}</span></td>
+          <td><span class="pipeline-badge ${pCls}">${pName}</span></td>
+          <td><span class="ticket-status-open">Open</span></td>
+          <td class="ticket-due">${fmtD(p.createdate)}</td>
+          <td class="ticket-due">${fmtD(p.hs_lastmodifieddate)}</td>
+          <td><a class="ticket-link" href="${hsUrl}" target="_blank" rel="noopener">↗ View</a></td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table></div>`;
+  } catch(e) {
+    bodyEl.innerHTML = `<div class="hs-error">❌ Could not load tickets: ${escHtml(e.message)}</div>`;
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  OVERLAY CLOSE ON BACKDROP
+// ══════════════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', function() {
+  ['attModal','editAttModal','editSchedModal','setPasswordModal','editMemberModal'].forEach(id=>{
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('click',function(e){if(e.target===this)this.classList.remove('open');});
+  });
+});
+
+// ══════════════════════════════════════════════════════════════
+//  TIMERS
+// ══════════════════════════════════════════════════════════════
+setInterval(updateDubaiClock, 1000);
+setInterval(updateTopDate, 60000);
+setInterval(()=>{if(currentUser)renderAttendance();}, 60000);
+setInterval(()=>{if(currentUser)updateTicketRefreshedLabel();}, 60000);
+// auto-refresh HubSpot ticket counts every 30 minutes
+setInterval(()=>{if(currentUser)refreshAllTickets();}, 30*60*1000);
+
+
+// ══════════════════════════════════════════════════════════════
+//  ADMIN PANEL — PRESET MANAGEMENT
+// ══════════════════════════════════════════════════════════════
+function getPresetOptions(selectedVal='') {
+  return SHIFT_PRESETS.map(p =>
+    `<option value="${p.value}"${selectedVal===p.value?' selected':''}>${p.label||p.value}</option>`
+  ).join('');
+}
+
+function refreshPresetSelects() {
+  // Update all preset selects in shift editor and bulk editor
+  const esPreset = document.getElementById('es-preset');
+  if (esPreset) {
+    const cur = esPreset.value;
+    esPreset.innerHTML = `<option value="">— Select preset —</option>${getPresetOptions(cur)}`;
+  }
+  const bulkPreset = document.getElementById('bulkPresetSelect');
+  if (bulkPreset) {
+    bulkPreset.innerHTML = `<option value="">select preset or type below</option>${getPresetOptions()}`;
+  }
+}
+
+function addNewPreset() {
+  const label = document.getElementById('newPresetLabel').value.trim();
+  const hours = document.getElementById('newPresetHours').value.trim();
+  if (!hours) { toast('Please enter shift hours'); return; }
+  if (SHIFT_PRESETS.find(p => p.value === hours)) { toast('Preset already exists'); return; }
+  SHIFT_PRESETS.push({label: label || hours, value: hours});
+  document.getElementById('newPresetLabel').value = '';
+  document.getElementById('newPresetHours').value = '';
+  refreshPresetSelects();
+  renderAdminPanel();
+  dbSavePresets();
+  toast('Preset added ✓');
+}
+
+function removePreset(idx) {
+  if (!confirm('Remove this preset?')) return;
+  SHIFT_PRESETS.splice(idx, 1);
+  refreshPresetSelects();
+  renderAdminPanel();
+  dbSavePresets();
+  toast('Preset removed');
+}
+
+// ══════════════════════════════════════════════════════════════
+//  ADMIN PANEL — MEMBER MANAGEMENT
+// ══════════════════════════════════════════════════════════════
+const TEAM_COLORS = {
+  'QA':            {color:'#40c798',bg:'#E8F5EE',txt:'#1A8A5C'},
+  'Implementation':{color:'#109ae7',bg:'#E8F3FC',txt:'#1E5FA8'},
+  'Gleap Support': {color:'#fb763c',bg:'#FEF0EA',txt:'#C2450C'},
+  'Gleap + Ops':   {color:'#E6A800',bg:'#FEF9E7',txt:'#7A5700'},
+  'Operations':    {color:'#7b51bf',bg:'#F0EDF8',txt:'#503390'},
+  'Sales Upload':  {color:'#c2260c',bg:'#FCE8E8',txt:'#C2260C'},
+};
+
+function addNewMember() {
+  const name  = document.getElementById('newMemberName').value.trim();
+  const team  = document.getElementById('newMemberTeam').value;
+  const email = document.getElementById('newMemberEmail').value.trim();
+  const pw    = document.getElementById('newMemberPassword').value;
+  if (!name) { toast('Please enter a name'); return; }
+  if (TEAM_META[name]) { toast('Member already exists'); return; }
+  const tc = TEAM_COLORS[team] || TEAM_COLORS['QA'];
+  TEAM_META[name] = {team, ...tc};
+  MEMBER_EMAIL[name] = email;
+  if (pw) memberPasswords[name] = pw;
+  if (!MEMBERS.includes(name)) MEMBERS.push(name);
+  attState[name] = {status:'idle', clockIn:null, clockOut:null, breakStart:null, totalBreak:0};
+  // Update login select
+  rebuildLoginSelect();
+  // Clear form
+  document.getElementById('newMemberName').value = '';
+  document.getElementById('newMemberEmail').value = '';
+  document.getElementById('newMemberPassword').value = '';
+  renderAdminPanel();
+  renderAttendance();
+  dbSaveMembers();
+  if (pw) dbSavePasswords();
+  toast(`${name} added ✓`);
+}
+
+function deleteMember(name) {
+  if (!confirm(`Remove ${name} from the team? This won't delete their attendance history.`)) return;
+  if (ADMINS.includes(name)) { toast('Cannot remove admin accounts'); return; }
+  delete TEAM_META[name];
+  delete MEMBER_EMAIL[name];
+  delete memberPasswords[name];
+  const idx = MEMBERS.indexOf(name);
+  if (idx > -1) MEMBERS.splice(idx, 1);
+  delete attState[name];
+  rebuildLoginSelect();
+  renderAdminPanel();
+  renderAttendance();
+  dbSaveMembers();
+  dbSavePasswords();
+  toast(`${name} removed`);
+}
+
+function openSetPassword(name) {
+  editingPasswordMember = name;
+  document.getElementById('sp-sub').textContent = name;
+  document.getElementById('sp-password').value = '';
+  document.getElementById('sp-confirm').value = '';
+  document.getElementById('setPasswordModal').classList.add('open');
+}
+function closeSetPassword() {
+  document.getElementById('setPasswordModal').classList.remove('open');
+  editingPasswordMember = null;
+}
+function savePassword() {
+  const pw = document.getElementById('sp-password').value;
+  const cf = document.getElementById('sp-confirm').value;
+  if (pw !== cf) { toast('Passwords do not match'); return; }
+  if (!pw) { clearPassword(); return; }
+  memberPasswords[editingPasswordMember] = pw;
+  closeSetPassword();
+  renderAdminPanel();
+  const loginSel = document.getElementById('loginName');
+  if (loginSel.value === editingPasswordMember) {
+    document.getElementById('adminPasswordField').style.display = 'block';
+    document.getElementById('adminPasswordField').querySelector('label').textContent = 'Password';
+  }
+  dbSavePasswords();
+  toast(`Password set for ${editingPasswordMember} ✓`);
+}
+function clearPassword() {
+  if (editingPasswordMember) delete memberPasswords[editingPasswordMember];
+  closeSetPassword();
+  renderAdminPanel();
+  dbSavePasswords();
+  toast('Password removed');
+}
+
+function openEditMember(name) {
+  editingMemberOldName = name;
+  document.getElementById('em-sub').textContent = 'Editing: ' + name;
+  document.getElementById('em-name').value  = name;
+  document.getElementById('em-team').value  = TEAM_META[name]?.team || 'QA';
+  document.getElementById('em-email').value = MEMBER_EMAIL[name] || '';
+  document.getElementById('editMemberModal').classList.add('open');
+}
+function closeEditMember() {
+  document.getElementById('editMemberModal').classList.remove('open');
+  editingMemberOldName = null;
+}
+function saveEditMember() {
+  const newName  = document.getElementById('em-name').value.trim();
+  const newTeam  = document.getElementById('em-team').value;
+  const newEmail = document.getElementById('em-email').value.trim();
+  if (!newName) { toast('Name cannot be empty'); return; }
+  const old = editingMemberOldName;
+  if (newName !== old && TEAM_META[newName]) { toast('Name already exists'); return; }
+  const tc = TEAM_COLORS[newTeam] || TEAM_COLORS['QA'];
+  // Update TEAM_META
+  if (newName !== old) {
+    TEAM_META[newName] = {team:newTeam, ...tc};
+    delete TEAM_META[old];
+    MEMBER_EMAIL[newName] = newEmail;
+    delete MEMBER_EMAIL[old];
+    if (memberPasswords[old]) { memberPasswords[newName] = memberPasswords[old]; delete memberPasswords[old]; }
+    attState[newName] = attState[old] || {status:'idle',clockIn:null,clockOut:null,breakStart:null,totalBreak:0};
+    delete attState[old];
+    const idx = MEMBERS.indexOf(old);
+    if (idx > -1) MEMBERS[idx] = newName;
+  } else {
+    TEAM_META[old].team = newTeam;
+    Object.assign(TEAM_META[old], tc);
+    MEMBER_EMAIL[old] = newEmail;
+  }
+  rebuildLoginSelect();
+  closeEditMember();
+  renderAdminPanel();
+  renderAttendance();
+  dbSaveMembers();
+  dbSavePasswords();
+  toast('Member updated ✓');
+}
+
+function rebuildLoginSelect() {
+  const sel = document.getElementById('loginName');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">— Select your name —</option>' +
+    MEMBERS.map(m => `<option${m===cur?' selected':''}>${m}</option>`).join('');
+  // Also update log filter
+  const logSel = document.getElementById('logMemberFilter');
+  if (logSel) {
+    const logCur = logSel.value;
+    logSel.innerHTML = '<option value="">All Members</option>' +
+      MEMBERS.map(m => `<option value="${m}"${m===logCur?' selected':''}>${m}</option>`).join('');
+  }
+  // Update bulk member select
+  const bulkSel = document.getElementById('bulkMember');
+  if (bulkSel) {
+    bulkSel.innerHTML = '<option value="__all__">All Members</option>' +
+      MEMBERS.map(m => `<option value="${m}"${m===bulkSel.value?' selected':''}>${m}</option>`).join('');
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  ADMIN PANEL — BULK SCHEDULE
+// ══════════════════════════════════════════════════════════════
+function populateBulkWeeks() {
+  const fromSel = document.getElementById('bulkFromWeek');
+  const toSel   = document.getElementById('bulkToWeek');
+  if (!fromSel || !toSel) return;
+  fromSel.innerHTML = '';
+  toSel.innerHTML   = '';
+  for (let w = 0; w <= 8; w++) {
+    const mon = getMonday(w);
+    const sun = new Date(mon); sun.setDate(sun.getDate()+6);
+    const label = (w===0?'This week: ':'Wk '+(w)+': ') + fmtDate(mon) + ' – ' + fmtDate(sun);
+    fromSel.innerHTML += `<option value="${w}">${label}</option>`;
+    toSel.innerHTML   += `<option value="${w}"${w===1?' selected':''}>${label}</option>`;
+  }
+}
+
+function toggleBulkHours() {
+  const type = document.getElementById('bulkShiftType').value;
+  const show = type === 'work';
+  document.getElementById('bulkHoursField').style.display = show ? '' : 'none';
+  document.getElementById('bulkCustomField').style.display = show ? '' : 'none';
+}
+
+function applyBulkPreset() {
+  const v = document.getElementById('bulkPresetSelect').value;
+  if (v) document.getElementById('bulkCustomHours').value = v;
+}
+
+async function applyBulkSchedule() {
+  if (currentRole !== 'admin') { toast('⛔ Admins only'); return; }
+  const memberSel = document.getElementById('bulkMember').value;
+  const dayVal    = document.getElementById('bulkDay').value;
+  const shiftType = document.getElementById('bulkShiftType').value;
+  const fromWk    = parseInt(document.getElementById('bulkFromWeek').value);
+  const toWk      = parseInt(document.getElementById('bulkToWeek').value);
+
+  let shiftVal;
+  if (shiftType === 'work') {
+    shiftVal = document.getElementById('bulkCustomHours').value.trim();
+    if (!shiftVal) { toast('Please enter shift hours'); return; }
+  } else {
+    shiftVal = {off:'TIME OFF',vl:'VACATION LEAVE',sl:'SICK LEAVE',offset:'OFFSET',al:'ANNUAL LEAVE'}[shiftType];
+  }
+
+  if (fromWk > toWk) { toast('From week must be ≤ To week'); return; }
+
+  const targetMembers = memberSel === '__all__' ? MEMBERS : [memberSel];
+  const targetDays    = dayVal === '__weekdays__' ? [0,1,2,3,4] : dayVal === '__alldays__' ? [0,1,2,3,4,5,6] : [parseInt(dayVal)];
+
+  let count = 0;
+  const dbPromises = [];
+  for (const name of targetMembers) {
+    for (let wk = fromWk; wk <= toWk; wk++) {
+      for (const di of targetDays) {
+        const k = schedKey(name, di, wk);
+        scheduleData[k] = shiftVal;
+        count++;
+        if (sb) dbPromises.push(dbSaveScheduleCell(k, name, di, wk, shiftVal));
+      }
+    }
+  }
+
+  document.getElementById('bulkResult').textContent = `Applying ${count} cells…`;
+  if (dbPromises.length) await Promise.all(dbPromises);
+
+  const msg = `✓ Applied "${shiftVal}" to ${count} cells (${targetMembers.length} member${targetMembers.length>1?'s':''}, weeks ${fromWk}–${toWk})`;
+  document.getElementById('bulkResult').textContent = msg;
+  toast('Bulk schedule applied ✓');
+  renderSchedule();
+}
+
+// ══════════════════════════════════════════════════════════════
+//  ADMIN PANEL RENDER
+// ══════════════════════════════════════════════════════════════
+function renderAdminPanel() {
+  if (currentRole !== 'admin') return;
+
+  // Member list
+  const memberList = document.getElementById('memberMgmtList');
+  if (memberList) {
+    memberList.innerHTML = MEMBERS.map(name => {
+      const m = TEAM_META[name];
+      if (!m) return '';
+      const hasPw = !!memberPasswords[name];
+      const isAdm = ADMINS.includes(name);
+      return `<div class="member-mgmt-row">
+        <div class="member-mgmt-info">
+          <div class="member-mgmt-avatar" style="background:${m.bg};color:${m.txt}">${initials(name)}</div>
+          <div>
+            <div class="member-mgmt-name">${name}${isAdm?' 👑':''}</div>
+            <div class="member-mgmt-team">${m.team}</div>
+          </div>
+          ${hasPw?'<span class="pw-badge">🔑 PW set</span>':'<span class="pw-none-badge">no pw</span>'}
+        </div>
+        <div class="member-mgmt-actions">
+          <button class="mgmt-btn mgmt-btn-edit" onclick="openEditMember('${name}')">Edit</button>
+          <button class="mgmt-btn mgmt-btn-pw" onclick="openSetPassword('${name}')">Password</button>
+          ${!isAdm?`<button class="mgmt-btn mgmt-btn-del" onclick="deleteMember('${name}')">Remove</button>`:''}
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  // Preset list
+  const presetList = document.getElementById('presetMgmtList');
+  if (presetList) {
+    presetList.innerHTML = SHIFT_PRESETS.length
+      ? SHIFT_PRESETS.map((p, i) => `<div class="preset-mgmt-row">
+          <div class="preset-label">${p.label||p.value}</div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <span style="font-size:10px;color:var(--mid)">${p.value !== p.label ? p.value : ''}</span>
+            <button class="mgmt-btn mgmt-btn-del" onclick="removePreset(${i})">Remove</button>
+          </div>
+        </div>`).join('')
+      : '<div style="font-size:12px;color:var(--mid);padding:8px 0">No presets defined</div>';
+  }
+
+  // Populate bulk selects
+  populateBulkWeeks();
+  refreshPresetSelects();
+
+  const bulkMember = document.getElementById('bulkMember');
+  if (bulkMember) {
+    bulkMember.innerHTML = '<option value="__all__">All Members</option>' +
+      MEMBERS.map(m => `<option value="${m}">${m}</option>`).join('');
+  }
+  const bulkPreset = document.getElementById('bulkPresetSelect');
+  if (bulkPreset) {
+    bulkPreset.innerHTML = `<option value="">select preset or type below</option>${getPresetOptions()}`;
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  SESSION RESUME
+// ══════════════════════════════════════════════════════════════
+async function resumeSession(name, role) {
+  // Validate the name still exists
+  if (!MEMBERS.includes(name)) throw new Error('Member not found');
+  currentUser = name;
+  currentRole = role || 'user';
+
+  // Load fresh data
+  if (sb) {
+    await dbLoadTeamConfig();
+    // Re-validate after config loaded (name might have changed)
+    if (!MEMBERS.includes(name)) throw new Error('Member not found after config load');
+    await dbLoadAttendanceState();
+    await dbLoadSchedule();
+    const logData = await dbLoadLog(TODAY_ISO, null);
+    attLog = logData.map(r => ({
+      id: r.id, name: r.name, team: r.team, action: r.action,
+      ts: r.ts, worked: r.worked, brk: r.brk, note: r.note, editedBy: r.edited_by,
+    }));
+  }
+
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+
+  if (currentRole === 'admin') {
+    document.body.classList.add('is-admin');
+    document.getElementById('tab-schedule').style.display = '';
+    document.getElementById('tab-log').style.display = '';
+    document.getElementById('tab-adminpanel').style.display = '';
+    document.querySelector('.export-btn.admin-only').style.display = 'inline-block';
+  } else {
+    document.body.classList.remove('is-admin');
+    document.getElementById('tab-schedule').style.display = 'none';
+    document.getElementById('tab-log').style.display = 'none';
+    document.getElementById('tab-adminpanel').style.display = 'none';
+  }
+
+  document.getElementById('roleBadge').textContent = currentRole === 'admin' ? 'ADMIN' : 'MEMBER';
+  document.getElementById('roleBadge').className = 't-badge ' + (currentRole === 'admin' ? 'badge-admin' : 'badge-user');
+  document.getElementById('topUser').textContent = name;
+  updateTopDate(); updateDubaiClock();
+  renderAttendance();
+  if (currentRole === 'admin') renderLog();
+  rebuildLoginSelect();
+
+  const sel = document.getElementById('logMemberFilter');
+  sel.innerHTML = '<option value="">All Members</option>';
+  MEMBERS.forEach(m => { const o = document.createElement('option'); o.value = m; o.textContent = m; sel.appendChild(o); });
+  document.getElementById('logDateFilter').value = TODAY_ISO;
+
+  if (sb) setupRealtime();
+  refreshPresetSelects();
+  updateTicketRefreshedLabel();
+
+  // Refresh session timestamp
+  try {
+    localStorage.setItem('teamhub_session', JSON.stringify({name, role: currentRole, savedAt: Date.now()}));
+  } catch(e) {}
+
+  // Fetch own tickets
+  fetchTicketsForMember(name).then(t => { memberTicketCounts[name] = t.length; saveTicketCountsToCache(); renderAttendance(); });
+  if (currentRole === 'admin') {
+    MEMBERS.filter(m => m !== name).forEach((m, i) => {
+      setTimeout(() => { fetchTicketsForMember(m).then(t => { memberTicketCounts[m] = t.length; saveTicketCountsToCache(); }); }, (i + 1) * 350);
+    });
+  }
+
+  toast(`👋 Welcome back, ${name}!`);
+}
+
+// ══════════════════════════════════════════════════════════════
+//  TICKET COUNT REFRESH
+// ══════════════════════════════════════════════════════════════
+let ticketRefreshInProgress = false;
+async function refreshAllTickets() {
+  if (ticketRefreshInProgress) { toast('Already refreshing…'); return; }
+  ticketRefreshInProgress = true;
+  const btn = document.getElementById('refreshTicketsBtn');
+  if (btn) { btn.textContent = '⏳ Refreshing…'; btn.disabled = true; }
+
+  // Clear cache so we get fresh data
+  Object.keys(ticketCache).forEach(k => delete ticketCache[k]);
+  Object.keys(ownerIdCache).forEach(k => delete ownerIdCache[k]);
+
+  const toFetch = MEMBERS;
+  let done = 0;
+  for (const m of toFetch) {
+    await new Promise(resolve => setTimeout(resolve, done === 0 ? 0 : 350));
+    try {
+      const t = await fetchTicketsForMember(m);
+      memberTicketCounts[m] = t.length;
+    } catch(e) {}
+    done++;
+    if (btn) btn.textContent = `⏳ ${done}/${toFetch.length}`;
+  }
+
+  renderAttendance();
+  saveTicketCountsToCache();
+  ticketRefreshInProgress = false;
+  if (btn) { btn.innerHTML = '<svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px"><path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z"/><path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6z"/></svg>Refresh Tickets'; btn.disabled = false; }
+  toast(`Ticket counts updated ✓`);
+}
+
+// ══════════════════════════════════════════════════════════════
+//  BOOT
+// ══════════════════════════════════════════════════════════════
+init();
+</script>
+<!-- ADMIN: SET MEMBER PASSWORD -->
+<div class="overlay" id="setPasswordModal">
+  <div class="modal" style="max-width:420px;width:420px">
+    <div class="modal-hdr">
+      <div><div class="modal-hdr-title" style="display:flex;align-items:center;gap:6px"><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"/></svg> Set Member Password</div><div class="modal-hdr-sub" id="sp-sub"></div></div>
+      <button class="modal-close" onclick="closeSetPassword()"><svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-field"><label>New Password</label><input type="password" id="sp-password" placeholder="Enter new password"></div>
+      <div class="form-field"><label>Confirm Password</label><input type="password" id="sp-confirm" placeholder="Confirm password"></div>
+      <div style="font-size:11px;color:var(--mid);margin-bottom:12px">Leave blank to remove password (member uses no password)</div>
+      <button class="save-btn" onclick="savePassword()">Save Password</button>
+      <button class="del-btn" onclick="clearPassword()">Remove Password</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADMIN: EDIT MEMBER -->
+<div class="overlay" id="editMemberModal">
+  <div class="modal" style="max-width:480px;width:480px">
+    <div class="modal-hdr">
+      <div><div class="modal-hdr-title" style="display:flex;align-items:center;gap:6px"><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125"/></svg> Edit Member</div><div class="modal-hdr-sub" id="em-sub"></div></div>
+      <button class="modal-close" onclick="closeEditMember()"><svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-field"><label>Name</label><input type="text" id="em-name"></div>
+        <div class="form-field"><label>Team</label>
+          <select id="em-team">
+            <option value="QA">QA</option>
+            <option value="Implementation">Implementation</option>
+            <option value="Gleap Support">Gleap Support</option>
+            <option value="Gleap + Ops">Gleap + Ops</option>
+            <option value="Operations">Operations</option>
+            <option value="Sales Upload">Sales Upload</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-field"><label>Email</label><input type="email" id="em-email"></div>
+      <button class="save-btn" onclick="saveEditMember()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

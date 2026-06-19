@@ -1,0 +1,27 @@
+# ── Gleap Dashboard — local dev secrets ──────────────────────────────────────
+# Copy this file to .dev.vars (gitignored) and fill in real values.
+# Used by: npx wrangler pages dev
+# NEVER commit .dev.vars — it contains real credentials.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Gleap REST API key (JWT — from Gleap → Settings → API Keys)
+GLEAP_API_KEY=
+
+# Gleap project ID (from Gleap dashboard URL or Settings)
+PROJECT_ID=
+
+# OpenRouter API key (for AI Report feature)
+OPENROUTER_KEY=
+
+# Slack incoming webhook URL (for Slack Digest feature)
+SLACK_WEBHOOK_URL=
+
+# Google OAuth credentials (from Google Cloud Console → Credentials)
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+
+# Session signing secret — generate with: openssl rand -hex 32
+SESSION_SECRET=
+
+# Optional: override the AI model used for reports
+# AI_MODEL=anthropic/claude-3-haiku

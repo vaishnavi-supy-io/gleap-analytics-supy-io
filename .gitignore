@@ -1,2 +1,8 @@
 node_modules/
 .env
+.dev.vars
+.wrangler/
+*.local
+.git-hidden
+.playwright-mcp/
+.skip-cache.json

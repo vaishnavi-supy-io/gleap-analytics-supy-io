@@ -1,12 +1,12 @@
 import {
   getGleapHeaders, getCachedJson, setCachedJson,
-  findLastSkip, fetchInboxTickets, enrichTickets, getPhone,
+  findLastSkip, fetchAllTickets, enrichTickets, getPhone,
 } from '../_shared/gleap.js';
 
 export async function onRequestGet({ request, env }) {
   try {
-    const url  = new URL(request.url);
-    const now  = new Date();
+    const url   = new URL(request.url);
+    const now   = new Date();
     const start = url.searchParams.get('start') || new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
     const end   = url.searchParams.get('end')   || now.toISOString();
 
@@ -18,7 +18,7 @@ export async function onRequestGet({ request, env }) {
       await setCachedJson('lastskip', lastSkip, 600);
     }
 
-    let tickets = await fetchInboxTickets(start, end, lastSkip, gleapHeaders);
+    let tickets = await fetchAllTickets(start, end, lastSkip, gleapHeaders);
     if (tickets.length <= 150) tickets = await enrichTickets(tickets, gleapHeaders);
 
     const sample     = tickets[0];
@@ -34,18 +34,35 @@ export async function onRequestGet({ request, env }) {
         id: sample?._id,
         title: sample?.title,
         createdAt: sample?.createdAt,
-        phone: sample?.phone,
-        phoneNumber: sample?.phoneNumber,
-        contact: sample?.contact,
+        updatedAt: sample?.updatedAt,
         hasAgentReply: sample?.hasAgentReply,
+        noHumanInteraction: sample?.noHumanInteraction,
+        queued: sample?.queued,
+        firstAssignmentAt: sample?.firstAssignmentAt,
+        firstAgentReplyAt: sample?.firstAgentReplyAt,
+        firstResponseAt: sample?.firstResponseAt,
+        latestComment: sample?.latestComment,
+        latestPublicComment: sample?.latestPublicComment,
+        messages: sample?.messages,
+        comments: sample?.comments,
         allKeys: Object.keys(sample||{}).sort(),
       },
       callSampleTicket: callTicket ? {
         id: callTicket._id,
         title: callTicket.title,
+        createdAt: callTicket.createdAt,
+        updatedAt: callTicket.updatedAt,
+        hasAgentReply: callTicket.hasAgentReply,
+        noHumanInteraction: callTicket.noHumanInteraction,
+        queued: callTicket.queued,
+        firstAssignmentAt: callTicket.firstAssignmentAt,
+        firstAgentReplyAt: callTicket.firstAgentReplyAt,
+        firstResponseAt: callTicket.firstResponseAt,
+        latestComment: callTicket.latestComment,
+        latestPublicComment: callTicket.latestPublicComment,
+        messages: callTicket.messages,
         rawSession: callTicket.session,
         rawCustomData: callTicket.customData,
-        rawContact: callTicket.contact,
         extractedPhone: getPhone(callTicket),
         allKeys: Object.keys(callTicket).sort(),
       } : null,

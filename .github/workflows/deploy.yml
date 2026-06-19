@@ -3,34 +3,30 @@ name: Deploy to Cloudflare Pages
 on:
   push:
     branches: [main]
-    paths:
-      - 'gleap-dashboard/**'
-  workflow_dispatch:
 
 jobs:
   deploy:
-    name: Deploy gleap-dashboard
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: gleap-dashboard
-
+    name: Deploy
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: gleap-dashboard/package-lock.json
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Install Wrangler
+        run: npm install -g wrangler
 
-      - name: Deploy to Cloudflare Pages
-        run: npm run deploy:ci
+      - name: Deploy to gleap-dashboard (live site)
+        run: wrangler pages deploy public --project-name gleap-dashboard --commit-dirty=true
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Deploy to gleap-analytics-supy-io (mirror)
+        run: wrangler pages deploy public --project-name gleap-analytics-supy-io --commit-dirty=true
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

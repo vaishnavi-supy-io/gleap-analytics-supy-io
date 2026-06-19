@@ -1,6 +1,6 @@
 import {
   getGleapHeaders, getCachedJson, setCachedJson,
-  findLastSkip, fetchInboxTickets, enrichTickets, isCallRequest,
+  findLastSkip, fetchAllTickets, enrichTickets, isCallRequest,
   processTickets, computeStats, buildSlackDigest,
 } from '../_shared/gleap.js';
 
@@ -26,7 +26,7 @@ export async function onRequestGet({ request, env }) {
       await setCachedJson('lastskip', lastSkip, 600);
     }
 
-    let tickets = await fetchInboxTickets(start, end, lastSkip, gleapHeaders);
+    let tickets = await fetchAllTickets(start, end, lastSkip, gleapHeaders);
     if (tickets.length <= 150) {
       tickets = await enrichTickets(tickets, gleapHeaders);
     } else {

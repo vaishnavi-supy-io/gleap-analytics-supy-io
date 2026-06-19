@@ -1,5 +1,6 @@
 import {
-  getGleapHeaders, runFullPipeline, getCachedJson, setCachedJson,
+  getGleapHeaders, getCachedJson, setCachedJson,
+  runFullPipeline,
 } from '../_shared/gleap.js';
 
 export async function onRequestGet({ request, env }) {

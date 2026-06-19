@@ -1,6 +1,6 @@
 import {
-  getGleapHeaders, getCachedJson, setCachedJson,
-  findLastSkip, fetchInboxTickets, enrichTickets, processTickets,
+  getGleapHeaders,
+  fetchAllTickets, enrichTickets, processTickets,
 } from '../_shared/gleap.js';
 
 export async function onRequestGet({ request, env }) {
@@ -17,24 +17,18 @@ export async function onRequestGet({ request, env }) {
 
     const gleapHeaders = getGleapHeaders(env);
 
-    let lastSkip = await getCachedJson('lastskip');
-    if (!lastSkip) {
-      lastSkip = await findLastSkip(gleapHeaders);
-      await setCachedJson('lastskip', lastSkip, 600);
-    }
-
-    let tickets = await fetchInboxTickets(start, end, lastSkip, gleapHeaders);
+    let tickets = await fetchAllTickets(start, end, null, gleapHeaders);
     if (tickets.length <= 200) tickets = await enrichTickets(tickets, gleapHeaders);
     let rows = processTickets(tickets, env.PROJECT_ID);
 
     if (agentFilter)  rows = rows.filter(r => r.agent.toLowerCase().includes(agentFilter.toLowerCase()));
     if (statusFilter) rows = rows.filter(r => r.status === statusFilter.toUpperCase());
-    if (typeFilter === 'call')        rows = rows.filter(r => r.isCallRequest);
-    if (typeFilter === 'escalated')   rows = rows.filter(r => r.isEscalated);
-    if (typeFilter === 'open')        rows = rows.filter(r => r.isOpen);
-    if (typeFilter === 'archived')    rows = rows.filter(r => r.isArchived);
-    if (typeFilter === 'unassigned')  rows = rows.filter(r => r.agent === 'Unassigned');
-    if (typeFilter === 'sla')         rows = rows.filter(r => r.slaBreached);
+    if (typeFilter === 'call')       rows = rows.filter(r => r.isCallRequest);
+    if (typeFilter === 'escalated')  rows = rows.filter(r => r.isEscalated);
+    if (typeFilter === 'open')       rows = rows.filter(r => r.isOpen);
+    if (typeFilter === 'archived')   rows = rows.filter(r => r.isArchived);
+    if (typeFilter === 'unassigned') rows = rows.filter(r => r.agent === 'Unassigned');
+    if (typeFilter === 'sla')        rows = rows.filter(r => r.slaBreached);
 
     const total = rows.length;
     const paged = rows.slice((page - 1) * limit, page * limit);

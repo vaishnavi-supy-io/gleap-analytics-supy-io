@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ── Gleap Dashboard — Cloudflare Pages deploy script ─────────────────────────
+# ── Gleap Analytics v2 — Cloudflare Pages deploy script ──────────────────────
 #
 # Usage (local or CI):
 #   CLOUDFLARE_API_TOKEN=<token> CLOUDFLARE_ACCOUNT_ID=<org-id> ./deploy.sh
@@ -9,11 +9,10 @@
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
-# ── Validate required env vars ────────────────────────────────────────────────
 : "${CLOUDFLARE_API_TOKEN:?Error: CLOUDFLARE_API_TOKEN is not set}"
 : "${CLOUDFLARE_ACCOUNT_ID:?Error: CLOUDFLARE_ACCOUNT_ID is not set}"
 
-PROJECT="gleap-dashboard"
+PROJECT="gleap-analytics-supy-io"
 
 echo "▶ Deploying ${PROJECT} to Cloudflare Pages (account: ${CLOUDFLARE_ACCOUNT_ID})..."
 
@@ -26,10 +25,7 @@ echo "✅ Deploy complete."
 # ── Optional: upload/rotate secrets ──────────────────────────────────────────
 # Uncomment and fill values to push secrets in CI (one-time setup or rotation):
 #
-# echo "${GLEAP_API_KEY}"        | npx wrangler pages secret put GLEAP_API_KEY        --project-name "${PROJECT}"
-# echo "${OPENROUTER_KEY}"       | npx wrangler pages secret put OPENROUTER_KEY       --project-name "${PROJECT}"
-# echo "${SESSION_SECRET}"       | npx wrangler pages secret put SESSION_SECRET       --project-name "${PROJECT}"
-# echo "${GOOGLE_CLIENT_ID}"     | npx wrangler pages secret put GOOGLE_CLIENT_ID     --project-name "${PROJECT}"
-# echo "${GOOGLE_CLIENT_SECRET}" | npx wrangler pages secret put GOOGLE_CLIENT_SECRET --project-name "${PROJECT}"
-# echo "${PROJECT_ID}"           | npx wrangler pages secret put PROJECT_ID           --project-name "${PROJECT}"
-# echo "${SLACK_WEBHOOK_URL}"    | npx wrangler pages secret put SLACK_WEBHOOK_URL    --project-name "${PROJECT}"
+# echo "${GLEAP_API_KEY}"      | npx wrangler pages secret put GLEAP_API_KEY      --project-name "${PROJECT}"
+# echo "${PROJECT_ID}"         | npx wrangler pages secret put PROJECT_ID         --project-name "${PROJECT}"
+# echo "${OPENROUTER_KEY}"     | npx wrangler pages secret put OPENROUTER_KEY     --project-name "${PROJECT}"
+# echo "${SLACK_WEBHOOK_URL}"  | npx wrangler pages secret put SLACK_WEBHOOK_URL  --project-name "${PROJECT}"

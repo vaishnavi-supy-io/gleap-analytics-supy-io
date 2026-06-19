@@ -1,11 +1,11 @@
 // Shared helpers for Cloudflare Pages Functions
-// All logic ported from server.js — uses Workers-native fetch (no node-fetch/express)
+// Ported from server.js — Workers-native fetch, no node-fetch/express/p-limit
 
 export const CLOSED_STATUSES   = new Set(['CLOSED','DONE','RESOLVED','COMPLETED']);
 export const OPEN_STATUSES     = new Set(['OPEN','IN_PROGRESS','PENDING','ACTIVE','INPROGRESS']);
 export const ARCHIVED_STATUSES = new Set(['ARCHIVED']);
 
-// p-limit replacement (no npm module needed in Workers)
+// p-limit replacement — no npm module needed in Workers
 export function pLimit(concurrency) {
   let active = 0;
   const queue = [];
@@ -27,8 +27,12 @@ export function getGleapHeaders(env) {
   };
 }
 
-export function gleapLink(bugId, projectId) {
-  return `https://app.gleap.io/projects/${projectId}/bugs/${bugId}`;
+export function gleapLink(ticketType, id, bugId, projectId) {
+  const type = String(ticketType || '').toUpperCase();
+  if (type === 'INQUIRY') return `https://app.gleap.io/projects/${projectId}/inquiries/${id}`;
+  if (type === 'FEATURE_REQUEST') return `https://app.gleap.io/projects/${projectId}/feature-requests/${id}`;
+  if (type === 'CRASH') return `https://app.gleap.io/projects/${projectId}/crashes/${id}`;
+  return `https://app.gleap.io/projects/${projectId}/bugs/${bugId || id}`;
 }
 
 export function parseDt(s) { if (!s) return null; try { return new Date(s); } catch { return null; } }
@@ -140,7 +144,7 @@ export function isEscalated(t) {
 }
 
 export function isCallRequest(t) {
-  if (String(t.type||'').toUpperCase() !== 'INQUIRY') return false;
+  // Check explicit call_flow flags in formData / customData
   const fd = t.formData||{};
   if (typeof fd === 'object') {
     const cf = fd.call_flow;
@@ -152,8 +156,22 @@ export function isCallRequest(t) {
       const v=cd[k]; if (v===true||String(v).toLowerCase()==='true') return true;
     }
   }
-  const title = String(t.title||'').toLowerCase().replace(/\s+/g,' ').trim();
-  return ['request to access new call','request a call','phone call request','call request','callback request','callback','dial me','get in touch via phone','speak to agent','call me back'].some(kw=>title.includes(kw));
+  // Search ALL text content — most tickets have no title; user message is in formData.description
+  const texts = [
+    t.title||'',
+    (typeof fd==='object'?fd.description:'') || '',
+    (t.form?.description?.value) || '',
+    t.plainContent||'',
+  ].map(s=>String(s).toLowerCase().replace(/\s+/g,' ').trim()).join(' ');
+
+  return [
+    'request to access new call','request a call','phone call request',
+    'call request','callback request','call me back','call back',
+    'give me a call','schedule a call','arrange a call',
+    'please call me','can you call me','can someone call',
+    'reach me by phone','contact me by phone','speak over the phone',
+    'call me at','dial me','speak to agent',
+  ].some(kw=>texts.includes(kw));
 }
 
 export function getLatestComment(t) {
@@ -170,6 +188,58 @@ export function getLatestComment(t) {
   return '';
 }
 
+// ── Get first real human agent response time ─────────────────
+// Gleap does not return a messages array — only latestComment.
+// Checks: firstAgentReplyAt (when Gleap provides it) → latestComment.createdAt
+// when bot===false and kaiChat===false (human agent message).
+export function getAgentResponseTime(t) {
+  const fr = t.firstAgentReplyAt||t.firstAgentResponseAt||t.firstResponseAt||t.firstReplyAt;
+  if (fr) return fr;
+  const lc = t.latestComment;
+  if (lc && typeof lc === 'object' && lc.bot === false && lc.kaiChat === false && lc.user && lc.createdAt) {
+    return lc.createdAt;
+  }
+  return null;
+}
+
+// ── Detect bot-to-human handover time ───────────────────────
+// Reads the messages array chronologically and returns the timestamp of the
+// last bot/automated message (= when the bot finished and human queue started).
+// Falls back to createdAt if no bot messages are found.
+export function getBotHandoverTime(t) {
+  const messages = t.messages || t.comments || [];
+  if (!messages.length) return t.createdAt || t.createdDate;
+
+  const sorted = [...messages].sort((a, b) => {
+    const ta = parseDt(a.createdAt || a.date || a.timestamp);
+    const tb = parseDt(b.createdAt || b.date || b.timestamp);
+    if (ta && tb) return ta - tb;
+    return 0;
+  });
+
+  let lastBotTime = null;
+
+  for (const msg of sorted) {
+    const isBotMsg =
+      msg.isBot === true ||
+      msg.type === 'BOT' || msg.type === 'bot' ||
+      msg.source === 'bot' || msg.source === 'BOT' ||
+      String(msg.author?.type || '').toLowerCase() === 'bot' ||
+      String(msg.authorType || '').toLowerCase() === 'bot' ||
+      (!msg.author && !msg.authorName) ||
+      /^(bot|gleap bot|automated|assistant|system)$/i.test(
+        String(msg.author?.name || msg.authorName || msg.author || '').trim()
+      );
+
+    if (isBotMsg) {
+      const ts = msg.createdAt || msg.date || msg.timestamp;
+      if (ts) lastBotTime = ts;
+    }
+  }
+
+  return lastBotTime || t.createdAt || t.createdDate;
+}
+
 export function countAgentResponses(t, agentName) {
   if (!agentName || agentName === 'Unassigned') return 0;
   let count = 0;
@@ -182,7 +252,7 @@ export function countAgentResponses(t, agentName) {
   return count;
 }
 
-// ── Cache helpers using Workers Cache API ───────────────────────
+// ── Cache helpers using Workers Cache API ──────────────────────
 export async function getCachedJson(key) {
   try {
     const cache = caches.default;
@@ -204,7 +274,7 @@ export async function setCachedJson(key, data, ttlSeconds = 600) {
   } catch {}
 }
 
-// ── Gleap API ────────────────────────────────────────────────────
+// ── Gleap API ──────────────────────────────────────────────────
 export async function gleapFetch(url, params, gleapHeaders) {
   const qs = new URLSearchParams(params).toString();
   const res = await fetch(qs ? `${url}?${qs}` : url, { headers: gleapHeaders });
@@ -236,20 +306,23 @@ export async function findLastSkip(gleapHeaders) {
   return last;
 }
 
-export async function fetchInboxTickets(startDate, endDate, lastSkip, gleapHeaders) {
+// Fetches ALL ticket types (INQUIRY, BUG, FEATURE_REQUEST, CRASH, etc.)
+// Gleap API is sorted newest-first (skip=0 = most recent). We start at skip=0
+// and increment until every ticket on a page pre-dates rangeStart.
+// MAX_PAGES is a safety cap — 1000 pages × 50 = 50,000 tickets max.
+export async function fetchAllTickets(startDate, endDate, _lastSkip, gleapHeaders) {
   const rangeStart=new Date(startDate), rangeEnd=new Date(endDate);
   const all=[], seen=new Set();
-  let skip=lastSkip, pages=0;
-  const MAX_PAGES = Math.ceil(lastSkip / 50) + 50;
-  console.log(`📥 Fetching tickets: ${startDate} → ${endDate}, starting at skip=${lastSkip}, max pages=${MAX_PAGES}`);
+  let skip=0, pages=0;
+  const MAX_PAGES = 1000;
+  console.log(`📥 Fetching all tickets: ${startDate} → ${endDate}, max pages=${MAX_PAGES}`);
 
   while (pages < MAX_PAGES) {
-    if (skip < 0) break;
     let items;
     try {
       items = await gleapFetch('https://api.gleap.io/v3/tickets', { limit: 50, skip }, gleapHeaders);
-    } catch (e) { console.warn(`Fetch error at skip=${skip}:`, e.message); skip -= 50; pages++; continue; }
-    if (!items.length) { skip -= 50; pages++; continue; }
+    } catch (e) { console.warn(`Fetch error at skip=${skip}:`, e.message); skip += 50; pages++; continue; }
+    if (!items.length) break;
 
     let oldCount = 0;
     for (const t of items) {
@@ -258,16 +331,24 @@ export async function fetchInboxTickets(startDate, endDate, lastSkip, gleapHeade
       const dt = parseDt(t.createdAt||t.createdDate);
       if (!dt || dt > rangeEnd) continue;
       if (dt < rangeStart) { oldCount++; continue; }
-      if (String(t.type||t.ticketType||'').toUpperCase() === 'INQUIRY') all.push(t);
+      all.push(t);
     }
     if (oldCount === items.length) break;
-    skip -= 50; pages++;
+    skip += 50; pages++;
     await new Promise(r => setTimeout(r, 150));
   }
 
-  console.log(`✅ Found ${all.length} INQUIRY tickets in range`);
+  const typeCounts = {};
+  for (const t of all) {
+    const tp = String(t.type||t.ticketType||'UNKNOWN').toUpperCase();
+    typeCounts[tp] = (typeCounts[tp]||0) + 1;
+  }
+  console.log(`✅ Found ${all.length} tickets in range:`, typeCounts);
   return all;
 }
+
+// Legacy alias
+export const fetchInboxTickets = fetchAllTickets;
 
 export async function enrichTickets(tickets, gleapHeaders, concurrency = 5) {
   const limit = pLimit(concurrency);
@@ -278,38 +359,6 @@ export async function enrichTickets(tickets, gleapHeaders, concurrency = 5) {
     await new Promise(r => setTimeout(r, 50));
     return full ? { ...t, ...full } : t;
   })));
-}
-
-export async function fetchNewestTickets(since, rangeStart, rangeEnd, gleapHeaders) {
-  const sinceDate=new Date(since), startDate=new Date(rangeStart), endDate=new Date(rangeEnd);
-  const all=[], seen=new Set();
-  let skip=0, pages=0;
-  const MAX_PAGES = 30;
-  console.log(`🔄 Incremental scan from skip=0 since ${since}`);
-  while (pages < MAX_PAGES) {
-    let items;
-    try {
-      items = await gleapFetch('https://api.gleap.io/v3/tickets', { limit: 50, skip }, gleapHeaders);
-    } catch(e) { console.warn(`Incremental fetch error skip=${skip}:`, e.message); break; }
-    if (!items.length) break;
-    let allOlderThanSince = true;
-    for (const t of items) {
-      const tid = t._id||t.id||'';
-      if (seen.has(tid)) continue; seen.add(tid);
-      const dt = parseDt(t.createdAt||t.createdDate);
-      if (!dt) continue;
-      if (dt >= sinceDate) {
-        allOlderThanSince = false;
-        if (dt >= startDate && dt <= endDate &&
-            String(t.type||t.ticketType||'').toUpperCase() === 'INQUIRY') all.push(t);
-      }
-    }
-    if (allOlderThanSince) break;
-    skip += 50; pages++;
-    await new Promise(r => setTimeout(r, 100));
-  }
-  console.log(`🔄 Incremental: found ${all.length} new tickets (${pages} pages scanned)`);
-  return all;
 }
 
 export function processTickets(tickets, projectId) {
@@ -323,11 +372,14 @@ export function processTickets(tickets, projectId) {
     const closeTime=isClosed?updated:null;
     const createdDt=parseDt(created);
     const bugId=t.bugId||t._id||'';
+    const rawId=t._id||t.id||'';
+    const ticketType=String(t.type||t.ticketType||'UNKNOWN').toUpperCase();
     const linked=t.linkedTickets||t.linkedBugs||t.links||[];
     return {
-      id:t._id||t.id||'', bugId,
-      gleapLink:gleapLink(bugId, projectId),
+      id:rawId, bugId,
+      gleapLink:gleapLink(ticketType, rawId, bugId, projectId),
       title:t.title||'(No title)',
+      gleapType:ticketType,
       contact:getContact(t), email:getEmail(t), company:getCompany(t), phone:getPhone(t),
       agent:getAgent(t),
       status:statusRaw,
@@ -338,14 +390,15 @@ export function processTickets(tickets, projectId) {
       sentiment:String(t.sentiment||'neutral').toLowerCase(),
       isCallRequest:isCallRequest(t),
       createdAt:created, updatedAt:updated, firstAssignAt:firstAssign, closeAt:closeTime,
-      assignMins:minsBetween(created,firstAssign),
-      firstResponseMins:getFirstResponseMins(t),
+      assignMins:minsBetween(getBotHandoverTime(t), firstAssign),
+      firstResponseMins:minsBetween(created, getAgentResponseTime(t)),
       closeMins:minsBetween(created,closeTime),
       hasAgentReply:Boolean(t.hasAgentReply),
       slaBreached:Boolean(t.slaBreached),
       agentResponseCount:countAgentResponses(t,getAgent(t)),
       aiSummary:t.aiSummary||'',
       latestComment:getLatestComment(t),
+      latestCommentIsBot:(()=>{const lc=t.latestComment;return !!(lc&&typeof lc==='object'&&(lc.bot===true||lc.kaiChat===true));})(),
       day:createdDt?createdDt.toISOString().slice(0,10):'unknown',
       hour:createdDt?createdDt.getUTCHours():-1,
       dayOfWeek:createdDt?['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][createdDt.getUTCDay()]:'unknown',
@@ -362,13 +415,15 @@ export function computeStats(rows) {
   const callRows=rows.filter(r=>r.isCallRequest);
   const unassigned=rows.filter(r=>r.agent==='Unassigned');
 
+  const assignVals=rows.map(r=>r.assignMins).filter(v=>v!==null);
   const closeVals=rows.map(r=>r.closeMins).filter(v=>v!==null);
+  const firstRespVals=rows.map(r=>r.firstResponseMins).filter(v=>v!==null);
 
-  const repliedTickets=rows.filter(r=>r.hasAgentReply);
-  const repliedCloseTimes=repliedTickets.map(r=>r.closeMins).filter(v=>v!==null);
-  const avgFirstInteractionMins = repliedCloseTimes.length > 0 ? avg(repliedCloseTimes) * 0.35 : null;
+  // Real avg first interaction — from latestComment.createdAt (when bot===false)
+  // or firstAgentReplyAt when Gleap provides it. No estimation.
+  const avgFirstInteractionMins = firstRespVals.length > 0 ? avg(firstRespVals) : null;
 
-  console.log(`📊 Stats calc: ${rows.length} rows | replied: ${repliedCloseTimes.length} | avg first interaction: ${avgFirstInteractionMins} | close vals: ${closeVals.length}`);
+  console.log(`📊 Stats calc: ${rows.length} rows | firstResp samples: ${firstRespVals.length} | avg first interaction: ${avgFirstInteractionMins} | close vals: ${closeVals.length}`);
 
   const daily={};
   for (const r of rows) daily[r.day]=(daily[r.day]||0)+1;
@@ -382,6 +437,11 @@ export function computeStats(rows) {
   const statusMap={};
   for (const r of rows) statusMap[r.status]=(statusMap[r.status]||0)+1;
   const statusBreakdown=Object.entries(statusMap).map(([status,count])=>({status,count}));
+
+  // Per ticket type breakdown
+  const typeMap={};
+  for (const r of rows) typeMap[r.gleapType]=(typeMap[r.gleapType]||0)+1;
+  const typeBreakdown=Object.entries(typeMap).sort((a,b)=>b[1]-a[1]).map(([type,count])=>({type,count}));
 
   const agentMap={};
   for (const r of rows) {
@@ -429,7 +489,7 @@ export function computeStats(rows) {
     withEmail:rows.filter(r=>r.email).length,
     avgFirstInteraction:avgFirstInteractionMins,avgClose:avg(closeVals),
     avgFirstInteractionFmt:fmtMins(avgFirstInteractionMins),avgCloseFmt:fmtMins(avg(closeVals)),
-    statusBreakdown,
+    statusBreakdown, typeBreakdown,
     daily:Object.entries(daily).sort((a,b)=>a[0].localeCompare(b[0])).map(([day,count])=>({day,count})),
     dow:Object.entries(dow).map(([day,count])=>({day,count})),
     hourly:Object.entries(hourly).sort((a,b)=>+a[0]-+b[0]).map(([hour,count])=>({hour:+hour,count})),
@@ -489,16 +549,8 @@ export function buildSlackDigest(stats, periodLabel) {
   };
 }
 
-// ── Full analytics pipeline with Cache API caching ────────────────
 export async function runFullPipeline(start, end, gleapHeaders, projectId) {
-  // Try to get cached lastSkip first
-  let lastSkip = await getCachedJson('lastskip');
-  if (!lastSkip) {
-    lastSkip = await findLastSkip(gleapHeaders);
-    await setCachedJson('lastskip', lastSkip, 600);
-  }
-
-  let tickets = await fetchInboxTickets(start, end, lastSkip, gleapHeaders);
+  let tickets = await fetchAllTickets(start, end, null, gleapHeaders);
   if (tickets.length <= 150) {
     tickets = await enrichTickets(tickets, gleapHeaders);
   } else {
@@ -514,5 +566,5 @@ export async function runFullPipeline(start, end, gleapHeaders, projectId) {
   const rows  = processTickets(tickets, projectId);
   const stats = computeStats(rows);
   const now   = new Date().toISOString();
-  return { stats, generatedAt: now, lastIncrementalAt: now };
+  return { stats, generatedAt: now };
 }

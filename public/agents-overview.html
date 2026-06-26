@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Agent Overview — Supy</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --p50: #faf5ff; --p100: #f3e8ff; --p200: #e9d5ff;
+      --p300: #d8b4fe; --p400: #a78bfa; --p500: #7c3aed;
+      --p600: #6b46c1; --p700: #5b21b6; --p800: #4c1d95; --p900: #3b0764;
+      --ink: #1A1A2E; --ink2: #4C1D95;
+      --muted: #6B7280; --faint: #9CA3AF;
+      --border: #E5E3F0; --border2: #D1C4E9;
+      --surface: #FFFFFF; --surface2: #F9F8FF; --surface3: #EDE9FE;
+      --green: #059669; --amber: #D97706; --red: #DC2626; --blue: #4F46E5;
+      --r4: 4px; --r8: 8px; --r12: 12px; --r16: 16px;
+      --sh1: 0 1px 3px rgba(107,70,193,0.07);
+      --sh2: 0 4px 12px rgba(107,70,193,0.12);
+      --font: 'Inter', sans-serif;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: var(--font); background: var(--surface2); color: var(--ink); min-height: 100vh; font-size: 13px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+
+    /* Topbar */
+    .topbar {
+      background: var(--p900); padding: 0 28px; height: 56px;
+      display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 100; gap: 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .topbar-left { display: flex; align-items: center; gap: 16px; }
+    .back-link {
+      font-size: 12px; font-weight: 600; color: rgba(255,255,255,0.55);
+      text-decoration: none; display: flex; align-items: center; gap: 5px;
+      transition: color 0.15s; white-space: nowrap;
+    }
+    .back-link:hover { color: rgba(255,255,255,0.9); }
+    .topbar-divider { width: 1px; height: 20px; background: rgba(255,255,255,0.12); }
+    .page-title { font-size: 15px; font-weight: 700; color: #fff; }
+    .topbar-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .range-btn {
+      font-family: var(--font); font-size: 11px; font-weight: 600;
+      padding: 5px 12px; border-radius: 99px;
+      border: 1.5px solid rgba(255,255,255,0.2);
+      background: transparent; color: rgba(255,255,255,0.55);
+      cursor: pointer; transition: all 0.15s; white-space: nowrap;
+    }
+    .range-btn:hover { border-color: var(--p300); color: rgba(255,255,255,0.85); background: rgba(167,139,250,0.12); }
+    .range-btn.active { border-color: var(--p400); background: rgba(167,139,250,0.2); color: #fff; }
+    .date-sep { font-size: 11px; color: rgba(255,255,255,0.35); }
+    input[type="date"] {
+      font-family: var(--font); font-size: 11px; font-weight: 500; color: var(--ink);
+      background: var(--surface); border: 1.5px solid var(--border2);
+      border-radius: var(--r8); padding: 5px 9px; outline: none; cursor: pointer;
+      transition: border-color 0.15s;
+    }
+    input[type="date"]:focus { border-color: var(--p500); box-shadow: 0 0 0 3px rgba(124,58,237,0.1); }
+    .btn-apply {
+      font-family: var(--font); font-size: 11px; font-weight: 700;
+      padding: 5px 14px; border-radius: var(--r8); border: none;
+      cursor: pointer; background: var(--p500); color: #fff;
+      transition: background 0.15s; white-space: nowrap;
+    }
+    .btn-apply:hover { background: var(--p600); }
+
+    /* Content */
+    .content { padding: 24px 28px; max-width: 1320px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+
+    /* KPI cards */
+    .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+    @media (max-width: 900px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+    .kpi-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--r16); padding: 18px 16px;
+      position: relative; overflow: hidden; transition: box-shadow 0.15s, transform 0.15s;
+    }
+    .kpi-card:hover { box-shadow: var(--sh2); transform: translateY(-1px); }
+    .kpi-card::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+      background: linear-gradient(90deg, var(--p400), var(--p600));
+      border-radius: var(--r16) var(--r16) 0 0;
+    }
+    .kpi-card.green::before { background: linear-gradient(90deg, #34d399, var(--green)); }
+    .kpi-card.amber::before { background: linear-gradient(90deg, #fcd34d, var(--amber)); }
+    .kpi-card.red::before   { background: linear-gradient(90deg, #f87171, var(--red)); }
+    .kpi-value { font-size: 26px; font-weight: 800; color: var(--ink); line-height: 1; }
+    .kpi-label { font-size: 10.5px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px; }
+
+    /* Table card */
+    .table-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r16); overflow: hidden; }
+    .table-head { padding: 14px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+    .table-title { font-size: 13px; font-weight: 700; color: var(--ink); }
+    .table-sub { font-size: 11px; color: var(--muted); }
+
+    /* Agent summary table */
+    table { width: 100%; border-collapse: collapse; }
+    thead th {
+      font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase;
+      letter-spacing: 0.6px; padding: 10px 14px; background: var(--surface2);
+      border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap;
+    }
+    thead th:first-child { width: 36px; text-align: center; padding: 10px 8px; }
+    tbody td { padding: 12px 14px; font-size: 12px; color: var(--ink); border-bottom: 1px solid var(--border); vertical-align: middle; }
+    tbody tr:last-child td { border-bottom: none; }
+
+    .agent-row { cursor: pointer; transition: background 0.1s; }
+    .agent-row:hover td { background: var(--surface2); }
+    .agent-row.expanded td { background: var(--p50); }
+    .expand-icon { display: flex; align-items: center; justify-content: center; font-size: 10px; color: var(--faint); transition: transform 0.2s; user-select: none; }
+    .expand-icon.open { transform: rotate(90deg); color: var(--p500); }
+
+    .agent-name-cell { display: flex; align-items: center; gap: 10px; }
+    .agent-avatar {
+      width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
+      background: linear-gradient(135deg, var(--p400), var(--p600));
+      color: #fff; font-size: 11px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .agent-avatar.unassigned { background: linear-gradient(135deg, #9CA3AF, #6B7280); }
+    .agent-name-text { font-size: 12.5px; font-weight: 600; color: var(--ink); }
+
+    .reply-rate { font-size: 12px; font-weight: 700; }
+    .reply-rate.high   { color: var(--green); }
+    .reply-rate.medium { color: var(--amber); }
+    .reply-rate.low    { color: var(--red); }
+
+    /* Drill-down row */
+    .drilldown-row td { padding: 0; border-bottom: 1px solid var(--border); background: var(--surface2); }
+    .drilldown-inner {
+      border-left: 3px solid var(--p400);
+      padding: 16px 20px 20px 24px;
+    }
+    .drilldown-header {
+      font-size: 11px; font-weight: 700; color: var(--p700);
+      text-transform: uppercase; letter-spacing: 0.6px;
+      margin-bottom: 12px; display: flex; align-items: center; gap: 8px;
+    }
+    .drilldown-count {
+      background: var(--p100); color: var(--p700);
+      font-size: 10px; font-weight: 700; padding: 1px 7px;
+      border-radius: 99px;
+    }
+    .drilldown-table-wrap { overflow-x: auto; }
+    .drilldown-table { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r8); overflow: hidden; }
+    .drilldown-table thead th {
+      font-size: 9.5px; padding: 8px 12px; background: var(--surface3);
+    }
+    .drilldown-table tbody td { font-size: 11px; padding: 9px 12px; }
+    .drilldown-table tbody tr:hover td { background: var(--p50); }
+
+    /* Badges */
+    .badge { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 99px; white-space: nowrap; }
+    .badge.open     { background: rgba(79,70,229,0.1);  color: var(--blue); }
+    .badge.closed   { background: rgba(5,150,105,0.1);  color: var(--green); }
+    .badge.archived { background: rgba(156,163,175,0.1); color: #6b7280; }
+    .badge.done     { background: rgba(5,150,105,0.1);  color: var(--green); }
+    .badge.resolved { background: rgba(5,150,105,0.1);  color: var(--green); }
+    .badge.pending  { background: rgba(217,119,6,0.1);  color: var(--amber); }
+    .badge.unknown  { background: var(--surface3); color: var(--muted); }
+
+    /* Gleap link */
+    .gleap-link {
+      font-size: 10px; font-weight: 700; color: var(--p600); text-decoration: none;
+      padding: 2px 8px; border-radius: 99px; background: var(--p100);
+      transition: all 0.15s; display: inline-flex; align-items: center; gap: 3px;
+    }
+    .gleap-link:hover { background: var(--p200); color: var(--p800); }
+
+    /* Date cell */
+    .date-cell { font-size: 11px; color: var(--muted); white-space: nowrap; }
+    .date-cell.none { color: var(--faint); font-style: italic; }
+
+    /* Loader & empty */
+    .loader { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 48px; gap: 14px; color: var(--muted); }
+    .spinner { width: 32px; height: 32px; border: 3px solid var(--p200); border-top-color: var(--p500); border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loader-text { font-size: 12px; font-weight: 500; }
+    .loader-sub   { font-size: 11px; color: var(--faint); }
+    .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 36px; gap: 8px; color: var(--muted); }
+    .empty-text { font-size: 12px; font-weight: 600; }
+    .empty-sub  { font-size: 11px; color: var(--faint); }
+
+    /* Inline drill-down spinner */
+    .dd-loading { display: flex; align-items: center; gap: 10px; padding: 20px 4px; color: var(--muted); font-size: 11px; font-weight: 500; }
+    .dd-spinner { width: 18px; height: 18px; border: 2px solid var(--p200); border-top-color: var(--p500); border-radius: 50%; animation: spin 0.8s linear infinite; flex-shrink: 0; }
+
+    /* Error state */
+    .error-msg { padding: 16px; font-size: 11px; color: var(--red); font-weight: 500; }
+
+    /* Ticket title in drilldown */
+    .ticket-title-cell { font-size: 11.5px; font-weight: 500; color: var(--ink); max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  </style>
+</head>
+<body>
+
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div class="topbar-left">
+      <a href="/" class="back-link">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        Back to Dashboard
+      </a>
+      <div class="topbar-divider"></div>
+      <span class="page-title">Agent Overview</span>
+    </div>
+    <div class="topbar-right">
+      <button class="range-btn active" onclick="setQuickRange(7, this)">Last 7 days</button>
+      <button class="range-btn" onclick="setQuickRange(30, this)">Last 30 days</button>
+      <button class="range-btn" onclick="setQuickRange(90, this)">Last 90 days</button>
+      <span class="date-sep">|</span>
+      <input type="date" id="dateFrom" />
+      <span class="date-sep">→</span>
+      <input type="date" id="dateTo" />
+      <button class="btn-apply" onclick="applyCustomRange()">Apply</button>
+    </div>
+  </div>
+
+  <!-- MAIN CONTENT -->
+  <div class="content">
+
+    <!-- KPI Row -->
+    <div class="kpi-grid" id="kpiRow">
+      <div class="kpi-card"><div class="kpi-value">—</div><div class="kpi-label">Total Agents</div></div>
+      <div class="kpi-card green"><div class="kpi-value">—</div><div class="kpi-label">Total Assigned</div></div>
+      <div class="kpi-card amber"><div class="kpi-value">—</div><div class="kpi-label">Open Tickets</div></div>
+      <div class="kpi-card red"><div class="kpi-value">—</div><div class="kpi-label">Avg Close Time</div></div>
+    </div>
+
+    <!-- Agent Table -->
+    <div class="table-card">
+      <div class="table-head">
+        <div>
+          <div class="table-title">Agent Summary</div>
+          <div class="table-sub" id="tableSubLabel">Select a date range to load data</div>
+        </div>
+      </div>
+      <div id="agentTableWrap">
+        <div class="loader">
+          <div class="spinner"></div>
+          <div class="loader-text">Loading agents…</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    // ── State ──────────────────────────────────────────────────────────────
+    let currentStart = '';
+    let currentEnd   = '';
+    let expandedAgent = null;
+    const loadingAgents = {};
+
+    // ── Helpers ────────────────────────────────────────────────────────────
+    function escHtml(s) {
+      if (!s) return '';
+      return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function sanitizeId(name) {
+      return String(name).toLowerCase().replace(/[^a-z0-9]/g, '-');
+    }
+
+    function fmtDate(isoStr) {
+      if (!isoStr) return null;
+      try {
+        const d = new Date(isoStr);
+        if (isNaN(d)) return null;
+        const y = d.getFullYear();
+        const mo = String(d.getMonth() + 1).padStart(2, '0');
+        const dy = String(d.getDate()).padStart(2, '0');
+        const hr = String(d.getHours()).padStart(2, '0');
+        const mn = String(d.getMinutes()).padStart(2, '0');
+        return `${y}-${mo}-${dy} ${hr}:${mn}`;
+      } catch { return null; }
+    }
+
+    function safeUrl(u) {
+      try {
+        const p = new URL(u);
+        return (p.protocol === 'https:' || p.protocol === 'http:') ? u : '#';
+      } catch { return '#'; }
+    }
+
+    function statusBadge(status) {
+      if (!status) return '<span class="badge unknown">unknown</span>';
+      const s = status.toLowerCase();
+      const map = {
+        open: 'open', closed: 'closed', done: 'done',
+        resolved: 'resolved', archived: 'archived', pending: 'pending',
+        in_progress: 'open', inprogress: 'open', active: 'open',
+      };
+      const cls = map[s] || 'unknown';
+      return `<span class="badge ${cls}">${escHtml(status)}</span>`;
+    }
+
+    function avatarInitials(name) {
+      const parts = String(name || '?').trim().split(/\s+/);
+      if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
+      return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+    }
+
+    function todayStr() {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    }
+
+    function daysAgoStr(n) {
+      const d = new Date();
+      d.setDate(d.getDate() - n + 1);
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    }
+
+    // ── Date range controls ────────────────────────────────────────────────
+    function initDateRange() {
+      currentStart = daysAgoStr(7);
+      currentEnd   = todayStr();
+      document.getElementById('dateFrom').value = currentStart;
+      document.getElementById('dateTo').value   = currentEnd;
+      loadAgents();
+    }
+
+    function setQuickRange(days, btn) {
+      document.querySelectorAll('.range-btn').forEach(b => b.classList.remove('active'));
+      if (btn) btn.classList.add('active');
+      currentStart = daysAgoStr(days);
+      currentEnd   = todayStr();
+      document.getElementById('dateFrom').value = currentStart;
+      document.getElementById('dateTo').value   = currentEnd;
+      loadAgents();
+    }
+
+    function applyCustomRange() {
+      const from = document.getElementById('dateFrom').value;
+      const to   = document.getElementById('dateTo').value;
+      if (!from || !to) { alert('Please select both start and end dates.'); return; }
+      if (from > to) { alert('Start date must be before end date.'); return; }
+      document.querySelectorAll('.range-btn').forEach(b => b.classList.remove('active'));
+      currentStart = from;
+      currentEnd   = to;
+      loadAgents();
+    }
+
+    // ── Load agents (analytics endpoint) ──────────────────────────────────
+    async function loadAgents() {
+      collapseCurrentDrilldown();
+
+      document.getElementById('agentTableWrap').innerHTML = `
+        <div class="loader">
+          <div class="spinner"></div>
+          <div class="loader-text">Loading agents…</div>
+          <div class="loader-sub">Fetching data for ${escHtml(currentStart)} → ${escHtml(currentEnd)}</div>
+        </div>`;
+
+      try {
+        const url = `/api/analytics?start=${encodeURIComponent(currentStart + 'T00:00:00.000Z')}&end=${encodeURIComponent(currentEnd + 'T23:59:59.999Z')}`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || 'API error');
+
+        const stats = data.stats;
+        renderSummaryKPIs(stats);
+        renderAgentTable(stats.agents || []);
+
+        const total = (stats.agents || []).filter(a => a.name !== 'Unassigned').length;
+        document.getElementById('tableSubLabel').textContent =
+          `${total} agent${total !== 1 ? 's' : ''} · ${escHtml(currentStart)} to ${escHtml(currentEnd)}`;
+
+      } catch (err) {
+        document.getElementById('agentTableWrap').innerHTML = `
+          <div class="loader">
+            <div class="error-msg">Failed to load agents: ${escHtml(err.message)}</div>
+          </div>`;
+        document.getElementById('tableSubLabel').textContent = 'Error loading data';
+      }
+    }
+
+    // ── KPI cards ──────────────────────────────────────────────────────────
+    function renderSummaryKPIs(stats) {
+      const agents = (stats.agents || []).filter(a => a.name !== 'Unassigned');
+      const totalHandled = agents.reduce((s, a) => s + (a.handled || 0), 0);
+      const totalOpen    = agents.reduce((s, a) => s + (a.open    || 0), 0);
+
+      document.getElementById('kpiRow').innerHTML = `
+        <div class="kpi-card">
+          <div class="kpi-value">${agents.length}</div>
+          <div class="kpi-label">Total Agents</div>
+        </div>
+        <div class="kpi-card green">
+          <div class="kpi-value">${totalHandled}</div>
+          <div class="kpi-label">Total Assigned</div>
+        </div>
+        <div class="kpi-card amber">
+          <div class="kpi-value">${totalOpen}</div>
+          <div class="kpi-label">Open Tickets</div>
+        </div>
+        <div class="kpi-card red">
+          <div class="kpi-value">${escHtml(stats.avgCloseFmt || '—')}</div>
+          <div class="kpi-label">Avg Close Time</div>
+        </div>`;
+    }
+
+    // ── Agent summary table ────────────────────────────────────────────────
+    function renderAgentTable(agents) {
+      if (!agents.length) {
+        document.getElementById('agentTableWrap').innerHTML = `
+          <div class="empty-state">
+            <div class="empty-text">No agents found</div>
+            <div class="empty-sub">No ticket data for the selected date range.</div>
+          </div>`;
+        return;
+      }
+
+      // Sort: named agents first (alphabetical), Unassigned last
+      const sorted = [...agents].sort((a, b) => {
+        if (a.name === 'Unassigned') return 1;
+        if (b.name === 'Unassigned') return -1;
+        return a.name.localeCompare(b.name);
+      });
+
+      const rows = sorted.map(a => {
+        const sid = sanitizeId(a.name);
+        const isUnassigned = a.name === 'Unassigned';
+        const rr = a.replyRate || 0;
+        const rrClass = rr >= 85 ? 'high' : rr >= 50 ? 'medium' : 'low';
+
+        return `
+          <tr class="agent-row" id="agent-row-${escHtml(sid)}" data-agent="${escHtml(a.name)}">
+            <td style="text-align:center;padding:12px 8px;">
+              <span class="expand-icon" id="expand-icon-${escHtml(sid)}">▶</span>
+            </td>
+            <td>
+              <div class="agent-name-cell">
+                <div class="agent-avatar${isUnassigned ? ' unassigned' : ''}">${escHtml(avatarInitials(a.name))}</div>
+                <span class="agent-name-text">${escHtml(a.name)}</span>
+              </div>
+            </td>
+            <td><strong>${a.handled || 0}</strong></td>
+            <td style="color:var(--blue);font-weight:600;">${a.open || 0}</td>
+            <td style="color:var(--green);font-weight:600;">${a.closed || 0}</td>
+            <td><span class="reply-rate ${rrClass}">${rr}%</span></td>
+            <td style="color:var(--muted);">${escHtml(a.avgCloseFmt || '—')}</td>
+          </tr>`;
+      }).join('');
+
+      document.getElementById('agentTableWrap').innerHTML = `
+        <table>
+          <thead>
+            <tr>
+              <th></th>
+              <th>Agent</th>
+              <th>Total Assigned</th>
+              <th>Open</th>
+              <th>Closed</th>
+              <th>Reply Rate</th>
+              <th>Avg Close Time</th>
+            </tr>
+          </thead>
+          <tbody id="agentTbody">${rows}</tbody>
+        </table>`;
+
+      // Attach click handlers via addEventListener — agent names stay as JS values,
+      // never injected into an attribute code string.
+      document.querySelectorAll('#agentTbody .agent-row').forEach(row => {
+        row.addEventListener('click', () => toggleDrillDown(row.dataset.agent));
+      });
+    }
+
+    // ── Drill-down toggle ──────────────────────────────────────────────────
+    function collapseCurrentDrilldown() {
+      if (!expandedAgent) return;
+      const sid = sanitizeId(expandedAgent);
+      const ddRow = document.getElementById(`drilldown-row-${sid}`);
+      if (ddRow) ddRow.remove();
+      const agentRow = document.getElementById(`agent-row-${sid}`);
+      if (agentRow) agentRow.classList.remove('expanded');
+      const icon = document.getElementById(`expand-icon-${sid}`);
+      if (icon) { icon.textContent = '▶'; icon.classList.remove('open'); }
+
+      // Cancel any in-flight fetch
+      if (loadingAgents[expandedAgent]) {
+        loadingAgents[expandedAgent].abort();
+        delete loadingAgents[expandedAgent];
+      }
+      expandedAgent = null;
+    }
+
+    function toggleDrillDown(agentName) {
+      // If this agent is already expanded, collapse it
+      if (expandedAgent === agentName) {
+        collapseCurrentDrilldown();
+        return;
+      }
+
+      // Collapse any other open drill-down first
+      collapseCurrentDrilldown();
+
+      const sid = sanitizeId(agentName);
+      const agentRow = document.getElementById(`agent-row-${sid}`);
+      if (!agentRow) return;
+
+      // Create drill-down row
+      const ddRow = document.createElement('tr');
+      ddRow.className = 'drilldown-row';
+      ddRow.id = `drilldown-row-${sid}`;
+      ddRow.innerHTML = `
+        <td colspan="7">
+          <div class="drilldown-inner">
+            <div class="dd-loading">
+              <div class="dd-spinner"></div>
+              Fetching tickets for <strong style="margin-left:4px;">${escHtml(agentName)}</strong>… this may take a moment.
+            </div>
+          </div>
+        </td>`;
+
+      agentRow.insertAdjacentElement('afterend', ddRow);
+      agentRow.classList.add('expanded');
+
+      const icon = document.getElementById(`expand-icon-${sid}`);
+      if (icon) { icon.textContent = '▶'; icon.classList.add('open'); }
+
+      expandedAgent = agentName;
+      loadAgentTickets(agentName);
+    }
+
+    // ── Load tickets for an agent ──────────────────────────────────────────
+    async function loadAgentTickets(agentName) {
+      const controller = new AbortController();
+      loadingAgents[agentName] = controller;
+
+      try {
+        const url = `/api/tickets?agent=${encodeURIComponent(agentName)}&start=${encodeURIComponent(currentStart + 'T00:00:00.000Z')}&end=${encodeURIComponent(currentEnd + 'T23:59:59.999Z')}&limit=100`;
+        const res = await fetch(url, { signal: controller.signal });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        renderDrillDown(agentName, data.tickets || []);
+      } catch (err) {
+        if (err.name === 'AbortError') return;
+        const sid = sanitizeId(agentName);
+        const ddRow = document.getElementById(`drilldown-row-${sid}`);
+        if (!ddRow) return;
+        ddRow.querySelector('.drilldown-inner').innerHTML = `
+          <div class="error-msg">Failed to load tickets: ${escHtml(err.message)}</div>`;
+      } finally {
+        delete loadingAgents[agentName];
+      }
+    }
+
+    // ── Render drill-down ticket sub-table ─────────────────────────────────
+    function renderDrillDown(agentName, tickets) {
+      const sid = sanitizeId(agentName);
+      const ddRow = document.getElementById(`drilldown-row-${sid}`);
+      if (!ddRow) return; // date range changed while loading
+
+      const inner = ddRow.querySelector('.drilldown-inner');
+
+      if (!tickets.length) {
+        inner.innerHTML = `
+          <div class="drilldown-header">
+            Tickets for ${escHtml(agentName)}
+            <span class="drilldown-count">0</span>
+          </div>
+          <div class="empty-state" style="padding:20px 0;">
+            <div class="empty-text">No tickets found</div>
+            <div class="empty-sub">No tickets for this agent in the selected date range.</div>
+          </div>`;
+        return;
+      }
+
+      const rows = tickets.map(t => {
+        const created  = fmtDate(t.createdAt);
+        const assigned = fmtDate(t.firstAssignAt);
+        const closed   = fmtDate(t.closeAt);
+
+        return `
+          <tr>
+            <td>
+              ${t.gleapLink
+                ? `<a class="gleap-link" href="${escHtml(safeUrl(t.gleapLink))}" target="_blank" rel="noopener">#${escHtml(String(t.bugId || t.id || ''))}</a>`
+                : `<span style="font-size:11px;color:var(--muted);">#${escHtml(String(t.bugId || t.id || ''))}</span>`
+              }
+            </td>
+            <td><span class="ticket-title-cell" title="${escHtml(t.title)}">${escHtml(t.title || '—')}</span></td>
+            <td><span class="date-cell${!created ? ' none' : ''}">${created || '—'}</span></td>
+            <td><span class="date-cell${!assigned ? ' none' : ''}">${assigned || '—'}</span></td>
+            <td><span class="date-cell${!closed ? ' none' : ''}">${closed || '—'}</span></td>
+            <td>${statusBadge(t.status)}</td>
+          </tr>`;
+      }).join('');
+
+      inner.innerHTML = `
+        <div class="drilldown-header">
+          Tickets for ${escHtml(agentName)}
+          <span class="drilldown-count">${tickets.length}${tickets.length === 100 ? '+' : ''}</span>
+        </div>
+        <div class="drilldown-table-wrap">
+          <table class="drilldown-table">
+            <thead>
+              <tr>
+                <th>Ticket ID</th>
+                <th>Title</th>
+                <th>Created</th>
+                <th>Assigned</th>
+                <th>Closed</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>`;
+    }
+
+    // ── Init ───────────────────────────────────────────────────────────────
+    document.addEventListener('DOMContentLoaded', initDateRange);
+  </script>
+</body>
+</html>

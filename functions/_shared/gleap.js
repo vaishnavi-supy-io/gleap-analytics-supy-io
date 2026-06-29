@@ -365,7 +365,7 @@ export function processTickets(tickets, projectId) {
   return tickets.map(t => {
     const created=t.createdAt||t.createdDate;
     const updated=t.updatedAt;
-    const firstAssign=t.firstAssignmentAt;
+    const firstAssign=t.firstAssignmentAt||getAgentResponseTime(t);
     const statusRaw=String(t.status||t.bugStatus||'UNKNOWN').toUpperCase();
     const isClosed=CLOSED_STATUSES.has(statusRaw);
     const isArchived=ARCHIVED_STATUSES.has(statusRaw)||t.isArchived===true;

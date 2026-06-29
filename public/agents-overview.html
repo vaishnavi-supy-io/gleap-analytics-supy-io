@@ -169,6 +169,11 @@
       transition: all 0.15s; display: inline-flex; align-items: center; gap: 3px;
     }
     .gleap-link:hover { background: var(--p200); color: var(--p800); }
+    .ticket-title-link {
+      font-size: 12px; color: var(--fg); text-decoration: none; display: inline-flex;
+      align-items: center; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .ticket-title-link:hover { color: var(--p600); text-decoration: underline; }
 
     /* Date cell */
     .date-cell { font-size: 11px; color: var(--muted); white-space: nowrap; }
@@ -590,7 +595,12 @@
                 : `<span style="font-size:11px;color:var(--muted);">#${escHtml(String(t.bugId || t.id || ''))}</span>`
               }
             </td>
-            <td><span class="ticket-title-cell" title="${escHtml(t.title)}">${escHtml(t.title || '—')}</span></td>
+            <td>
+              ${t.gleapLink
+                ? `<a class="ticket-title-link" href="${escHtml(safeUrl(t.gleapLink))}" target="_blank" rel="noopener" title="${escHtml(t.title)}">${escHtml(t.title || '—')}<svg width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="margin-left:4px;opacity:0.5;flex-shrink:0"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"/></svg></a>`
+                : `<span class="ticket-title-cell" title="${escHtml(t.title)}">${escHtml(t.title || '—')}</span>`
+              }
+            </td>
             <td><span class="date-cell${!created ? ' none' : ''}">${created || '—'}</span></td>
             <td>
               <span class="date-cell${!assigned ? ' none' : ''}">${assigned || '—'}</span>

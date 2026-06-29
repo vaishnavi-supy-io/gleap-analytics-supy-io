@@ -518,7 +518,7 @@
       ddRow.className = 'drilldown-row';
       ddRow.id = `drilldown-row-${sid}`;
       ddRow.innerHTML = `
-        <td colspan="7">
+        <td colspan="8">
           <div class="drilldown-inner">
             <div class="dd-loading">
               <div class="dd-spinner"></div>
@@ -607,6 +607,7 @@
               ${assignee ? `<span style="display:block;font-size:10px;color:var(--muted);margin-top:2px;">→ ${assignee}</span>` : ''}
             </td>
             <td><span class="date-cell${!closed ? ' none' : ''}">${closed || '—'}</span></td>
+            <td style="text-align:center;font-size:12px;font-weight:600;color:${(t.agentResponseCount||0)>0?'var(--p600)':'var(--faint)'};">${t.agentResponseCount || 0}</td>
             <td>${statusBadge(t.status)}</td>
           </tr>`;
       }).join('');
@@ -625,6 +626,7 @@
                 <th title="When the customer opened the ticket">Created</th>
                 <th title="When an agent first responded (first agent reply time — Gleap does not store a separate assignment timestamp)">Assigned ↓ Agent</th>
                 <th title="When the ticket was last updated in a closed status (proxy for close time)">Closed</th>
+                <th title="Number of replies sent by the agent on this ticket">Responses</th>
                 <th>Status</th>
               </tr>
             </thead>

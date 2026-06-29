@@ -580,6 +580,7 @@
         const created  = fmtDate(t.createdAt);
         const assigned = fmtDate(t.firstAssignAt);
         const closed   = fmtDate(t.closeAt);
+        const assignee = t.agent && t.agent !== 'Unassigned' ? escHtml(t.agent) : '';
 
         return `
           <tr>
@@ -591,7 +592,10 @@
             </td>
             <td><span class="ticket-title-cell" title="${escHtml(t.title)}">${escHtml(t.title || '—')}</span></td>
             <td><span class="date-cell${!created ? ' none' : ''}">${created || '—'}</span></td>
-            <td><span class="date-cell${!assigned ? ' none' : ''}">${assigned || '—'}</span></td>
+            <td>
+              <span class="date-cell${!assigned ? ' none' : ''}">${assigned || '—'}</span>
+              ${assignee ? `<span style="display:block;font-size:10px;color:var(--muted);margin-top:2px;">→ ${assignee}</span>` : ''}
+            </td>
             <td><span class="date-cell${!closed ? ' none' : ''}">${closed || '—'}</span></td>
             <td>${statusBadge(t.status)}</td>
           </tr>`;
@@ -608,9 +612,9 @@
               <tr>
                 <th>Ticket ID</th>
                 <th>Title</th>
-                <th>Created</th>
-                <th>Assigned</th>
-                <th>Closed</th>
+                <th title="When the customer opened the ticket">Created</th>
+                <th title="When an agent first responded (first agent reply time — Gleap does not store a separate assignment timestamp)">Assigned ↓ Agent</th>
+                <th title="When the ticket was last updated in a closed status (proxy for close time)">Closed</th>
                 <th>Status</th>
               </tr>
             </thead>

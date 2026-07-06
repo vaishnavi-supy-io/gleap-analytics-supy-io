@@ -613,7 +613,7 @@
         <div id="pipeExpandPanel" style="display:none;margin-top:12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r12);overflow:hidden"></div>`;
     }
 
-    function _pipeTicketRow(t, showDays) {
+    function _pipeTicketRow(t, showDays, type) {
       const updated   = t.updatedAt ? new Date(t.updatedAt).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}) : '—';
       const daysVal   = showDays && t.daysOpen !== null ? t.daysOpen : null;
       const daysTag   = daysVal !== null
@@ -625,8 +625,8 @@
       const customer  = escHtml(t.contact || t.company || '—');
       const safeLink  = /^https?:\/\//i.test(t.gleapLink||'') ? t.gleapLink : null;
       const gleapBtn  = safeLink ? `<button class="pipe-drill-gleap-btn" data-href="${escHtml(safeLink)}" title="Open in Gleap">&#x2197;</button>` : '';
-      const encoded   = escHtml(JSON.stringify(t));
-      return `<tr onclick="openPipeTicket(${encoded})" style="cursor:pointer">
+      const origIdx   = t._origIdx !== undefined ? t._origIdx : '';
+      return `<tr data-ticket-type="${escHtml(type)}" data-ticket-idx="${origIdx}" style="cursor:pointer">
         <td><span class="pipe-drill-id">#${escHtml(String(t.bugId||t.id||''))}</span></td>
         <td style="max-width:260px"><span class="pipe-drill-link" title="${escHtml(t.title||'')}">${escHtml(t.title||'—')}</span></td>
         <td><span style="font-size:11px;color:var(--muted)">${customer}</span></td>
@@ -640,13 +640,13 @@
       </tr>`;
     }
 
-    function _pipeTicketTable(tickets, showDays) {
+    function _pipeTicketTable(tickets, showDays, type) {
       if (!tickets.length) return `<div style="padding:32px;text-align:center;color:var(--muted);font-size:12px">No tickets in this view.</div>`;
       return `<div style="overflow-x:auto"><table class="pipe-drill-table" style="min-width:820px">
         <thead><tr>
           <th>ID</th><th>Title</th><th>Customer / Company</th><th style="text-align:center">Days open</th><th>Status</th><th>Priority</th><th>Assigned to</th><th>Last updated</th><th style="text-align:center">Replies</th><th></th>
         </tr></thead>
-        <tbody>${tickets.map(t => _pipeTicketRow(t, showDays)).join('')}</tbody>
+        <tbody>${tickets.map(t => _pipeTicketRow(t, showDays, type)).join('')}</tbody>
       </table></div>`;
     }
 
@@ -672,7 +672,9 @@
 
       const cat     = _pipelineData[type];
       const meta    = PIPE_META[type] || { label: type.replace(/_/g,' '), icon:'📋', color:'var(--p500)' };
-      const tickets = cat.tickets || [];
+      // Tag each ticket with its original index so the delegated click handler can
+      // look it up from _pipelineData without serialising data into HTML attributes.
+      const tickets  = (cat.tickets || []).map((t, i) => Object.assign({}, t, { _origIdx: i }));
       const pending  = tickets.filter(t => t.isOpen);
       const resolved = tickets.filter(t => t.isClosed);
 
@@ -696,9 +698,9 @@
             All <span class="pipe-drill-tab-count all">${tickets.length}</span>
           </button>
         </div>
-        <div class="pipe-drill-pane" data-tab="pending">${_pipeTicketTable(pending, true)}</div>
-        <div class="pipe-drill-pane" data-tab="resolved" style="display:none">${_pipeTicketTable(resolved, false)}</div>
-        <div class="pipe-drill-pane" data-tab="all" style="display:none">${_pipeTicketTable(tickets, true)}</div>`;
+        <div class="pipe-drill-pane" data-tab="pending">${_pipeTicketTable(pending, true, type)}</div>
+        <div class="pipe-drill-pane" data-tab="resolved" style="display:none">${_pipeTicketTable(resolved, false, type)}</div>
+        <div class="pipe-drill-pane" data-tab="all" style="display:none">${_pipeTicketTable(tickets, true, type)}</div>`;
 
       panel.scrollIntoView({ behavior:'smooth', block:'nearest' });
     }
@@ -730,12 +732,22 @@
         ${closed ? `<div class="ptp-row"><div class="ptp-label">Closed on</div><div class="ptp-val">${closed}</div></div>` : ''}`;
 
       const safeGleapLink = /^https?:\/\//i.test(t.gleapLink||'') ? t.gleapLink : null;
-      document.getElementById('ptpFooter').innerHTML = safeGleapLink
-        ? `<a class="ptp-gleap-btn" href="${escHtml(safeGleapLink)}" target="_blank" rel="noopener">
-            <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"/></svg>
-            Open in Gleap
-          </a>`
-        : `<div style="text-align:center;font-size:11px;color:var(--muted)">No Gleap link available</div>`;
+      const footer = document.getElementById('ptpFooter');
+      footer.innerHTML = '';
+      if (safeGleapLink) {
+        const a = document.createElement('a');
+        a.className = 'ptp-gleap-btn';
+        a.href      = safeGleapLink;
+        a.target    = '_blank';
+        a.rel       = 'noopener';
+        a.innerHTML = `<svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"/></svg> Open in Gleap`;
+        footer.appendChild(a);
+      } else {
+        const d = document.createElement('div');
+        d.style.cssText = 'text-align:center;font-size:11px;color:var(--muted)';
+        d.textContent = 'No Gleap link available';
+        footer.appendChild(d);
+      }
 
       document.getElementById('pipeTicketPanel').classList.add('open');
     }
@@ -1076,21 +1088,36 @@
     document.addEventListener('DOMContentLoaded', () => {
       initDateRange();
 
-      // Event delegation for pipeline cards and gleap buttons
+      // Event delegation for pipeline cards, ticket rows, and gleap buttons
       document.addEventListener('click', function(e) {
+        // Gleap external link button — open without serialising URL into HTML
         const gleapBtn = e.target.closest('.pipe-drill-gleap-btn');
         if (gleapBtn && gleapBtn.dataset.href) {
           e.stopPropagation();
           window.open(gleapBtn.dataset.href, '_blank', 'noopener');
           return;
         }
-        const closeBtn = e.target.closest('#pipeExpandPanel [data-pipetype]');
-        if (closeBtn && e.target.closest('button')) {
+
+        // Ticket table row → open side panel by index lookup (no data in HTML)
+        const ticketRow = e.target.closest('tr[data-ticket-type][data-ticket-idx]');
+        if (ticketRow) {
+          const type = ticketRow.dataset.ticketType;
+          const idx  = parseInt(ticketRow.dataset.ticketIdx, 10);
+          const t    = (_pipelineData[type] || {}).tickets?.[idx];
+          if (t) openPipeTicket(t);
+          return;
+        }
+
+        // Expand panel close button
+        const closeBtn = e.target.closest('#pipeExpandPanel button[data-pipetype]');
+        if (closeBtn) {
           togglePipeExpand(closeBtn.dataset.pipetype);
           return;
         }
-        const pipeEl = e.target.closest('[data-pipetype]');
-        if (pipeEl && pipeEl.classList.contains('pipe-card')) {
+
+        // Pipeline card click → expand
+        const pipeEl = e.target.closest('[data-pipetype].pipe-card');
+        if (pipeEl) {
           togglePipeExpand(pipeEl.dataset.pipetype);
         }
       });

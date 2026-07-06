@@ -274,6 +274,64 @@
     .days-pill.warn   { background: rgba(217,119,6,0.1);  color: var(--amber); }
     .days-pill.urgent { background: rgba(220,38,38,0.1);  color: var(--red); }
     .days-pill.none   { background: var(--surface3); color: var(--muted); }
+
+    /* ── Expandable pipeline cards ─────────────────────────────────────────── */
+    .pipe-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:12px; }
+    .pipe-section-label { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.7px; color:var(--muted); margin-bottom:8px; padding:0 2px; }
+    .pipe-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--r12); border-left:4px solid var(--p400); padding:14px 16px; cursor:pointer; transition:box-shadow 0.15s,transform 0.15s; }
+    .pipe-card:hover { box-shadow:var(--sh2); transform:translateY(-1px); }
+    .pipe-card.active { box-shadow:0 0 0 2px var(--p400); }
+    .pipe-card-head { display:flex; align-items:center; gap:7px; margin-bottom:12px; }
+    .pipe-card-icon { font-size:15px; line-height:1; }
+    .pipe-card-title { font-size:12px; font-weight:700; color:var(--ink); }
+    .pipe-card-chevron { transition:transform 0.2s; }
+    .pipe-big { font-size:28px; font-weight:800; line-height:1; color:var(--ink); margin-bottom:2px; }
+    .pipe-big-sub { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted); margin-bottom:10px; }
+    .pipe-row { display:flex; align-items:center; justify-content:space-between; padding:4px 0; font-size:11px; border-bottom:1px solid var(--border); }
+    .pipe-row:last-child { border-bottom:none; }
+    .pipe-row-label { color:var(--muted); font-weight:500; }
+    .pipe-row-val { font-weight:700; font-size:12px; }
+    .pipe-days-pill { font-size:10px; font-weight:700; padding:1px 7px; border-radius:99px; white-space:nowrap; }
+    .pipe-days-pill.ok     { background:rgba(5,150,105,0.1); color:#059669; }
+    .pipe-days-pill.warn   { background:rgba(217,119,6,0.1);  color:#D97706; }
+    .pipe-days-pill.urgent { background:rgba(220,38,38,0.1);  color:#DC2626; }
+    .pipe-days-pill.none   { background:var(--surface3); color:var(--muted); }
+
+    /* ── Pipeline drill-down ──────────────────────────────────────────────── */
+    .pipe-drill-table { width:100%; border-collapse:collapse; font-size:11.5px; }
+    .pipe-drill-table thead th { padding:8px 14px; text-align:left; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted); background:var(--surface2); border-bottom:1px solid var(--border); white-space:nowrap; }
+    .pipe-drill-table tbody td { padding:10px 14px; border-bottom:1px solid var(--border); vertical-align:middle; }
+    .pipe-drill-table tbody tr:last-child td { border-bottom:none; }
+    .pipe-drill-table tbody tr { cursor:pointer; }
+    .pipe-drill-table tbody tr:hover td { background:var(--p50); }
+    .pipe-drill-id { font-size:10.5px; font-weight:700; color:var(--p600); white-space:nowrap; }
+    .pipe-drill-link { color:var(--ink); font-weight:500; max-width:280px; display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .pipe-drill-link:hover { color:var(--p600); }
+    .pipe-drill-gleap-btn { background:none; border:1px solid var(--border); border-radius:5px; padding:2px 6px; color:var(--muted); cursor:pointer; font-size:10px; white-space:nowrap; }
+    .pipe-drill-gleap-btn:hover { color:var(--p600); border-color:var(--p300); }
+    .pipe-drill-tabs { display:flex; gap:2px; padding:12px 16px 0; border-bottom:1px solid var(--border); background:var(--surface2); }
+    .pipe-drill-tab { padding:7px 16px; font-size:12px; font-weight:600; border:none; background:none; cursor:pointer; color:var(--muted); border-bottom:2px solid transparent; margin-bottom:-1px; border-radius:6px 6px 0 0; transition:color 0.15s; }
+    .pipe-drill-tab:hover { color:var(--ink); }
+    .pipe-drill-tab.active { color:var(--p600); border-bottom-color:var(--p500); background:var(--surface); }
+    .pipe-drill-tab-count { font-size:10px; font-weight:700; padding:1px 6px; border-radius:99px; margin-left:5px; }
+    .pipe-drill-tab-count.pending  { background:rgba(220,38,38,0.1);  color:#DC2626; }
+    .pipe-drill-tab-count.resolved { background:rgba(5,150,105,0.1); color:#059669; }
+    .pipe-drill-tab-count.all      { background:var(--p100); color:var(--p700); }
+
+    /* ── Ticket detail side panel ─────────────────────────────────────────── */
+    #pipeTicketPanel { position:fixed; top:0; right:0; bottom:0; width:360px; background:var(--surface); border-left:1px solid var(--border); box-shadow:-8px 0 32px rgba(0,0,0,0.12); z-index:1100; transform:translateX(100%); transition:transform 0.22s cubic-bezier(0.4,0,0.2,1); overflow-y:auto; display:flex; flex-direction:column; }
+    #pipeTicketPanel.open { transform:translateX(0); }
+    .ptp-head { padding:16px 18px; border-bottom:1px solid var(--border); display:flex; align-items:flex-start; justify-content:space-between; gap:10px; position:sticky; top:0; background:var(--surface); z-index:1; }
+    .ptp-title { font-size:13px; font-weight:700; color:var(--ink); line-height:1.4; flex:1; }
+    .ptp-close { background:none; border:none; cursor:pointer; color:var(--muted); font-size:18px; line-height:1; padding:2px; flex-shrink:0; }
+    .ptp-close:hover { color:var(--ink); }
+    .ptp-body { padding:16px 18px; display:flex; flex-direction:column; gap:14px; flex:1; }
+    .ptp-row { display:flex; flex-direction:column; gap:3px; }
+    .ptp-label { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:var(--muted); }
+    .ptp-val { font-size:12.5px; font-weight:500; color:var(--ink); }
+    .ptp-footer { padding:14px 18px; border-top:1px solid var(--border); position:sticky; bottom:0; background:var(--surface); }
+    .ptp-gleap-btn { display:flex; align-items:center; gap:6px; justify-content:center; width:100%; padding:9px 14px; border-radius:var(--r8); background:var(--p600); color:#fff; font-size:12px; font-weight:700; text-decoration:none; transition:background 0.15s; }
+    .ptp-gleap-btn:hover { background:var(--p700); }
   </style>
 </head>
 <body>
@@ -478,77 +536,212 @@
     }
 
     // ── Ticket pipeline (non-INQUIRY types: Bug, Feature Request, Crash…) ──
-    const PIPELINE_META = {
-      BUG:                  { label: 'Bug',                   icon: '🐛', color: '#DC2626' },
-      FEATURE_REQUEST:      { label: 'Feature Request',       icon: '✨', color: '#059669' },
-      CRASH:                { label: 'Crash',                 icon: '💥', color: '#D97706' },
-      ANALYTICS:            { label: 'Analytics',             icon: '📊', color: '#4F46E5' },
-      EXINTEGRATIONS:       { label: 'Integrations',          icon: '🔗', color: '#7C3AED' },
-      'QA-BACKLOG':         { label: 'QA Backlog',            icon: '🔍', color: '#6B7280' },
-      'CUSTOMER-OPERATIONS':{ label: 'Customer Operations',   icon: '🤝', color: '#0891B2' },
+    const PIPE_META = {
+      BUG:                  { label: 'Bug',                  icon: '🐛', color: '#DC2626' },
+      FEATURE_REQUEST:      { label: 'Feature Request',      icon: '✨', color: '#059669' },
+      CRASH:                { label: 'Crash',                icon: '💥', color: '#D97706' },
+      ANALYTICS:            { label: 'Analytics',            icon: '📊', color: '#4F46E5' },
+      EXINTEGRATIONS:       { label: 'Integrations',         icon: '🔗', color: '#7C3AED' },
+      'QA-BACKLOG':         { label: 'QA Backlog',           icon: '🔍', color: '#6B7280' },
+      'CUSTOMER-OPERATIONS':{ label: 'Customer Operations',  icon: '🤝', color: '#0891B2' },
     };
+    const PRIORITY_COLOR = { HIGH:'#DC2626', MEDIUM:'#D97706', LOW:'#059669', CRITICAL:'#7C3AED' };
+    const STATUS_COLOR   = { CLOSED:'#059669',DONE:'#059669',RESOLVED:'#059669',COMPLETED:'#059669',OPEN:'#D97706',IN_PROGRESS:'#4F46E5',PENDING:'#D97706' };
+    let _pipelineData    = {};
+    let _activeExpandType = null;
 
     async function loadPipeline() {
       const el = document.getElementById('pipelineRow');
-      el.innerHTML = '';          // clear while loading; section appears once data arrives
+      el.innerHTML = '';
       try {
         const url = `/api/pipeline?start=${encodeURIComponent(currentStart + 'T00:00:00.000Z')}&end=${encodeURIComponent(currentEnd + 'T23:59:59.999Z')}`;
         const res = await fetch(url);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         if (!data.ok) throw new Error(data.error || 'API error');
-        renderPipeline(data.categories || []);
+        renderOverviewPipeline(data.categories || []);
       } catch(err) {
-        // Non-fatal — pipeline section stays empty rather than blocking the page
         console.warn('Pipeline load failed:', err.message);
       }
     }
 
-    function renderPipeline(categories) {
+    function renderOverviewPipeline(categories) {
       const el = document.getElementById('pipelineRow');
+      if (!el) return;
       if (!categories.length) { el.innerHTML = ''; return; }
 
-      const cards = categories.map(cat => {
-        const meta = PIPELINE_META[cat.type] || { label: cat.type.replace(/_/g,' '), icon: '📋', color: 'var(--p500)' };
-        const pendingColor = cat.open === 0 ? 'var(--green)' : cat.open > 5 ? 'var(--red)' : 'var(--amber)';
-        const avgLabel = cat.avgDaysOpen !== null ? `${cat.avgDaysOpen}d` : '—';
-        const avgColor = cat.avgDaysOpen === null ? 'var(--faint)'
-          : cat.avgDaysOpen > 7 ? 'var(--red)'
-          : cat.avgDaysOpen > 3 ? 'var(--amber)'
-          : 'var(--green)';
-        const maxLabel = cat.maxDaysOpen !== null ? `${cat.maxDaysOpen}d` : '—';
-        const pct = cat.total ? Math.round((cat.resolved / cat.total) * 100) : 0;
+      _pipelineData = {};
+      categories.forEach(c => { _pipelineData[c.type] = c; });
 
+      const cards = categories.map(cat => {
+        const meta         = PIPE_META[cat.type] || { label: cat.type.replace(/_/g,' '), icon:'📋', color:'var(--p500)' };
+        const pendingColor = cat.open === 0 ? '#059669' : cat.open > 5 ? '#DC2626' : '#D97706';
+        const avgD         = cat.avgDaysOpen;
+        const avgCls       = avgD === null ? 'none' : avgD > 7 ? 'urgent' : avgD > 3 ? 'warn' : 'ok';
+        const pct          = cat.total ? Math.round((cat.resolved / cat.total) * 100) : 0;
         return `
-          <div class="pipeline-card" style="border-left-color:${meta.color}">
-            <div class="pipeline-card-header">
-              <span class="pipeline-card-icon">${meta.icon}</span>
-              <span class="pipeline-card-title">${escHtml(meta.label)}</span>
+          <div class="pipe-card" id="pipe-card-${cat.type}" style="border-left-color:${meta.color}" data-pipetype="${cat.type}">
+            <div class="pipe-card-head">
+              <span class="pipe-card-icon">${meta.icon}</span>
+              <span class="pipe-card-title">${escHtml(meta.label)}</span>
+              <svg class="pipe-card-chevron" width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" style="margin-left:auto;opacity:0.4;flex-shrink:0;transition:transform 0.2s"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"/></svg>
             </div>
-            <div class="pipeline-big">${cat.total}</div>
-            <div class="pipeline-big-sub">moved from inbox</div>
-            <div class="pipeline-stat-row">
-              <span class="pipeline-stat-label">Pending / Open</span>
-              <span class="pipeline-stat-val" style="color:${pendingColor}">${cat.open}</span>
+            <div class="pipe-big">${cat.total}</div>
+            <div class="pipe-big-sub">moved from inbox</div>
+            <div class="pipe-row">
+              <span class="pipe-row-label">Pending</span>
+              <span class="pipe-row-val" style="color:${pendingColor}">${cat.open}</span>
             </div>
-            <div class="pipeline-stat-row">
-              <span class="pipeline-stat-label">Resolved</span>
-              <span class="pipeline-stat-val" style="color:var(--green)">${cat.resolved} <span style="font-size:10px;font-weight:500;color:var(--muted)">(${pct}%)</span></span>
+            <div class="pipe-row">
+              <span class="pipe-row-label">Resolved</span>
+              <span class="pipe-row-val" style="color:#059669">${cat.resolved} <span style="font-size:10px;color:var(--muted)">(${pct}%)</span></span>
             </div>
-            <div class="pipeline-stat-row">
-              <span class="pipeline-stat-label">Avg days open</span>
-              <span class="pipeline-stat-val" style="color:${avgColor}">${avgLabel}</span>
+            <div class="pipe-row">
+              <span class="pipe-row-label">Avg open</span>
+              <span class="pipe-days-pill ${avgCls}">${avgD !== null ? avgD+'d' : '—'}</span>
             </div>
-            <div class="pipeline-stat-row">
-              <span class="pipeline-stat-label">Longest open</span>
-              <span class="pipeline-stat-val" style="color:${cat.maxDaysOpen > 7 ? 'var(--red)' : 'var(--muted)'}">${maxLabel}</span>
+            <div class="pipe-row">
+              <span class="pipe-row-label">Max open</span>
+              <span class="pipe-row-val" style="color:${(cat.maxDaysOpen||0)>7?'#DC2626':'var(--muted)'}">${cat.maxDaysOpen !== null ? cat.maxDaysOpen+'d' : '—'}</span>
             </div>
           </div>`;
       }).join('');
 
       el.innerHTML = `
-        <div class="section-label">Tickets moved from Inbox → Pipeline</div>
-        <div class="pipeline-grid">${cards}</div>`;
+        <div class="pipe-section-label">Tickets moved from Inbox → Pipeline</div>
+        <div class="pipe-grid" id="pipeCardGrid">${cards}</div>
+        <div id="pipeExpandPanel" style="display:none;margin-top:12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r12);overflow:hidden"></div>`;
+    }
+
+    function _pipeTicketRow(t, showDays) {
+      const updated   = t.updatedAt ? new Date(t.updatedAt).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}) : '—';
+      const daysVal   = showDays && t.daysOpen !== null ? t.daysOpen : null;
+      const daysTag   = daysVal !== null
+        ? `<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:99px;background:${daysVal>7?'rgba(220,38,38,0.1)':daysVal>3?'rgba(217,119,6,0.1)':'rgba(5,150,105,0.1)'};color:${daysVal>7?'#DC2626':daysVal>3?'#D97706':'#059669'}">${daysVal}d</span>`
+        : `<span style="color:var(--faint);font-size:11px">—</span>`;
+      const priColor  = PRIORITY_COLOR[t.priority] || 'var(--muted)';
+      const stColor   = STATUS_COLOR[t.status]     || 'var(--muted)';
+      const replies   = t.agentResponseCount || 0;
+      const customer  = escHtml(t.contact || t.company || '—');
+      const safeLink  = /^https?:\/\//i.test(t.gleapLink||'') ? t.gleapLink : null;
+      const gleapBtn  = safeLink ? `<button class="pipe-drill-gleap-btn" data-href="${escHtml(safeLink)}" title="Open in Gleap">&#x2197;</button>` : '';
+      const encoded   = escHtml(JSON.stringify(t));
+      return `<tr onclick="openPipeTicket(${encoded})" style="cursor:pointer">
+        <td><span class="pipe-drill-id">#${escHtml(String(t.bugId||t.id||''))}</span></td>
+        <td style="max-width:260px"><span class="pipe-drill-link" title="${escHtml(t.title||'')}">${escHtml(t.title||'—')}</span></td>
+        <td><span style="font-size:11px;color:var(--muted)">${customer}</span></td>
+        <td style="text-align:center">${daysTag}</td>
+        <td><span style="font-size:10px;font-weight:700;color:${stColor}">${t.status||'—'}</span></td>
+        <td><span style="font-size:10px;font-weight:700;color:${priColor}">${t.priority||'—'}</span></td>
+        <td><span style="font-size:11px;color:var(--muted)">${escHtml(t.agent||'—')}</span></td>
+        <td><span style="font-size:11px;color:var(--muted)">${updated}</span></td>
+        <td style="text-align:center"><span style="font-size:11px;font-weight:600;color:${replies>0?'var(--p600)':'var(--faint)'}">${replies}</span></td>
+        <td style="text-align:center">${gleapBtn}</td>
+      </tr>`;
+    }
+
+    function _pipeTicketTable(tickets, showDays) {
+      if (!tickets.length) return `<div style="padding:32px;text-align:center;color:var(--muted);font-size:12px">No tickets in this view.</div>`;
+      return `<div style="overflow-x:auto"><table class="pipe-drill-table" style="min-width:820px">
+        <thead><tr>
+          <th>ID</th><th>Title</th><th>Customer / Company</th><th style="text-align:center">Days open</th><th>Status</th><th>Priority</th><th>Assigned to</th><th>Last updated</th><th style="text-align:center">Replies</th><th></th>
+        </tr></thead>
+        <tbody>${tickets.map(t => _pipeTicketRow(t, showDays)).join('')}</tbody>
+      </table></div>`;
+    }
+
+    function togglePipeExpand(type) {
+      const panel = document.getElementById('pipeExpandPanel');
+      if (_activeExpandType === type) {
+        _activeExpandType = null;
+        panel.style.display = 'none';
+        document.querySelectorAll('.pipe-card').forEach(c => {
+          c.classList.remove('active');
+          const chev = c.querySelector('.pipe-card-chevron');
+          if (chev) chev.style.transform = '';
+        });
+        return;
+      }
+      _activeExpandType = type;
+      document.querySelectorAll('.pipe-card').forEach(c => {
+        const isActive = c.id === `pipe-card-${type}`;
+        c.classList.toggle('active', isActive);
+        const chev = c.querySelector('.pipe-card-chevron');
+        if (chev) chev.style.transform = isActive ? 'rotate(180deg)' : '';
+      });
+
+      const cat     = _pipelineData[type];
+      const meta    = PIPE_META[type] || { label: type.replace(/_/g,' '), icon:'📋', color:'var(--p500)' };
+      const tickets = cat.tickets || [];
+      const pending  = tickets.filter(t => t.isOpen);
+      const resolved = tickets.filter(t => t.isClosed);
+
+      panel.style.display = '';
+      panel.innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border);background:var(--surface2)">
+          <div style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:var(--ink)">
+            <span style="font-size:16px">${meta.icon}</span> ${escHtml(meta.label)}
+            <span style="font-size:11px;font-weight:500;color:var(--muted)">${cat.total} ticket${cat.total!==1?'s':''}</span>
+          </div>
+          <button data-pipetype="${type}" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:18px;line-height:1;padding:2px">&#x2715;</button>
+        </div>
+        <div class="pipe-drill-tabs" style="background:var(--surface)">
+          <button class="pipe-drill-tab active" data-tab="pending" onclick="switchPipeTab('pending')">
+            Pending / Open <span class="pipe-drill-tab-count pending">${pending.length}</span>
+          </button>
+          <button class="pipe-drill-tab" data-tab="resolved" onclick="switchPipeTab('resolved')">
+            Resolved / Closed <span class="pipe-drill-tab-count resolved">${resolved.length}</span>
+          </button>
+          <button class="pipe-drill-tab" data-tab="all" onclick="switchPipeTab('all')">
+            All <span class="pipe-drill-tab-count all">${tickets.length}</span>
+          </button>
+        </div>
+        <div class="pipe-drill-pane" data-tab="pending">${_pipeTicketTable(pending, true)}</div>
+        <div class="pipe-drill-pane" data-tab="resolved" style="display:none">${_pipeTicketTable(resolved, false)}</div>
+        <div class="pipe-drill-pane" data-tab="all" style="display:none">${_pipeTicketTable(tickets, true)}</div>`;
+
+      panel.scrollIntoView({ behavior:'smooth', block:'nearest' });
+    }
+
+    function switchPipeTab(tab) {
+      document.querySelectorAll('#pipeExpandPanel .pipe-drill-tab').forEach(el => el.classList.toggle('active', el.dataset.tab === tab));
+      document.querySelectorAll('#pipeExpandPanel .pipe-drill-pane').forEach(el => el.style.display = el.dataset.tab === tab ? '' : 'none');
+    }
+
+    function openPipeTicket(t) {
+      const stColor  = STATUS_COLOR[t.status]    || 'var(--muted)';
+      const priColor = PRIORITY_COLOR[t.priority] || 'var(--muted)';
+      const created  = t.createdAt ? new Date(t.createdAt).toLocaleString('en-GB',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '—';
+      const updated  = t.updatedAt ? new Date(t.updatedAt).toLocaleString('en-GB',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '—';
+      const closed   = t.closeAt   ? new Date(t.closeAt).toLocaleString('en-GB',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}) : null;
+
+      document.getElementById('ptpTitle').textContent = t.title || '(No title)';
+      document.getElementById('ptpBody').innerHTML = `
+        <div class="ptp-row"><div class="ptp-label">Ticket ID</div><div class="ptp-val" style="color:var(--p600);font-weight:700">#${escHtml(String(t.bugId||t.id||''))}</div></div>
+        <div class="ptp-row"><div class="ptp-label">Status</div><div class="ptp-val"><span style="font-weight:700;color:${stColor}">${t.status||'—'}</span></div></div>
+        <div class="ptp-row"><div class="ptp-label">Priority</div><div class="ptp-val"><span style="font-weight:700;color:${priColor}">${t.priority||'—'}</span></div></div>
+        <div class="ptp-row"><div class="ptp-label">Customer</div><div class="ptp-val">${escHtml(t.contact||'—')}</div></div>
+        <div class="ptp-row"><div class="ptp-label">Company</div><div class="ptp-val">${escHtml(t.company||'—')}</div></div>
+        <div class="ptp-row"><div class="ptp-label">Assigned to</div><div class="ptp-val">${escHtml(t.agent||'Unassigned')}</div></div>
+        <div class="ptp-row"><div class="ptp-label">Agent replies</div><div class="ptp-val" style="font-weight:700;color:${(t.agentResponseCount||0)>0?'var(--p600)':'var(--muted)'}">${t.agentResponseCount||0}</div></div>
+        <div class="ptp-row"><div class="ptp-label">Created</div><div class="ptp-val">${created}</div></div>
+        <div class="ptp-row"><div class="ptp-label">Last updated</div><div class="ptp-val">${updated}</div></div>
+        ${t.daysOpen !== null ? `<div class="ptp-row"><div class="ptp-label">Days open</div><div class="ptp-val"><span style="font-weight:700;color:${t.daysOpen>7?'#DC2626':t.daysOpen>3?'#D97706':'#059669'}">${t.daysOpen} day${t.daysOpen!==1?'s':''}</span></div></div>` : ''}
+        ${closed ? `<div class="ptp-row"><div class="ptp-label">Closed on</div><div class="ptp-val">${closed}</div></div>` : ''}`;
+
+      const safeGleapLink = /^https?:\/\//i.test(t.gleapLink||'') ? t.gleapLink : null;
+      document.getElementById('ptpFooter').innerHTML = safeGleapLink
+        ? `<a class="ptp-gleap-btn" href="${escHtml(safeGleapLink)}" target="_blank" rel="noopener">
+            <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"/></svg>
+            Open in Gleap
+          </a>`
+        : `<div style="text-align:center;font-size:11px;color:var(--muted)">No Gleap link available</div>`;
+
+      document.getElementById('pipeTicketPanel').classList.add('open');
+    }
+
+    function closePipeTicket() {
+      document.getElementById('pipeTicketPanel').classList.remove('open');
     }
 
     // ── Ticket type breakdown ──────────────────────────────────────────────
@@ -880,7 +1073,38 @@
     }
 
     // ── Init ───────────────────────────────────────────────────────────────
-    document.addEventListener('DOMContentLoaded', initDateRange);
+    document.addEventListener('DOMContentLoaded', () => {
+      initDateRange();
+
+      // Event delegation for pipeline cards and gleap buttons
+      document.addEventListener('click', function(e) {
+        const gleapBtn = e.target.closest('.pipe-drill-gleap-btn');
+        if (gleapBtn && gleapBtn.dataset.href) {
+          e.stopPropagation();
+          window.open(gleapBtn.dataset.href, '_blank', 'noopener');
+          return;
+        }
+        const closeBtn = e.target.closest('#pipeExpandPanel [data-pipetype]');
+        if (closeBtn && e.target.closest('button')) {
+          togglePipeExpand(closeBtn.dataset.pipetype);
+          return;
+        }
+        const pipeEl = e.target.closest('[data-pipetype]');
+        if (pipeEl && pipeEl.classList.contains('pipe-card')) {
+          togglePipeExpand(pipeEl.dataset.pipetype);
+        }
+      });
+    });
   </script>
+
+  <!-- Ticket detail side panel -->
+  <div id="pipeTicketPanel">
+    <div class="ptp-head">
+      <div class="ptp-title" id="ptpTitle"></div>
+      <button class="ptp-close" onclick="closePipeTicket()">&#x2715;</button>
+    </div>
+    <div class="ptp-body" id="ptpBody"></div>
+    <div class="ptp-footer" id="ptpFooter"></div>
+  </div>
 </body>
 </html>

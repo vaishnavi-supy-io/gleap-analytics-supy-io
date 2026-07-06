@@ -198,6 +198,82 @@
 
     /* Ticket title in drilldown */
     .ticket-title-cell { font-size: 11.5px; font-weight: 500; color: var(--ink); max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* Pipeline section */
+    .pipeline-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 12px;
+    }
+    .pipeline-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--r12); padding: 16px 18px;
+      border-left: 4px solid var(--p400);
+      transition: box-shadow 0.15s, transform 0.15s;
+    }
+    .pipeline-card:hover { box-shadow: var(--sh2); transform: translateY(-1px); }
+    .pipeline-card-header {
+      display: flex; align-items: center; gap: 8px; margin-bottom: 14px;
+    }
+    .pipeline-card-icon { font-size: 16px; line-height: 1; }
+    .pipeline-card-title { font-size: 13px; font-weight: 700; color: var(--ink); }
+    .pipeline-stat-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 5px 0; font-size: 12px; border-bottom: 1px solid var(--border);
+    }
+    .pipeline-stat-row:last-child { border-bottom: none; }
+    .pipeline-stat-label { color: var(--muted); font-weight: 500; font-size: 11px; }
+    .pipeline-stat-val { font-weight: 700; font-size: 13px; }
+    .pipeline-big {
+      font-size: 30px; font-weight: 800; line-height: 1; margin-bottom: 4px;
+      color: var(--ink);
+    }
+    .pipeline-big-sub {
+      font-size: 9px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.5px; color: var(--muted); margin-bottom: 12px;
+    }
+
+    /* Type breakdown section */
+    .section-label {
+      font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.7px;
+      color: var(--muted); margin-bottom: 8px; padding: 0 2px;
+    }
+    .type-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 12px;
+    }
+    .type-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--r12);
+      border-top: 3px solid var(--p500); padding: 14px 16px;
+      transition: box-shadow 0.15s, transform 0.15s;
+    }
+    .type-card:hover { box-shadow: var(--sh2); transform: translateY(-1px); }
+    .type-card-header {
+      display: flex; align-items: center; gap: 7px; margin-bottom: 12px;
+    }
+    .type-icon { font-size: 15px; line-height: 1; }
+    .type-label { font-size: 12px; font-weight: 700; color: var(--ink); }
+    .type-big-row {
+      display: flex; align-items: baseline; gap: 6px; margin-bottom: 10px;
+    }
+    .type-big-value { font-size: 28px; font-weight: 800; line-height: 1; color: var(--ink); }
+    .type-big-sub { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; color: var(--muted); }
+    .type-divider { border: none; border-top: 1px solid var(--border); margin: 8px 0; }
+    .type-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 3px 0; font-size: 11px;
+    }
+    .type-row-label { color: var(--muted); font-weight: 500; }
+    .type-row-value { font-size: 12px; font-weight: 700; }
+    .days-pill {
+      font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 99px;
+      white-space: nowrap;
+    }
+    .days-pill.ok     { background: rgba(5,150,105,0.1);  color: var(--green); }
+    .days-pill.warn   { background: rgba(217,119,6,0.1);  color: var(--amber); }
+    .days-pill.urgent { background: rgba(220,38,38,0.1);  color: var(--red); }
+    .days-pill.none   { background: var(--surface3); color: var(--muted); }
   </style>
 </head>
 <body>
@@ -234,6 +310,12 @@
       <div class="kpi-card amber"><div class="kpi-value">—</div><div class="kpi-label">Open Tickets</div></div>
       <div class="kpi-card red"><div class="kpi-value">—</div><div class="kpi-label">Avg Close Time</div></div>
     </div>
+
+    <!-- Ticket Type Breakdown (from Gleap analytics) -->
+    <div id="typeSummaryRow"></div>
+
+    <!-- Ticket Pipeline (Bug / Feature Request / Crash moved from Inbox) -->
+    <div id="pipelineRow"></div>
 
     <!-- Agent Table -->
     <div class="table-card">
@@ -365,6 +447,9 @@
           <div class="loader-sub">Fetching data for ${escHtml(currentStart)} → ${escHtml(currentEnd)}</div>
         </div>`;
 
+      // Load pipeline in parallel — non-blocking, fails silently
+      loadPipeline();
+
       try {
         const url = `/api/analytics?start=${encodeURIComponent(currentStart + 'T00:00:00.000Z')}&end=${encodeURIComponent(currentEnd + 'T23:59:59.999Z')}`;
         const res = await fetch(url);
@@ -374,6 +459,7 @@
 
         const stats = data.stats;
         renderSummaryKPIs(stats);
+        renderTypeSummary(stats);
         renderAgentTable(stats.agents || []);
 
         const total = (stats.agents || []).filter(a => a.name !== 'Unassigned').length;
@@ -386,7 +472,165 @@
             <div class="error-msg">Failed to load agents: ${escHtml(err.message)}</div>
           </div>`;
         document.getElementById('tableSubLabel').textContent = 'Error loading data';
+        document.getElementById('typeSummaryRow').innerHTML = '';
+        document.getElementById('pipelineRow').innerHTML = '';
       }
+    }
+
+    // ── Ticket pipeline (non-INQUIRY types: Bug, Feature Request, Crash…) ──
+    const PIPELINE_META = {
+      BUG:                  { label: 'Bug',                   icon: '🐛', color: '#DC2626' },
+      FEATURE_REQUEST:      { label: 'Feature Request',       icon: '✨', color: '#059669' },
+      CRASH:                { label: 'Crash',                 icon: '💥', color: '#D97706' },
+      ANALYTICS:            { label: 'Analytics',             icon: '📊', color: '#4F46E5' },
+      EXINTEGRATIONS:       { label: 'Integrations',          icon: '🔗', color: '#7C3AED' },
+      'QA-BACKLOG':         { label: 'QA Backlog',            icon: '🔍', color: '#6B7280' },
+      'CUSTOMER-OPERATIONS':{ label: 'Customer Operations',   icon: '🤝', color: '#0891B2' },
+    };
+
+    async function loadPipeline() {
+      const el = document.getElementById('pipelineRow');
+      el.innerHTML = '';          // clear while loading; section appears once data arrives
+      try {
+        const url = `/api/pipeline?start=${encodeURIComponent(currentStart + 'T00:00:00.000Z')}&end=${encodeURIComponent(currentEnd + 'T23:59:59.999Z')}`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || 'API error');
+        renderPipeline(data.categories || []);
+      } catch(err) {
+        // Non-fatal — pipeline section stays empty rather than blocking the page
+        console.warn('Pipeline load failed:', err.message);
+      }
+    }
+
+    function renderPipeline(categories) {
+      const el = document.getElementById('pipelineRow');
+      if (!categories.length) { el.innerHTML = ''; return; }
+
+      const cards = categories.map(cat => {
+        const meta = PIPELINE_META[cat.type] || { label: cat.type.replace(/_/g,' '), icon: '📋', color: 'var(--p500)' };
+        const pendingColor = cat.open === 0 ? 'var(--green)' : cat.open > 5 ? 'var(--red)' : 'var(--amber)';
+        const avgLabel = cat.avgDaysOpen !== null ? `${cat.avgDaysOpen}d` : '—';
+        const avgColor = cat.avgDaysOpen === null ? 'var(--faint)'
+          : cat.avgDaysOpen > 7 ? 'var(--red)'
+          : cat.avgDaysOpen > 3 ? 'var(--amber)'
+          : 'var(--green)';
+        const maxLabel = cat.maxDaysOpen !== null ? `${cat.maxDaysOpen}d` : '—';
+        const pct = cat.total ? Math.round((cat.resolved / cat.total) * 100) : 0;
+
+        return `
+          <div class="pipeline-card" style="border-left-color:${meta.color}">
+            <div class="pipeline-card-header">
+              <span class="pipeline-card-icon">${meta.icon}</span>
+              <span class="pipeline-card-title">${escHtml(meta.label)}</span>
+            </div>
+            <div class="pipeline-big">${cat.total}</div>
+            <div class="pipeline-big-sub">moved from inbox</div>
+            <div class="pipeline-stat-row">
+              <span class="pipeline-stat-label">Pending / Open</span>
+              <span class="pipeline-stat-val" style="color:${pendingColor}">${cat.open}</span>
+            </div>
+            <div class="pipeline-stat-row">
+              <span class="pipeline-stat-label">Resolved</span>
+              <span class="pipeline-stat-val" style="color:var(--green)">${cat.resolved} <span style="font-size:10px;font-weight:500;color:var(--muted)">(${pct}%)</span></span>
+            </div>
+            <div class="pipeline-stat-row">
+              <span class="pipeline-stat-label">Avg days open</span>
+              <span class="pipeline-stat-val" style="color:${avgColor}">${avgLabel}</span>
+            </div>
+            <div class="pipeline-stat-row">
+              <span class="pipeline-stat-label">Longest open</span>
+              <span class="pipeline-stat-val" style="color:${cat.maxDaysOpen > 7 ? 'var(--red)' : 'var(--muted)'}">${maxLabel}</span>
+            </div>
+          </div>`;
+      }).join('');
+
+      el.innerHTML = `
+        <div class="section-label">Tickets moved from Inbox → Pipeline</div>
+        <div class="pipeline-grid">${cards}</div>`;
+    }
+
+    // ── Ticket type breakdown ──────────────────────────────────────────────
+    const TYPE_META = {
+      INQUIRY:         { label: 'Inquiry',         icon: '💬', color: 'var(--blue)' },
+      BUG:             { label: 'Bug',              icon: '🐛', color: 'var(--red)'  },
+      FEATURE_REQUEST: { label: 'Feature Request',  icon: '✨', color: 'var(--green)'},
+      CRASH:           { label: 'Crash',            icon: '💥', color: 'var(--amber)'},
+      UNKNOWN:         { label: 'Unknown',          icon: '❓', color: 'var(--muted)'},
+    };
+
+    function renderTypeSummary(stats) {
+      const el = document.getElementById('typeSummaryRow');
+      const openTickets = stats.openTickets || [];
+      const now = Date.now();
+
+      // Seed from typeBreakdown (total counts per type)
+      const typeMap = {};
+      (stats.typeBreakdown || []).forEach(({ type, count }) => {
+        typeMap[type] = { type, total: count, open: 0, daysOpen: [] };
+      });
+
+      // Augment with days-open data from open tickets
+      openTickets.forEach(t => {
+        const tp = t.gleapType || 'UNKNOWN';
+        if (!typeMap[tp]) typeMap[tp] = { type: tp, total: 0, open: 0, daysOpen: [] };
+        typeMap[tp].open++;
+        if (t.createdAt) {
+          const days = Math.floor((now - new Date(t.createdAt)) / 86400000);
+          typeMap[tp].daysOpen.push(Math.max(0, days));
+        }
+      });
+
+      const types = Object.values(typeMap).filter(t => t.total > 0)
+        .sort((a, b) => b.total - a.total);
+
+      if (!types.length) { el.innerHTML = ''; return; }
+
+      function daysPill(avg) {
+        if (avg === null) return `<span class="days-pill none">—</span>`;
+        const cls = avg > 7 ? 'urgent' : avg > 3 ? 'warn' : 'ok';
+        return `<span class="days-pill ${cls}">${avg.toFixed(1)}d avg</span>`;
+      }
+
+      const cards = types.map(td => {
+        const meta = TYPE_META[td.type] || { label: td.type, icon: '📋', color: 'var(--muted)' };
+        const avgDays = td.daysOpen.length
+          ? td.daysOpen.reduce((s, d) => s + d, 0) / td.daysOpen.length
+          : null;
+        const maxDays = td.daysOpen.length ? Math.max(...td.daysOpen) : null;
+        const openColor = td.open === 0 ? 'var(--green)' : td.open > 5 ? 'var(--red)' : 'var(--amber)';
+
+        return `
+          <div class="type-card" style="border-top-color:${meta.color}">
+            <div class="type-card-header">
+              <span class="type-icon">${meta.icon}</span>
+              <span class="type-label">${escHtml(meta.label)}</span>
+            </div>
+            <div class="type-big-row">
+              <span class="type-big-value">${td.total}</span>
+              <span class="type-big-sub">total</span>
+            </div>
+            <hr class="type-divider">
+            <div class="type-row">
+              <span class="type-row-label">Pending / Open</span>
+              <span class="type-row-value" style="color:${openColor}">${td.open}</span>
+            </div>
+            <div class="type-row">
+              <span class="type-row-label">Avg days open</span>
+              ${daysPill(avgDays)}
+            </div>
+            ${maxDays !== null ? `
+            <div class="type-row">
+              <span class="type-row-label">Longest open</span>
+              <span class="type-row-value" style="color:${maxDays > 7 ? 'var(--red)' : 'var(--muted)'}">${maxDays}d</span>
+            </div>` : ''}
+          </div>`;
+      }).join('');
+
+      el.innerHTML = `
+        <div class="section-label">Tickets by Category</div>
+        <div class="type-grid">${cards}</div>`;
     }
 
     // ── KPI cards ──────────────────────────────────────────────────────────
@@ -626,7 +870,7 @@
                 <th title="When the customer opened the ticket">Created</th>
                 <th title="When an agent first responded (first agent reply time — Gleap does not store a separate assignment timestamp)">Assigned ↓ Agent</th>
                 <th title="When the ticket was last updated in a closed status (proxy for close time)">Closed</th>
-                <th title="Number of replies sent by the agent on this ticket">Responses</th>
+                <th title="Total messages exchanged on this ticket (customer + agent)">Messages</th>
                 <th>Status</th>
               </tr>
             </thead>

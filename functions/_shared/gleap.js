@@ -242,14 +242,8 @@ export function getBotHandoverTime(t) {
 
 export function countAgentResponses(t, agentName) {
   if (!agentName || agentName === 'Unassigned') return 0;
-  let count = 0;
-  const messages = t.messages || t.comments || [];
-  for (const msg of messages) {
-    const author = msg.author?.name || msg.authorName || msg.author || '';
-    if (String(author).trim() === String(agentName).trim()) count++;
-  }
-  if (count === 0 && t.hasAgentReply && messages.length === 0) count = 1;
-  return count;
+  if (Array.isArray(t.emailRefs) && t.emailRefs.length > 0) return t.emailRefs.length;
+  return t.hasAgentReply ? 1 : 0;
 }
 
 // ── Cache helpers using Workers Cache API ──────────────────────
@@ -290,6 +284,7 @@ export async function gleapOne(id, gleapHeaders) {
     return res.json();
   } catch { return null; }
 }
+
 
 export async function findLastSkip(gleapHeaders) {
   let lo = 0, hi = 200000, last = 0;
@@ -547,6 +542,57 @@ export function buildSlackDigest(stats, periodLabel) {
     text:`📊 Supy Inbox Digest — ${periodLabel} | ${stats.total} conversations, ${stats.openCount} open`,
     blocks,
   };
+}
+
+const PIPELINE_EXCLUDED = new Set(['BOT', 'UNKNOWN', 'INQUIRY']);
+
+export function computePipelineStats(tickets, projectId) {
+  const rows   = processTickets(tickets, projectId);
+  const groups = {};
+  const now    = Date.now();
+
+  for (const r of rows) {
+    if (PIPELINE_EXCLUDED.has(r.gleapType)) continue;
+
+    if (!groups[r.gleapType]) groups[r.gleapType] = { total:0, open:0, resolved:0, daysArr:[], tickets:[] };
+    const g = groups[r.gleapType];
+    g.total++;
+    g.tickets.push({
+      id:                 r.id,
+      bugId:              r.bugId,
+      gleapLink:          r.gleapLink,
+      title:              r.title,
+      status:             r.status,
+      agent:              r.agent,
+      priority:           r.priority,
+      contact:            r.contact,
+      company:            r.company,
+      agentResponseCount: r.agentResponseCount,
+      createdAt:          r.createdAt,
+      updatedAt:          r.updatedAt,
+      closeAt:            r.closeAt,
+      isOpen:             r.isOpen,
+      isClosed:           r.isClosed,
+      daysOpen:           r.isOpen && r.createdAt ? Math.round((now - new Date(r.createdAt)) / 86400000) : null,
+    });
+
+    if (r.isClosed) {
+      g.resolved++;
+    } else {
+      g.open++;
+      if (r.createdAt) g.daysArr.push(Math.round((now - new Date(r.createdAt)) / 86400000));
+    }
+  }
+
+  return Object.entries(groups).map(([type, g]) => ({
+    type,
+    total:       g.total,
+    open:        g.open,
+    resolved:    g.resolved,
+    avgDaysOpen: g.daysArr.length ? Math.round(g.daysArr.reduce((a,b)=>a+b,0)/g.daysArr.length) : null,
+    maxDaysOpen: g.daysArr.length ? Math.max(...g.daysArr) : null,
+    tickets:     g.tickets.sort((a,b) => (b.daysOpen||0) - (a.daysOpen||0)),
+  })).sort((a, b) => b.total - a.total);
 }
 
 export async function runFullPipeline(start, end, gleapHeaders, projectId) {

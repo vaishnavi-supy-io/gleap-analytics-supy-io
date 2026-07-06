@@ -331,27 +331,13 @@ async function gleapOne(id) {
   } catch { return null; }
 }
 
-// ── Count agent responses ────────────────────────────────────
+// ── Count messages via emailRefs (best available proxy from Gleap API) ──────
+// Gleap does not expose a messages endpoint. emailRefs tracks every email
+// exchange on the ticket (customer + agent), populated after enrichTickets().
 function countAgentResponses(t, agentName) {
   if (!agentName || agentName === 'Unassigned') return 0;
-  
-  let count = 0;
-  
-  // Check messages array if available
-  const messages = t.messages || t.comments || [];
-  for (const msg of messages) {
-    const author = msg.author?.name || msg.authorName || msg.author || '';
-    if (String(author).trim() === String(agentName).trim()) {
-      count++;
-    }
-  }
-  
-  // Fallback: if no messages but hasAgentReply, count as 1
-  if (count === 0 && t.hasAgentReply && messages.length === 0) {
-    count = 1;
-  }
-  
-  return count;
+  if (Array.isArray(t.emailRefs) && t.emailRefs.length > 0) return t.emailRefs.length;
+  return t.hasAgentReply ? 1 : 0;
 }
 
 // ── Process into rows ────────────────────────────────────────
@@ -659,6 +645,45 @@ app.get('/api/health', (req,res) => res.json({
   cachedLastSkip,
 }));
 
+app.get('/api/debug-comments', async (req,res) => {
+  if (process.env.NODE_ENV === 'production') return res.status(404).end();
+  try {
+    const id = req.query.id;
+    if (!id) return res.status(400).json({ok:false,error:'Pass ?id=<ticketId>'});
+    if (!/^[A-Za-z0-9_-]{1,64}$/.test(id)) return res.status(400).json({ok:false,error:'Invalid id'});
+    const eid = encodeURIComponent(id);
+    const ticketDetail = await gleapOne(id);
+    const eid2 = encodeURIComponent(ticketDetail?.bugId || id);
+    const pid  = encodeURIComponent(PROJECT_ID || '');
+    const candidates = [
+      `https://api.gleap.io/v3/projects/${pid}/tickets/${eid}/comments`,
+      `https://api.gleap.io/v3/projects/${pid}/tickets/${eid}/conversation`,
+      `https://api.gleap.io/v3/projects/${pid}/bugs/${eid2}/comments`,
+      `https://api.gleap.io/v3/comments?ticket=${eid}`,
+      `https://api.gleap.io/v3/comments?ticketId=${eid}`,
+      `https://api.gleap.io/v3/tickets/${eid}?populate=comments`,
+      `https://api.gleap.io/v3/tickets/${eid}?include=comments`,
+    ];
+    const results = {};
+    for (const url of candidates) {
+      try {
+        const r = await fetch(url, { headers: GLEAP_HEADERS });
+        const text = await r.text();
+        let body; try { body = JSON.parse(text); } catch { body = text.slice(0,200); }
+        results[url] = { status: r.status, isJSON: typeof body !== 'string', body };
+      } catch(e) { results[url] = { error: e.message }; }
+    }
+    res.json({
+      ok: true,
+      ticketDetailKeys: ticketDetail ? Object.keys(ticketDetail).sort() : null,
+      ticketDetailFull: ticketDetail,
+      candidates: results
+    });
+  } catch(e) {
+    res.status(500).json({ok:false,error:e.message});
+  }
+});
+
 app.get('/api/debug', async (req,res) => {
   try {
     const now=new Date();
@@ -701,6 +726,110 @@ app.get('/api/debug', async (req,res) => {
     });
   } catch(e) {
     res.status(500).json({ok:false,error:e.message});
+  }
+});
+
+// ── Fetch non-INQUIRY tickets (BUG, FEATURE_REQUEST, CRASH…) in date range ──
+async function fetchPipelineTickets(startDate, endDate, lastSkip) {
+  const rangeStart = new Date(startDate), rangeEnd = new Date(endDate);
+  const all = [], seen = new Set();
+  let skip = 0, pages = 0;
+  const MAX_PAGES = Math.ceil(lastSkip / 50) + 50;
+
+  console.log(`📥 Fetching pipeline tickets: ${startDate} → ${endDate}`);
+  while (pages < MAX_PAGES) {
+    let items;
+    try {
+      items = await gleapFetch('https://api.gleap.io/v3/tickets', { limit: 50, skip });
+    } catch(e) { console.warn(`Pipeline fetch error skip=${skip}:`, e.message); skip += 50; pages++; continue; }
+    if (!items.length) break;
+
+    let oldCount = 0;
+    for (const t of items) {
+      const tid = t._id || t.id || '';
+      if (seen.has(tid)) continue; seen.add(tid);
+      const dt = parseDt(t.createdAt || t.createdDate);
+      if (!dt || dt > rangeEnd) continue;
+      if (dt < rangeStart) { oldCount++; continue; }
+      if (String(t.type || t.ticketType || '').toUpperCase() !== 'INQUIRY') all.push(t);
+    }
+    if (oldCount === items.length) break;
+    skip += 50; pages++;
+    await new Promise(r => setTimeout(r, 150));
+  }
+  console.log(`✅ Found ${all.length} pipeline tickets`);
+  return all;
+}
+
+// Types that are automated/internal and should not appear in the pipeline view
+const PIPELINE_EXCLUDED_TYPES = new Set(['BOT', 'UNKNOWN']);
+
+function computePipelineStats(tickets) {
+  const typeMap = {};
+  for (const t of tickets) {
+    const tp = String(t.type || t.ticketType || 'UNKNOWN').toUpperCase().replace(/ /g, '_');
+    if (PIPELINE_EXCLUDED_TYPES.has(tp)) continue;
+    if (!typeMap[tp]) typeMap[tp] = { type: tp, total: 0, open: 0, resolved: 0, openDays: [] };
+    const statusRaw = String(t.status || t.bugStatus || 'UNKNOWN').toUpperCase();
+    const isClosed  = CLOSED_STATUSES.has(statusRaw);
+    const isArchived = ARCHIVED_STATUSES.has(statusRaw) || t.isArchived === true;
+    const isOpen = !isClosed && !isArchived;
+    typeMap[tp].total++;
+    if (isOpen) {
+      typeMap[tp].open++;
+      const created = parseDt(t.createdAt || t.createdDate);
+      if (created) typeMap[tp].openDays.push(Math.max(0, Math.floor((Date.now() - created.getTime()) / 86400000)));
+    } else {
+      typeMap[tp].resolved++;
+    }
+  }
+  return Object.values(typeMap).sort((a, b) => b.total - a.total).map(td => ({
+    type:        td.type,
+    total:       td.total,
+    open:        td.open,
+    resolved:    td.resolved,
+    avgDaysOpen: td.openDays.length
+      ? Math.round(td.openDays.reduce((s, d) => s + d, 0) / td.openDays.length * 10) / 10
+      : null,
+    maxDaysOpen: td.openDays.length ? Math.max(...td.openDays) : null,
+  }));
+}
+
+// In-memory cache for pipeline endpoint — keyed same as analyticsCache
+const pipelineCache = new Map();
+
+app.get('/api/pipeline', async (req, res) => {
+  try {
+    const now = new Date();
+    const rawStart = req.query.start;
+    const rawEnd   = req.query.end;
+    if (rawStart !== undefined && typeof rawStart !== 'string')
+      return res.status(400).json({ ok: false, error: 'Invalid "start" query parameter' });
+    if (rawEnd !== undefined && typeof rawEnd !== 'string')
+      return res.status(400).json({ ok: false, error: 'Invalid "end" query parameter' });
+
+    const start = typeof rawStart === 'string' ? rawStart
+      : new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    const end   = typeof rawEnd   === 'string' ? rawEnd   : now.toISOString();
+
+    const cacheKey = `${start.slice(0, 10)}::${end.slice(0, 10)}`;
+    const cached   = pipelineCache.get(cacheKey);
+    if (cached && (Date.now() - cached.ts) < 10 * 60 * 1000) {
+      return res.json({ ok: true, categories: cached.categories, fromCache: true });
+    }
+
+    if (!cachedLastSkip) {
+      try { cachedLastSkip = await findLastSkip(); lastSkipTime = Date.now(); }
+      catch(e) { loadSkipCache(); if (!cachedLastSkip) throw e; }
+    }
+
+    const tickets    = await fetchPipelineTickets(start, end, cachedLastSkip);
+    const categories = computePipelineStats(tickets);
+    pipelineCache.set(cacheKey, { categories, ts: Date.now() });
+    res.json({ ok: true, categories, fromCache: false });
+  } catch(e) {
+    console.error('/api/pipeline:', e.message);
+    res.status(500).json({ ok: false, error: e.message });
   }
 });
 
@@ -771,6 +900,8 @@ app.get('/api/tickets', async (req,res) => {
     }
 
     let tickets=await fetchInboxTickets(start,end,cachedLastSkip);
+    // Pre-filter by agent on raw data so enrichment (including comments fetch) only runs on the relevant subset
+    if (agentFilter) tickets=tickets.filter(t=>getAgent(t).toLowerCase().includes(agentFilter.toLowerCase()));
     if (tickets.length<=200) tickets=await enrichTickets(tickets);
     let rows=processTickets(tickets);
 

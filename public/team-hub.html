@@ -7,6 +7,8 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <!-- Supabase JS client (CDN) -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<!-- SheetJS for Excel upload (pinned version) -->
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <style>
 :root {
   --navy:#321e57;--purple:#503390;--bright:#7b51bf;--light-purple:#efedfa;
@@ -422,10 +424,17 @@ body.is-admin .admin-only{display:flex}
     <div class="panel">
       <div class="panel-hdr">
         <div><div class="panel-title">Weekly Schedule</div><div class="panel-sub" id="schedSubtitle"></div></div>
-        <div class="week-nav">
-          <button class="wk-btn" onclick="changeWeek(-1)" style="display:inline-flex;align-items:center;gap:4px"><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5"/></svg> Prev</button>
-          <span class="wk-label" id="weekLabel"></span>
-          <button class="wk-btn" onclick="changeWeek(1)" style="display:inline-flex;align-items:center;gap:4px">Next <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg></button>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="week-nav">
+            <button class="wk-btn" onclick="changeWeek(-1)" style="display:inline-flex;align-items:center;gap:4px"><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5"/></svg> Prev</button>
+            <span class="wk-label" id="weekLabel"></span>
+            <button class="wk-btn" onclick="changeWeek(1)" style="display:inline-flex;align-items:center;gap:4px">Next <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg></button>
+          </div>
+          <button class="wk-btn" onclick="triggerScheduleUpload()" style="display:inline-flex;align-items:center;gap:5px;background:var(--light-purple);border-color:var(--purple);color:var(--purple)">
+            <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>
+            Upload Excel
+          </button>
+          <input type="file" id="scheduleFileInput" accept=".xlsx,.xls" style="display:none" onchange="handleScheduleFile(this)">
         </div>
       </div>
       <div class="sched-wrap"><table class="sched-table" id="schedTable"></table></div>
@@ -681,6 +690,27 @@ body.is-admin .admin-only{display:flex}
         <div style="display:grid;grid-template-columns:repeat(7,1fr)" id="copyDayGrid"></div>
       </div>
       <button class="save-btn" id="saveShiftBtn" onclick="saveShiftCell()">Save Shift</button>
+    </div>
+  </div>
+</div>
+
+<!-- SCHEDULE UPLOAD PREVIEW -->
+<div class="overlay" id="uploadPreviewModal">
+  <div class="modal">
+    <div class="modal-hdr">
+      <div>
+        <div class="modal-hdr-title" id="upm-title">Schedule Upload Preview</div>
+        <div class="modal-hdr-sub" id="upm-sub"></div>
+      </div>
+      <button class="modal-close" onclick="closeUploadPreview()"><svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div id="upm-warnings" style="display:none;background:var(--amber-l);border:1px solid #e6c96a;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:var(--amber);line-height:1.7"></div>
+      <div id="upm-body"></div>
+      <div style="display:flex;gap:10px;margin-top:16px">
+        <button onclick="closeUploadPreview()" style="padding:9px 20px;border:1px solid var(--border);border-radius:var(--r);background:var(--white);color:var(--mid);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">Cancel</button>
+        <button class="save-btn" id="upm-confirm-btn" onclick="applyUploadedSchedule()" style="flex:1">Apply changes</button>
+      </div>
     </div>
   </div>
 </div>
@@ -1565,6 +1595,198 @@ async function saveShiftCell(){
   toast(`${name} shift updated ✓${copies.length?' + copied to '+copies.map(c=>DAYS[c.dayIdx]).join(', '):''}`)
 }
 function closeEditSched(){document.getElementById('editSchedModal').classList.remove('open');editingSchedKey=null;}
+
+// ══════════════════════════════════════════════════════════════
+//  EXCEL UPLOAD
+// ══════════════════════════════════════════════════════════════
+function triggerScheduleUpload(){
+  if(currentRole!=='admin'){toast('⛔ Only admins can upload schedules');return;}
+  const inp=document.getElementById('scheduleFileInput');
+  inp.value='';
+  inp.click();
+}
+
+function handleScheduleFile(input){
+  const file=input.files[0];
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      const wb=XLSX.read(e.target.result,{type:'array'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+      const {changes,warnings}=buildScheduleDiff(rows);
+      showUploadPreviewModal(changes,warnings);
+    }catch(err){
+      console.error('Excel parse error:',err);
+      toast('❌ Could not read the Excel file. Check the format and try again.');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function parseDateHeader(header){
+  const months={Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
+  const dayNames={Mon:0,Tue:1,Wed:2,Thu:3,Fri:4,Sat:5,Sun:6};
+  const parts=String(header).trim().split(/\s+/);
+  if(parts.length!==3)return null;
+  const [dayStr,numStr,monStr]=parts;
+  const dayIdx=dayNames[dayStr];
+  const monthIdx=months[monStr];
+  if(dayIdx===undefined||monthIdx===undefined)return null;
+  const dayNum=parseInt(numStr);
+  if(isNaN(dayNum))return null;
+  const now=new Date();
+  let year=now.getFullYear();
+  let d=new Date(year,monthIdx,dayNum);
+  // If the date is more than 6 months in the past, assume next year
+  if(d.getTime()<now.getTime()-180*24*3600*1000)year++;
+  d=new Date(year,monthIdx,dayNum);
+  // Get Monday of that week
+  const dow=d.getDay();
+  const daysToMon=dow===0?-6:1-dow;
+  const weekMon=new Date(d);
+  weekMon.setDate(d.getDate()+daysToMon);
+  weekMon.setHours(0,0,0,0);
+  const todayMon=getMonday(0);
+  const wkOffset=Math.round((weekMon.getTime()-todayMon.getTime())/(7*24*3600*1000));
+  return{dayIdx,wkOffset};
+}
+
+function buildScheduleDiff(rows){
+  const changes=[];
+  const warnings=[];
+  if(!rows||rows.length<2){warnings.push('File appears empty or has no data rows.');return{changes,warnings};}
+  const headers=rows[0];
+  // Map column index → {dayIdx, wkOffset}; skip col 0 (Name) and col 1 (Team)
+  const colMap=[];
+  for(let c=2;c<headers.length;c++){
+    const h=headers[c];
+    if(!h){colMap.push(null);continue;}
+    const parsed=parseDateHeader(String(h));
+    if(!parsed){
+      warnings.push(`Skipped unrecognised header: "${h}"`);
+      colMap.push(null);
+    }else{
+      colMap.push(parsed);
+    }
+  }
+  for(let r=1;r<rows.length;r++){
+    const row=rows[r];
+    const name=String(row[0]||'').trim();
+    if(!name)continue;
+    if(!TEAM_META[name]){
+      warnings.push(`Row ${r+1}: unknown member "${name}" — skipped.`);
+      continue;
+    }
+    for(let c=2;c<headers.length;c++){
+      const col=colMap[c-2];
+      if(!col)continue;
+      const cellRaw=row[c];
+      if(cellRaw===undefined||cellRaw==='')continue;
+      const newVal=String(cellRaw).trim();
+      if(!newVal)continue;
+      const{dayIdx,wkOffset}=col;
+      const key=schedKey(name,dayIdx,wkOffset);
+      const oldVal=getShift(name,dayIdx,wkOffset);
+      if(newVal!==oldVal){
+        changes.push({key,name,dayIdx,wkOffset,oldVal,newVal});
+      }
+    }
+  }
+  return{changes,warnings};
+}
+
+let _pendingUploadChanges=[];
+
+function showUploadPreviewModal(changes,warnings){
+  _pendingUploadChanges=changes;
+  const count=changes.length;
+  document.getElementById('upm-title').textContent=
+    count===0?'No Changes Detected':`Schedule Upload Preview — ${count} change${count!==1?'s':''}`;
+  document.getElementById('upm-sub').textContent=
+    count===0?'The uploaded file matches the current schedule.':
+    `Review the changes below, then click Apply to commit.`;
+  // Warnings
+  const warnEl=document.getElementById('upm-warnings');
+  if(warnings.length){
+    warnEl.style.display='block';
+    warnEl.innerHTML=warnings.map(w=>`<div>⚠️ ${escHtml(w)}</div>`).join('');
+  }else{
+    warnEl.style.display='none';
+    warnEl.innerHTML='';
+  }
+  // Body
+  const bodyEl=document.getElementById('upm-body');
+  if(count===0){
+    bodyEl.innerHTML='<div style="text-align:center;padding:24px;color:var(--mid);font-size:13px">No differences found between the uploaded file and the current schedule.</div>';
+  }else{
+    const leaveTypes=['TIME OFF','VACATION LEAVE','SICK LEAVE','OFFSET','ANNUAL LEAVE','AL'];
+    function pillStyle(val){
+      if(!val||leaveTypes.includes(val))return'background:#f0ece8;color:#888;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600';
+      return'background:var(--light-purple);color:var(--purple);padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600';
+    }
+    let tbl=`<div style="overflow-x:auto;max-height:400px;overflow-y:auto;border:1px solid var(--border);border-radius:8px">
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead style="position:sticky;top:0;z-index:1">
+          <tr style="background:var(--bg)">
+            <th style="padding:8px 12px;text-align:left;border-bottom:1px solid var(--border);font-weight:700;color:var(--purple)">Member</th>
+            <th style="padding:8px 12px;text-align:left;border-bottom:1px solid var(--border);font-weight:700;color:var(--purple)">Day</th>
+            <th style="padding:8px 12px;text-align:left;border-bottom:1px solid var(--border);font-weight:700;color:var(--mid)">Current</th>
+            <th style="padding:8px 4px;border-bottom:1px solid var(--border);color:var(--mid)"></th>
+            <th style="padding:8px 12px;text-align:left;border-bottom:1px solid var(--border);font-weight:700;color:var(--green-d)">New</th>
+          </tr>
+        </thead><tbody>`;
+    const sorted=[...changes].sort((a,b)=>a.name.localeCompare(b.name)||a.wkOffset-b.wkOffset||a.dayIdx-b.dayIdx);
+    sorted.forEach((c,i)=>{
+      const mon=getMonday(c.wkOffset);
+      const d=new Date(mon);d.setDate(mon.getDate()+c.dayIdx);
+      const dateLabel=DAYS[c.dayIdx]+' '+fmtDate(d)+(c.wkOffset!==0?` (wk ${c.wkOffset>0?'+':''}${c.wkOffset})`:'');
+      tbl+=`<tr style="background:${i%2===0?'#fff':'#fdfcff'}">
+        <td style="padding:7px 12px;font-weight:600;color:var(--navy)">${escHtml(c.name)}</td>
+        <td style="padding:7px 12px;color:var(--mid)">${escHtml(dateLabel)}</td>
+        <td style="padding:7px 12px"><span style="${pillStyle(c.oldVal)}">${escHtml(c.oldVal)}</span></td>
+        <td style="padding:7px 4px;color:var(--mid);font-size:10px">→</td>
+        <td style="padding:7px 12px"><span style="${pillStyle(c.newVal)};background:var(--green-l);color:var(--green-d)">${escHtml(c.newVal)}</span></td>
+      </tr>`;
+    });
+    tbl+='</tbody></table></div>';
+    bodyEl.innerHTML=tbl;
+  }
+  const confirmBtn=document.getElementById('upm-confirm-btn');
+  confirmBtn.style.display=count===0?'none':'flex';
+  confirmBtn.textContent=`Apply ${count} change${count!==1?'s':''}`;
+  document.getElementById('uploadPreviewModal').classList.add('open');
+}
+
+function closeUploadPreview(){
+  document.getElementById('uploadPreviewModal').classList.remove('open');
+  _pendingUploadChanges=[];
+}
+
+async function applyUploadedSchedule(){
+  if(!_pendingUploadChanges.length)return;
+  const btn=document.getElementById('upm-confirm-btn');
+  btn.disabled=true;
+  btn.textContent='Saving…';
+  try{
+    if(sb){
+      await Promise.all(_pendingUploadChanges.map(c=>
+        dbSaveScheduleCell(c.key,c.name,c.dayIdx,c.wkOffset,c.newVal)
+      ));
+    }
+    // Update local state
+    _pendingUploadChanges.forEach(c=>{scheduleData[c.key]=c.newVal;});
+    closeUploadPreview();
+    renderSchedule();
+    toast(`✓ Schedule updated — ${_pendingUploadChanges.length} cell${_pendingUploadChanges.length!==1?'s':''} changed`);
+  }catch(err){
+    console.error('Upload apply error:',err);
+    toast('❌ Error saving changes. Please try again.');
+    btn.disabled=false;
+    btn.textContent=`Apply ${_pendingUploadChanges.length} changes`;
+  }
+}
 
 // ══════════════════════════════════════════════════════════════
 //  LOG

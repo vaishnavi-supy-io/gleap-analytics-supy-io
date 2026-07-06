@@ -1840,7 +1840,9 @@ function renderTicketList() {
     const rowClass = t.isEscalated ? 'ticket-row escalated-row' : t.isCallRequest ? 'ticket-row call-row' : 'ticket-row';
     const badges = [
       statusBadge(t.status),
-      t.category && t.category !== 'Uncategorized' ? `<span class="badge" style="background:${catColor}15;color:${catColor};border:1px solid ${catColor}30">${escHtml(t.category)}</span>` : '',
+      t.category && t.category !== 'Uncategorized'
+        ? `<span class="badge" style="background:${catColor}15;color:${catColor};border:1px solid ${catColor}30">${escHtml(t.category)}</span>`
+        : '<span class="badge" style="background:#f0f0f0;color:#aaa;border:1px solid #e0e0e0">Uncategorized</span>',
       t.isEscalated ? '<span class="badge escalated">Escalated</span>' : '',
       t.isCallRequest ? '<span class="badge call">Call</span>' : '',
       t.slaBreached ? '<span class="badge sla">SLA</span>' : '',

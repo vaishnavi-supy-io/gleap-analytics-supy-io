@@ -177,16 +177,16 @@ function isCallRequest(t) {
 // ── Ticket categorization ────────────────────────────────────
 const CATEGORIES = [
   { name: 'Item Configuration',      keywords: ['item configur', 'item setup', 'configure item', 'item set up', 'item configuration'] },
-  { name: 'Item Costing',            keywords: ['item cost', 'costing', 'cost price', 'item price', 'costing module'] },
-  { name: 'Central Kitchen Module',  keywords: ['central kitchen', 'price list', 'catalog', 'ordering module', 'central kitchen module', 'kitchen module'] },
-  { name: 'Recipe',                  keywords: ['recipe', 'how to create recipe', 'ingredient', 'recipes', 'create recipe'] },
-  { name: 'Supplier Configuration',  keywords: ['supplier config', 'supplier detail', 'vendor setup', 'supplier configuration', 'supplier setup'] },
-  { name: 'Roles and Permissions',   keywords: ['role', 'permission', 'user role', 'access control', 'roles and permission'] },
+  { name: 'Item Costing',            keywords: ['item cost', 'costing', 'cost price', 'item price', 'costing module', 'cost not', 'cost calculat', 'pricing'] },
+  { name: 'Central Kitchen Module',  keywords: ['central kitchen', 'price list', 'catalog', 'ordering module', 'central kitchen module', 'kitchen module', 'order from'] },
+  { name: 'Recipe',                  keywords: ['recipe', 'ingredient', 'create recipe', 'recipe update', 'semi-finished recipe', 'publish recipe'] },
+  { name: 'Supplier Configuration',  keywords: ['supplier', 'vendor', 'supplier config', 'supplier detail', 'vendor setup', 'supplier list', 'supplier item'] },
+  { name: 'Roles and Permissions',   keywords: ['role', 'permission', 'user role', 'access control', 'roles and permission', 'assign role', 'user permission'] },
   { name: 'Integration',            keywords: ['integration', 'pos integration', 'accounting integration', 'post invoice', 'pos setup', 'accounting setup', 'posting invoice'] },
-  { name: 'GRN/Invoices',           keywords: ['grn', 'goods receipt', 'create invoice', 'purchase invoice', 'invoice creation', 'grn invoice'] },
+  { name: 'GRN/Invoices',           keywords: ['grn', 'goods receipt', 'create invoice', 'purchase invoice', 'invoice creation', 'grn invoice', 'invoice'] },
   { name: 'Wastages',               keywords: ['wastage', 'waste', 'wastages'] },
-  { name: 'Production',             keywords: ['production', 'manufacturing'] },
-  { name: 'Transfers',              keywords: ['transfer', 'stock transfer', 'inventory transfer'] },
+  { name: 'Production',             keywords: ['production', 'manufacturing', 'auto production'] },
+  { name: 'Transfers',              keywords: ['transfer', 'stock transfer', 'inventory transfer', 'stock count'] },
   { name: 'Reports and Analysis',   keywords: ['report', 'analysis', 'analytics', 'reporting'] },
   { name: 'Dashboard',              keywords: ['dashboard', 'kpi', 'dashboard setup', 'dashboard config'] },
 ];
@@ -201,6 +201,11 @@ function classifyTicket(t) {
     for (const kw of cat.keywords) {
       if (text.includes(kw)) return cat.name;
     }
+  }
+  // Debug: log first 5 uncategorized titles
+  if (!classifyTicket._logged && title) {
+    classifyTicket._count = (classifyTicket._count||0) + 1;
+    if (classifyTicket._count <= 5) console.log(`🔍 Uncat: "${title.slice(0,80)}"`);
   }
   return 'Uncategorized';
 }

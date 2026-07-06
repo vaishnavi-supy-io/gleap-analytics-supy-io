@@ -174,6 +174,37 @@ function isCallRequest(t) {
   return ['request to access new call','request a call','phone call request','call request','callback request','callback','dial me','get in touch via phone','speak to agent','call me back'].some(kw=>title.includes(kw));
 }
 
+// ── Ticket categorization ────────────────────────────────────
+const CATEGORIES = [
+  { name: 'Item Configuration',      keywords: ['item configur', 'item setup', 'configure item', 'item set up', 'item configuration'] },
+  { name: 'Item Costing',            keywords: ['item cost', 'costing', 'cost price', 'item price', 'costing module'] },
+  { name: 'Central Kitchen Module',  keywords: ['central kitchen', 'price list', 'catalog', 'ordering module', 'central kitchen module', 'kitchen module'] },
+  { name: 'Recipe',                  keywords: ['recipe', 'how to create recipe', 'ingredient', 'recipes', 'create recipe'] },
+  { name: 'Supplier Configuration',  keywords: ['supplier config', 'supplier detail', 'vendor setup', 'supplier configuration', 'supplier setup'] },
+  { name: 'Roles and Permissions',   keywords: ['role', 'permission', 'user role', 'access control', 'roles and permission'] },
+  { name: 'Integration',            keywords: ['integration', 'pos integration', 'accounting integration', 'post invoice', 'pos setup', 'accounting setup', 'posting invoice'] },
+  { name: 'GRN/Invoices',           keywords: ['grn', 'goods receipt', 'create invoice', 'purchase invoice', 'invoice creation', 'grn invoice'] },
+  { name: 'Wastages',               keywords: ['wastage', 'waste', 'wastages'] },
+  { name: 'Production',             keywords: ['production', 'manufacturing'] },
+  { name: 'Transfers',              keywords: ['transfer', 'stock transfer', 'inventory transfer'] },
+  { name: 'Reports and Analysis',   keywords: ['report', 'analysis', 'analytics', 'reporting'] },
+  { name: 'Dashboard',              keywords: ['dashboard', 'kpi', 'dashboard setup', 'dashboard config'] },
+];
+
+function classifyTicket(t) {
+  const title   = (t.title || '').toLowerCase();
+  const desc    = (t.description || '').toLowerCase();
+  const comment = (t.latestComment || '').toLowerCase();
+  const text    = `${title} ${desc} ${comment}`;
+
+  for (const cat of CATEGORIES) {
+    for (const kw of cat.keywords) {
+      if (text.includes(kw)) return cat.name;
+    }
+  }
+  return 'Uncategorized';
+}
+
 function getLatestComment(t) {
   const lc = t.latestComment||{};
   if (typeof lc === 'object') {
@@ -377,6 +408,7 @@ function processTickets(tickets) {
       priority:String(t.priority||'MEDIUM').toUpperCase(),
       sentiment:resolveSentiment(t, isClosed),
       isCallRequest:isCallRequest(t),
+      category:classifyTicket(t),
       createdAt:created, updatedAt:updated, firstAssignAt:firstAssign, closeAt:closeTime,
       assignMins:minsBetween(created,firstAssign),
       firstResponseMins:getFirstResponseMins(t),
@@ -491,6 +523,15 @@ function computeStats(rows) {
   for (const r of rows) if (r.company) companyMap[r.company]=(companyMap[r.company]||0)+1;
   const topCompanies=Object.entries(companyMap).sort((a,b)=>b[1]-a[1]).slice(0,15).map(([name,count])=>({name,count}));
 
+  const categoryMap={};
+  for (const r of rows) {
+    const cat = r.category || 'Uncategorized';
+    categoryMap[cat] = (categoryMap[cat]||0) + 1;
+  }
+  const categoryBreakdown=Object.entries(categoryMap)
+    .sort((a,b)=>b[1]-a[1])
+    .map(([category,count])=>({category,count}));
+
   return {
     total,openCount:openRows.length,closedCount:closedRows.length,archivedCount:archivedRows.length,
     escalatedCount:escalated.length,callRequestCount:callRows.length,
@@ -506,7 +547,7 @@ function computeStats(rows) {
     daily:Object.entries(daily).sort((a,b)=>a[0].localeCompare(b[0])).map(([day,count])=>({day,count})),
     dow:Object.entries(dow).map(([day,count])=>({day,count})),
     hourly:Object.entries(hourly).sort((a,b)=>+a[0]-+b[0]).map(([hour,count])=>({hour:+hour,count})),
-    agents,topCompanies,
+    agents,topCompanies,categoryBreakdown,
     openTickets:openRows,escalatedTickets:escalated,callTickets:callRows,tickets:rows,
   };
 }
@@ -901,6 +942,7 @@ app.get('/api/tickets', async (req,res) => {
     const agentFilter=req.query.agent||'';
     const statusFilter=req.query.status||'';
     const typeFilter=req.query.type||'';
+    const categoryFilter=req.query.category||'';
     const page=parseInt(req.query.page||'1');
     const limit=parseInt(req.query.limit||'50');
 
@@ -923,6 +965,7 @@ app.get('/api/tickets', async (req,res) => {
     if (typeFilter==='archived') rows=rows.filter(r=>r.isArchived);
     if (typeFilter==='unassigned') rows=rows.filter(r=>r.agent==='Unassigned');
     if (typeFilter==='sla') rows=rows.filter(r=>r.slaBreached);
+    if (categoryFilter) rows=rows.filter(r=>(r.category||'').toLowerCase()===categoryFilter.toLowerCase());
 
     const total=rows.length;
     const paged=rows.slice((page-1)*limit,page*limit);

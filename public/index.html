@@ -602,6 +602,10 @@
         <button class="filter-btn" id="priHigh"  onclick="setPriority('HIGH',this)" style="color:#DC2626;border-color:#DC2626">High</button>
         <button class="filter-btn" id="priMed"   onclick="setPriority('MEDIUM',this)" style="color:#D97706;border-color:#D97706">Medium</button>
         <button class="filter-btn" id="priLow"   onclick="setPriority('LOW',this)" style="color:#059669;border-color:#059669">Low</button>
+        <span class="filter-label" style="margin-left:8px">Category</span>
+        <select class="filter-select" id="categoryFilter" onchange="setCategoryFilter(this.value)">
+          <option value="">All categories</option>
+        </select>
         <span class="filter-label" style="margin-left:8px" title="Based on Gleap AI where available; derived from SLA breach + resolution signals otherwise">Sentiment ⓘ</span>
         <button class="filter-btn" id="sentAll" onclick="setSentiment('',this)">All</button>
         <button class="filter-btn" id="sentPos" onclick="setSentiment('positive',this)" style="color:#059669;border-color:#059669">😊 Positive</button>
@@ -1128,6 +1132,7 @@ function openPipeTicket(t) {
     <div class="ptp-row"><div class="ptp-label">Ticket ID</div><div class="ptp-val" style="color:var(--p600);font-weight:700">#${escHtml(String(t.bugId||t.id||''))}</div></div>
     <div class="ptp-row"><div class="ptp-label">Status</div><div class="ptp-val"><span style="font-weight:700;color:${stColor}">${t.status||'—'}</span></div></div>
     <div class="ptp-row"><div class="ptp-label">Priority</div><div class="ptp-val"><span style="font-weight:700;color:${priColor}">${t.priority||'—'}</span></div></div>
+    ${t.category ? `<div class="ptp-row"><div class="ptp-label">Category</div><div class="ptp-val">${escHtml(t.category)}</div></div>` : ''}
     <div class="ptp-row"><div class="ptp-label">Customer</div><div class="ptp-val">${escHtml(t.contact||'—')}</div></div>
     <div class="ptp-row"><div class="ptp-label">Company</div><div class="ptp-val">${escHtml(t.company||'—')}</div></div>
     <div class="ptp-row"><div class="ptp-label">Assigned to</div><div class="ptp-val">${escHtml(t.agent||'Unassigned')}</div></div>
@@ -1259,6 +1264,25 @@ function renderOverview(s) {
         </div>
       </div>
     </div>
+    <div class="chart-card">
+      <div class="chart-title" style="margin-bottom:12px">
+        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z"/><path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6z"/></svg>
+        Category Breakdown
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        ${(s.categoryBreakdown||[]).map(c => {
+          const pct = s.total ? Math.round((c.count/s.total)*100) : 0;
+          const catColors = {'Item Configuration':'#7C3AED','Item Costing':'#DC2626','Central Kitchen Module':'#0891B2','Recipe':'#059669','Supplier Configuration':'#D97706','Roles and Permissions':'#4F46E5','Integration':'#0D9488','GRN/Invoices':'#9333EA','Wastages':'#DC2626','Production':'#2563EB','Transfers':'#CA8A04','Reports and Analysis':'#6366F1','Dashboard':'#8B5CF6'};
+          const cc = catColors[c.category] || '#9CA3AF';
+          return `<div style="display:flex;align-items:center;gap:8px">
+            <span style="min-width:120px;font-size:11px;font-weight:500;color:var(--ink)">${escHtml(c.category)}</span>
+            <div class="mini-bar" style="flex:1"><div class="mini-fill" style="width:${pct}%;background:${cc}"></div></div>
+            <span style="min-width:30px;text-align:right;font-size:11px;font-weight:700;color:var(--muted)">${c.count}</span>
+          </div>`;
+        }).join('')}
+        ${!s.categoryBreakdown||!s.categoryBreakdown.length?'<div style="font-size:12px;color:var(--faint);padding:12px 0">No category data</div>':''}
+      </div>
+    </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
       <div class="chart-card">
         <div class="chart-title">Status Breakdown</div>
@@ -1379,6 +1403,9 @@ function renderUnassignedQueue() {
         ${t.company ? `<div style="font-size:10px;color:var(--muted)">${escHtml(t.company)}</div>` : ''}
       </td>
       <td style="padding:10px 12px;font-size:11px;color:var(--muted);white-space:nowrap">${t.createdAt ? t.createdAt.slice(0, 10) : '—'}</td>
+      <td style="padding:10px 12px;white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis">
+        ${t.category && t.category !== 'Uncategorized' ? `<span style="font-size:10px;color:var(--muted)">${escHtml(t.category)}</span>` : '<span style="color:var(--faint);font-size:10px">—</span>'}
+      </td>
       <td style="padding:10px 12px;white-space:nowrap">
         ${t.isCallRequest ? '<span style="display:inline-flex;align-items:center;margin-right:4px"><svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z"/></svg></span>' : ''}
         ${t.slaBreached ? `<span style="background:rgba(220,38,38,0.1);color:var(--red);padding:1px 7px;border-radius:99px;font-size:10px;font-weight:700;display:inline-flex;align-items:center;gap:2px">${_svgWarnS}SLA</span>` : ''}
@@ -1397,6 +1424,7 @@ function renderUnassignedQueue() {
           <th style="padding:10px 12px;text-align:left;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px">Subject</th>
           <th style="padding:10px 12px;text-align:left;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px">Customer</th>
           <th style="padding:10px 12px;text-align:left;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px">Created</th>
+          <th style="padding:10px 12px;text-align:left;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px">Category</th>
           <th style="padding:10px 12px;text-align:left;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px">Flags</th>
           <th></th>
         </tr></thead>
@@ -1627,6 +1655,7 @@ function renderCalls(s) {
 let currentTypeFilter  = 'all';
 let currentPriFilter   = '';
 let currentSentFilter  = '';
+let currentCategoryFilter = '';
 
 const PRIORITY_ORDER = { CRITICAL:0, HIGH:1, MEDIUM:2, LOW:3 };
 
@@ -1661,6 +1690,20 @@ function renderInboxStats(tickets) {
     sel.innerHTML = '<option value="">All agents</option>' +
       agents.map(a=>`<option value="${escHtml(a)}"${a===cur?' selected':''}>${escHtml(a)}</option>`).join('');
   }
+
+  // Populate category dropdown
+  const catMap = {};
+  for (const r of tickets) {
+    const c = r.category || 'Uncategorized';
+    catMap[c] = (catMap[c]||0) + 1;
+  }
+  const catSel = document.getElementById('categoryFilter');
+  if (catSel) {
+    const cur = catSel.value;
+    catSel.innerHTML = '<option value="">All categories</option>' +
+      Object.entries(catMap).sort((a,b)=>b[1]-a[1])
+        .map(([c,count]) => `<option value="${escHtml(c)}"${c===cur?' selected':''}>${escHtml(c)} (${count})</option>`).join('');
+  }
 }
 
 function setFilter(type, btn) {
@@ -1689,10 +1732,17 @@ function setSentiment(val, btn) {
   applyFilters();
 }
 
+function setCategoryFilter(val) {
+  currentCategoryFilter = val;
+  currentPage = 1;
+  applyFilters();
+}
+
 function resetAllFilters() {
-  currentTypeFilter = 'all'; currentPriFilter = ''; currentSentFilter = '';
+  currentTypeFilter = 'all'; currentPriFilter = ''; currentSentFilter = ''; currentCategoryFilter = '';
   document.getElementById('ticketSearch').value = '';
   document.getElementById('agentFilter').value  = '';
+  document.getElementById('categoryFilter').value = '';
   document.getElementById('sortFilter').value   = 'newest';
   document.querySelectorAll('#inboxFilters .filter-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('inboxFilters').querySelector('[onclick*="setFilter(\'all\'"]')?.classList.add('active');
@@ -1722,9 +1772,10 @@ function applyFilters() {
   else if (currentTypeFilter === 'noreply')    rows = rows.filter(r=>!r.hasAgentReply);
 
   // Extra filters
-  if (agentVal)           rows = rows.filter(r=>r.agent === agentVal);
-  if (currentPriFilter)   rows = rows.filter(r=>(r.priority||'').toUpperCase() === currentPriFilter);
-  if (currentSentFilter)  rows = rows.filter(r=>(r.sentiment||'').toLowerCase() === currentSentFilter);
+  if (agentVal)             rows = rows.filter(r=>r.agent === agentVal);
+  if (currentPriFilter)     rows = rows.filter(r=>(r.priority||'').toUpperCase() === currentPriFilter);
+  if (currentSentFilter)    rows = rows.filter(r=>(r.sentiment||'').toLowerCase() === currentSentFilter);
+  if (currentCategoryFilter) rows = rows.filter(r=>(r.category||'') === currentCategoryFilter);
 
   // Search
   if (search) rows = rows.filter(r =>
@@ -1776,10 +1827,20 @@ function renderTicketList() {
   const svgM =`<svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75"/></svg>`;
   const svgP =`<svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z"/></svg>`;
 
+  const CATEGORY_COLORS = {
+    'Item Configuration': '#7C3AED', 'Item Costing': '#DC2626', 'Central Kitchen Module': '#0891B2',
+    'Recipe': '#059669', 'Supplier Configuration': '#D97706', 'Roles and Permissions': '#4F46E5',
+    'Integration': '#0D9488', 'GRN/Invoices': '#9333EA', 'Wastages': '#DC2626',
+    'Production': '#2563EB', 'Transfers': '#CA8A04', 'Reports and Analysis': '#6366F1',
+    'Dashboard': '#8B5CF6', 'Uncategorized': '#9CA3AF'
+  };
+
   const html = slice.map(t => {
+    const catColor = t.category ? (CATEGORY_COLORS[t.category] || '#9CA3AF') : '#9CA3AF';
     const rowClass = t.isEscalated ? 'ticket-row escalated-row' : t.isCallRequest ? 'ticket-row call-row' : 'ticket-row';
     const badges = [
       statusBadge(t.status),
+      t.category && t.category !== 'Uncategorized' ? `<span class="badge" style="background:${catColor}15;color:${catColor};border:1px solid ${catColor}30">${escHtml(t.category)}</span>` : '',
       t.isEscalated ? '<span class="badge escalated">Escalated</span>' : '',
       t.isCallRequest ? '<span class="badge call">Call</span>' : '',
       t.slaBreached ? '<span class="badge sla">SLA</span>' : '',
@@ -2155,6 +2216,9 @@ function openTicketModal(ticket) {
       <div class="modal-section full"><div class="modal-badges">${badges.join('')}</div></div>
       <div class="modal-section">
         <div class="modal-field"><div class="modal-label">Status</div><div class="modal-value" style="color:${statusColor};font-weight:700">${ticket.status}</div></div>
+        <div class="modal-field"><div class="modal-label">Category</div><div class="modal-value">${ticket.category?escHtml(ticket.category):'—'}</div></div>
+      </div>
+      <div class="modal-section">
         <div class="modal-field"><div class="modal-label">Agent</div><div class="modal-value">${escHtml(ticket.agent)}</div></div>
       </div>
       <div class="modal-section">

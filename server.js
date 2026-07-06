@@ -340,6 +340,16 @@ function countAgentResponses(t, agentName) {
   return t.hasAgentReply ? 1 : 0;
 }
 
+// Gleap sets `sentiment` via AI only on individual ticket fetches, not bulk list.
+// Use it when present; otherwise derive from objective signals.
+function resolveSentiment(t, isClosed) {
+  const raw = String(t.sentiment || '').toLowerCase().trim();
+  if (raw === 'positive' || raw === 'negative' || raw === 'neutral') return raw;
+  if (t.slaBreached) return 'negative';
+  if (isClosed && t.hasAgentReply && !t.slaBreached) return 'positive';
+  return 'neutral';
+}
+
 // ── Process into rows ────────────────────────────────────────
 function processTickets(tickets) {
   return tickets.map(t => {
@@ -365,7 +375,7 @@ function processTickets(tickets) {
       isEscalated:isEscalated(t),
       linkedCount:Array.isArray(linked)?linked.length:(t.linkedTicketsCount||0),
       priority:String(t.priority||'MEDIUM').toUpperCase(),
-      sentiment:String(t.sentiment||'neutral').toLowerCase(),
+      sentiment:resolveSentiment(t, isClosed),
       isCallRequest:isCallRequest(t),
       createdAt:created, updatedAt:updated, firstAssignAt:firstAssign, closeAt:closeTime,
       assignMins:minsBetween(created,firstAssign),

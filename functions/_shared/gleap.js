@@ -356,6 +356,17 @@ export async function enrichTickets(tickets, gleapHeaders, concurrency = 5) {
   })));
 }
 
+// Gleap sets `sentiment` (positive/negative/neutral) via AI only on individual ticket fetches,
+// not on bulk list responses. Use it when present; otherwise derive from objective signals.
+export function resolveSentiment(t, isClosed) {
+  const raw = String(t.sentiment || '').toLowerCase().trim();
+  if (raw === 'positive' || raw === 'negative' || raw === 'neutral') return raw;
+  // Derive from signals available in the bulk list response
+  if (t.slaBreached) return 'negative';
+  if (isClosed && t.hasAgentReply && !t.slaBreached) return 'positive';
+  return 'neutral';
+}
+
 export function processTickets(tickets, projectId) {
   return tickets.map(t => {
     const created=t.createdAt||t.createdDate;
@@ -382,7 +393,7 @@ export function processTickets(tickets, projectId) {
       isEscalated:isEscalated(t),
       linkedCount:Array.isArray(linked)?linked.length:(t.linkedTicketsCount||0),
       priority:String(t.priority||'MEDIUM').toUpperCase(),
-      sentiment:String(t.sentiment||'neutral').toLowerCase(),
+      sentiment:resolveSentiment(t, isClosed),
       isCallRequest:isCallRequest(t),
       createdAt:created, updatedAt:updated, firstAssignAt:firstAssign, closeAt:closeTime,
       assignMins:minsBetween(getBotHandoverTime(t), firstAssign),

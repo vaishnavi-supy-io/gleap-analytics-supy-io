@@ -602,10 +602,10 @@
         <button class="filter-btn" id="priHigh"  onclick="setPriority('HIGH',this)" style="color:#DC2626;border-color:#DC2626">High</button>
         <button class="filter-btn" id="priMed"   onclick="setPriority('MEDIUM',this)" style="color:#D97706;border-color:#D97706">Medium</button>
         <button class="filter-btn" id="priLow"   onclick="setPriority('LOW',this)" style="color:#059669;border-color:#059669">Low</button>
-        <span class="filter-label" style="margin-left:8px">Sentiment</span>
+        <span class="filter-label" style="margin-left:8px" title="Based on Gleap AI where available; derived from SLA breach + resolution signals otherwise">Sentiment ⓘ</span>
         <button class="filter-btn" id="sentAll" onclick="setSentiment('',this)">All</button>
-        <button class="filter-btn" id="sentPos" onclick="setSentiment('positive',this)">😊 Positive</button>
-        <button class="filter-btn" id="sentNeg" onclick="setSentiment('negative',this)">😞 Negative</button>
+        <button class="filter-btn" id="sentPos" onclick="setSentiment('positive',this)" style="color:#059669;border-color:#059669">😊 Positive</button>
+        <button class="filter-btn" id="sentNeg" onclick="setSentiment('negative',this)" style="color:#DC2626;border-color:#DC2626">😞 Negative</button>
         <button class="filter-btn" id="sentNeu" onclick="setSentiment('neutral',this)">😐 Neutral</button>
         <span class="filter-label" style="margin-left:8px">Sort</span>
         <select class="filter-select" id="sortFilter" onchange="applyFilters()">
@@ -1785,6 +1785,8 @@ function renderTicketList() {
       t.slaBreached ? '<span class="badge sla">SLA</span>' : '',
       !t.hasAgentReply ? '<span class="badge unassign">No Reply</span>' : '',
       t.agent === 'Unassigned' ? '<span class="badge unassign">Unassigned</span>' : '',
+      t.sentiment === 'positive' ? '<span class="badge" style="background:rgba(5,150,105,0.1);color:#059669;border:1px solid rgba(5,150,105,0.2)">😊 Positive</span>' : '',
+      t.sentiment === 'negative' ? '<span class="badge" style="background:rgba(220,38,38,0.1);color:#DC2626;border:1px solid rgba(220,38,38,0.2)">😞 Negative</span>' : '',
     ].filter(Boolean).join('');
     return `<div class="${rowClass}">
       <div>

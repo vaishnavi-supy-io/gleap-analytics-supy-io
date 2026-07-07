@@ -192,21 +192,27 @@ const CATEGORIES = [
 ];
 
 function classifyTicket(t) {
-  const title   = (t.title || '').toLowerCase();
-  const desc    = (t.description || '').toLowerCase();
-  const comment = (t.latestComment || '').toLowerCase();
+  const title   = (t.title || '').toLowerCase().replace(/[^\x20-\x7E]/g, ' ').replace(/\s+/g, ' ').trim();
+  const desc    = (t.description || '').toLowerCase().replace(/[^\x20-\x7E]/g, ' ').replace(/\s+/g, ' ').trim();
+  const rawCmt  = t.latestComment;
+  const cmtStr  = typeof rawCmt === 'string' ? rawCmt : getLatestComment(t);
+  const comment = cmtStr.toLowerCase().replace(/[^\x20-\x7E]/g, ' ').replace(/\s+/g, ' ').trim();
   const text    = `${title} ${desc} ${comment}`;
+  const shortTitle = (t.title || '').slice(0,60).replace(/\n/g, ' ');
 
   for (const cat of CATEGORIES) {
     for (const kw of cat.keywords) {
-      if (text.includes(kw)) return cat.name;
+      if (text.includes(kw)) {
+        classifyTicket._logCount = (classifyTicket._logCount||0) + 1;
+        if (classifyTicket._logCount <= 10) console.log(`✅ CAT ${cat.name} | "${shortTitle}" matched kw="${kw}"`);
+        return cat.name;
+      }
     }
   }
-  // Debug: log first 5 uncategorized titles
-  if (!classifyTicket._logged && title) {
-    classifyTicket._count = (classifyTicket._count||0) + 1;
-    if (classifyTicket._count <= 5) console.log(`🔍 Uncat: "${title.slice(0,80)}"`);
-  }
+
+  classifyTicket._logCount = (classifyTicket._logCount||0) + 1;
+  if (classifyTicket._logCount <= 10) console.log(`❌ UNCATEGORIZED | "${shortTitle}"`);
+
   return 'Uncategorized';
 }
 

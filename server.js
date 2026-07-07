@@ -987,6 +987,89 @@ app.get('/api/tickets', async (req,res) => {
   }
 });
 
+// ── Export to Excel ────────────────────────────────────────────
+app.get('/api/export', async (req, res) => {
+  try {
+    const now = new Date();
+    const months = parseInt(req.query.months || '3');
+    const start = new Date(now.getFullYear(), now.getMonth() - months, 1).toISOString();
+    const end   = now.toISOString();
+
+    if (!cachedLastSkip || (Date.now() - lastSkipTime) > 600000) {
+      cachedLastSkip = await findLastSkip();
+      lastSkipTime   = Date.now();
+    }
+
+    const tickets = await fetchInboxTickets(start, end, cachedLastSkip);
+    const enriched = tickets.length <= 1000 ? await enrichTickets(tickets, 5) : tickets;
+    const rows = processTickets(enriched);
+
+    const XLSX = require('xlsx');
+    const data = rows.map(r => ({
+      'Ticket #': r.bugId,
+      'Category': r.category,
+      'Title': r.title,
+      'Contact Name': r.contact,
+      'Email': r.email,
+      'Company': r.company,
+      'Phone': r.phone,
+      'Agent': r.agent,
+      'Status': r.status,
+      'Priority': r.priority,
+      'Sentiment': r.sentiment,
+      'Is Open': r.isOpen ? 'Yes' : 'No',
+      'Is Closed': r.isClosed ? 'Yes' : 'No',
+      'Is Escalated': r.isEscalated ? 'Yes' : 'No',
+      'Call Request': r.isCallRequest ? 'Yes' : 'No',
+      'SLA Breached': r.slaBreached ? 'Yes' : 'No',
+      'Created At': r.createdAt || '',
+      'Updated At': r.updatedAt || '',
+      'Closed At': r.closeAt || '',
+      'First Assign At': r.firstAssignAt || '',
+      'Mins to Assign': r.assignMins != null ? Math.round(r.assignMins) : '',
+      'Mins to First Response': r.firstResponseMins != null ? Math.round(r.firstResponseMins) : '',
+      'Mins to Close': r.closeMins != null ? Math.round(r.closeMins) : '',
+      'Agent Reply Count': r.agentResponseCount || 0,
+      'AI Summary': r.aiSummary || '',
+      'Latest Comment': r.latestComment || '',
+      'Gleap Link': r.gleapLink || '',
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    // Column widths
+    ws['!cols'] = [
+      {wch:10},{wch:20},{wch:80},{wch:25},{wch:35},{wch:30},{wch:18},{wch:18},
+      {wch:10},{wch:10},{wch:12},{wch:8},{wch:8},{wch:8},{wch:8},{wch:8},
+      {wch:24},{wch:24},{wch:24},{wch:24},{wch:14},{wch:18},{wch:14},{wch:10},
+      {wch:50},{wch:50},{wch:50},
+    ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Conversations');
+
+    // Summary sheet
+    const catMap = {};
+    for (const r of rows) {
+      const c = r.category || 'Uncategorized';
+      catMap[c] = (catMap[c] || 0) + 1;
+    }
+    const sumData = Object.entries(catMap)
+      .sort((a,b) => b[1] - a[1])
+      .map(([cat, count]) => ({ Category: cat, Count: count, 'Percentage': Math.round(count/rows.length*100)+'%' }));
+    const ws2 = XLSX.utils.json_to_sheet(sumData);
+    ws2['!cols'] = [{wch:30},{wch:10},{wch:12}];
+    XLSX.utils.book_append_sheet(wb, ws2, 'Category Summary');
+
+    const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    const fname = `supy-conversations-${start.slice(0,10)}-to-${end.slice(0,10)}.xlsx`;
+    res.set('Content-Disposition', `attachment; filename="${fname}"`);
+    res.set('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.send(buf);
+  } catch(e) {
+    console.error('Export error:', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 function buildAISystemContext(stats) {
   const slim = {
     ...stats,

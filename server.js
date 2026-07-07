@@ -914,10 +914,11 @@ app.get('/api/analytics', async (req,res) => {
     const end   = (typeof rawEnd === 'string')
       ? rawEnd
       : now.toISOString();
-    const force = req.query.force === 'true';
+    const force  = req.query.force === 'true';
+    const cat    = (req.query.category || '').trim();
 
     // Stable cache key — date-only so minor second differences reuse same entry
-    const cacheKey = `${start.slice(0,10)}::${end.slice(0,10)}`;
+    const cacheKey = `${start.slice(0,10)}::${end.slice(0,10)}${cat?'::'+cat:''}`;
     const cached   = analyticsCache.get(cacheKey);
 
     if (cached && !force) {
@@ -933,6 +934,13 @@ app.get('/api/analytics', async (req,res) => {
     console.log(`🔃 Cache miss [${cacheKey}] — running full pipeline`);
     try {
       const result = await runFullPipeline(start, end);
+      // If a category filter is active, compute per‑category stats on the full ticket set
+      if (cat) {
+        const filtered = result.rows.filter(r => (r.category||'').toLowerCase() === cat.toLowerCase());
+        const catStats = computeStats(filtered);
+        analyticsCache.set(cacheKey, { stats: catStats, rows: filtered, rawTickets: result.rawTickets, generatedAt: result.generatedAt, lastIncrementalAt: result.lastIncrementalAt });
+        return res.json({ ok: true, stats: catStats, generatedAt: result.generatedAt, fromCache: false });
+      }
       analyticsCache.set(cacheKey, result);
       res.json({ ok: true, stats: result.stats, generatedAt: result.generatedAt, fromCache: false });
     } catch(e) {

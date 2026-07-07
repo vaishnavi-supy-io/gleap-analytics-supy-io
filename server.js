@@ -175,30 +175,123 @@ function isCallRequest(t) {
 }
 
 // ── Ticket categorization ────────────────────────────────────
+// Order matters: first match wins. Put narrow/specific categories before broad ones.
+// Use 'vat ' and 'tax ' (trailing space) to avoid matching inside 'activation'/'deactivate'.
 const CATEGORIES = [
-  // More specific categories first — narrow keywords before generic ones
-  { name: 'GRN/Invoices',           keywords: ['grn', 'goods receipt', 'create invoice', 'purchase invoice', 'invoice creation', 'grn invoice', 'invoice', 'unpost', 'amend', 'receipt', 'purchase order'] },
-  { name: 'Recipe',                  keywords: ['recipe', 'ingredient', 'create recipe', 'recipe update', 'semi-finished recipe', 'publish recipe', 'recipe breakdown', 'recipe report'] },
-  { name: 'Central Kitchen Module',  keywords: ['central kitchen', 'price list', 'ordering module', 'central kitchen module', 'kitchen module', 'order from', 'create catalog', 'how to catalog', 'catalog'] },
-  { name: 'Integration',            keywords: ['integration', 'pos integration', 'accounting integration', 'post invoice', 'pos setup', 'accounting setup', 'posting invoice', 'pos ', 'accounting'] },
-  { name: 'Item Costing',            keywords: ['item cost', 'costing', 'cost price', 'item price', 'costing module', 'cost not', 'cost calculat', 'pricing', 'negative stock', 'stock value', 'cost change', 'cost discrep', 'high cost'] },
-  { name: 'Wastages',               keywords: ['wastage', 'waste', 'wastages', 'wastage template'] },
-  { name: 'Production',             keywords: ['production', 'manufacturing', 'auto production', 'production order'] },
-  { name: 'Transfers',              keywords: ['transfer', 'stock transfer', 'inventory transfer', 'stock count', 'stocktake', 'inventory sub', 'stock not', 'stock discrep', 'inventory opening'] },
-  { name: 'Roles and Permissions',   keywords: ['role', 'permission', 'user role', 'access control', 'roles and permission', 'assign role', 'user permission', 'deactivate user', 'approval', 'branch manager'] },
-  { name: 'Supplier Configuration',  keywords: ['supplier', 'vendor', 'supplier config', 'supplier detail', 'vendor setup', 'supplier list', 'supplier item', 'supplier stock', 'lpo'] },
-  { name: 'Item Configuration',      keywords: ['item configur', 'item setup', 'configure item', 'item set up', 'item configuration', 'base unit', 'change item unit', 'change unit', 'change uom', 'archive product', 'deactivate item', 'item name', 'item update', 'uom', 'base item', 'item unit'] },
-  { name: 'Reports and Analysis',   keywords: ['report', 'analysis', 'analytics', 'reporting', 'download report'] },
-  { name: 'Dashboard',              keywords: ['dashboard', 'kpi', 'dashboard setup', 'dashboard config', 'kpi setup'] },
+  { name: 'GRN/Invoices', keywords: [
+    'grn', 'goods receipt', 'goods received note', 'credit note', 'create invoice',
+    'purchase invoice', 'invoice creation', 'grn invoice', 'invoice', 'unpost',
+    'delivery note', 'accounts payable', 'lpo', 'vendor invoice', 'bulk post',
+    'resolve dispute', 'payment link', 'purchase order', 'po item', 'po entry',
+    'payment due date', 'outlet purchase', 'receive purchase',
+  ]},
+  { name: 'Recipe', keywords: [
+    'recipe', 'ingredient', 'semi-finished', 'publish recipe', 'recipe breakdown',
+    'sub-recipe', 'recipe cost', 'recipe report', 'recipe item', 'yield', 'allergen',
+  ]},
+  { name: 'Central Kitchen Module', keywords: [
+    'central kitchen', 'price list', 'ordering module', 'kitchen module', 'create catalog', 'catalog',
+    'requisition', 'order template', 'order sheet', 'standing order', 'delivery order',
+    'order from', 'place order', 'placing order', 'order confirmation', 'order submission',
+    'confirm order', 'ship order', 'incoming order', 'approve order', 'supy connect',
+    'fill to par', 'internal order', 'warehouse order', 'procurement', 'ck order',
+    'order error', 'cannot order', 'unable to order', 'change delivery', 'delivery date',
+    'order date', 'draft order', 'drafted order', 'deleted order', 'recover order',
+    'confirmed order', 'duplicate order', 'order placement', 'order link', 'po consolidat',
+    'order missing', 'order reject', 'order sequence', 'template not loading', 'ordering app',
+    'shipping', 'shipment', 'ship date', 'order not', 'order placed', 'placed order', 'order item',
+    'disable product ordering', 'missing menu items', 'templates displaying',
+    'approve request', 'place request', 'warehouse list',
+  ]},
+  { name: 'Integration', keywords: [
+    'integration', 'pos integration', 'accounting integration', 'pos setup', 'accounting setup',
+    'posting invoice', 'simphony', 'symphony', 'redcat', 'oracle', 'micros', 'lightspeed',
+    'xero', 'quickbooks', 'quadranet', 'revel',
+    'sales data', 'sales import', 'sales discrepancy', 'incorrect sales', 'missing sales',
+    'api credentials', 'api key', 'webhook', 'sync error', 'sales submission',
+    'manual sales', 'pos sync', 'product linking', 'product connection', 'linking status',
+    'sales record', 'accounting', 'po link', 'void mapping', 'canceled mapping',
+  ]},
+  { name: 'Item Costing', keywords: [
+    'item cost', 'costing', 'cost price', 'item price', 'costing module',
+    'cost calculat', 'negative stock', 'stock value', 'cost change', 'high cost',
+    'cost inconsisten', 'vat ', 'cogs', 'cost of goods', 'freight', 'closing stock',
+    'cost issue', 'variance value', 'rounding', 'wrong cost', 'incorrect cost',
+    'abnormal cost', 'stock valuation', 'zero cost', 'price discrepan', 'pricing discrepan',
+    'price anomal', 'pricing anomal', 'pricing anomol', 'unit price', 'price missing',
+    'margin', 'incorrect price', 'wrong price', 'price issue', 'tax ', 'unexpected price',
+    'unexpected cost', 'price information', 'event cost',
+  ]},
+  { name: 'Wastages', keywords: [
+    'wastage', 'waste', 'wastage template', 'shrinkage', 'spoilage', 'spoilt',
+  ]},
+  { name: 'Production', keywords: [
+    'production', 'manufacturing', 'auto production', 'production order', 'batch production',
+  ]},
+  { name: 'Transfers', keywords: [
+    'transfer', 'stock transfer', 'inventory transfer', 'stock count', 'stocktake',
+    'stock take', 'sub-count', 'sub count', 'count sheet', 'inventory count',
+    'inventory adjustment', 'inventory date', 'inventory filter', 'daily count', 'monthly count',
+    'count filter', 'stock adjustment', 'inventory input', 'inventory update',
+    'inventory correction', 'variance', 'submit inventory', 'inventory submission',
+    'stock reconcil', 'inventory record', 'open inventory', 'close inventory',
+    'inventory period', 'inventory deletion', 'monthly inventory', 'inventory discrepan',
+    'counted stock', 'count submission', 'inventory opening', 'stock discrep',
+    'item count', 'wrong item count', 'inventory item', 'stock template', 'merged item',
+    'inventory download',
+  ]},
+  { name: 'Roles and Permissions', keywords: [
+    'role', 'permission', 'user role', 'access control', 'assign role', 'user permission',
+    'deactivate user', 'branch manager', 'cannot log in', 'unable to log',
+    'cannot access', 'unable to access', 'user access', 'branch access', 'wrong access',
+    'deactivate', 'add user', 'remove user', 'onboarding', 'switch user',
+    'approve bar order', 'policy update', 'otp', 'password', 'account creation',
+    'new employee', 'employee login', 'unknown user approving',
+    'consumption store', 'store access', 'inventory access', 'login',
+    'add branch', 'adding branch', 'mobile number', 'language', 'legal name',
+    'business name', 'application language',
+  ]},
+  { name: 'Supplier Configuration', keywords: [
+    'supplier', 'vendor', 'supplier config', 'supplier detail', 'vendor setup',
+    'supplier list', 'supplier item', 'supplier stock',
+  ]},
+  { name: 'Item Configuration', keywords: [
+    'item configur', 'item setup', 'configure item', 'base unit', 'change unit', 'change uom',
+    'archive product', 'deactivate item', 'item name', 'item update', 'uom', 'item unit',
+    'non-stockable', 'stockable', 'sub group', 'sub-group', 'menu category', 'item code', 'sku',
+    'base item', 'pack size', 'packaging unit', 'unit conversion', 'weight conversion',
+    'archive item', 'archiving item', 'archiving product', 'bulk upload', 'bulk item', 'item upload',
+    'items not appear', 'not appearing', 'not visible', 'item not visible', 'items not visible',
+    'item not found', 'cannot find item', 'duplicate item', 'merge item', 'merge product',
+    'cannot merge', 'merge operation', 'merging',
+    'item location', 'create item', 'item category', 'item group', 'category name',
+    'item template', 'staff meal template', 'vending machine', 'item branch',
+    'unlock item', 'unlock base', 'drafted item', 'cost center', 'cost centre', 'repository',
+    'add item to', 'add items to', 'rename item', 'barcode', 'item sort', 'item list',
+    'item display', 'reorganize categor', 'parent category', 'display name', 'multi-select',
+  ]},
+  { name: 'Reports and Analysis', keywords: [
+    'report', 'analysis', 'analytics', 'reporting', 'download report',
+    'excel export', 'export to excel', 'export excel', 'download excel',
+    'export base item', 'activity history', 'data export',
+    'purchase report', 'sales report', 'consumption report', 'subcategory column',
+    'mismatch', 'discrepancy report', 'missing data in excel', 'amount display',
+    'consumption in portal', 'allergen matrix', 'allergen sheet',
+  ]},
+  { name: 'Dashboard', keywords: [
+    'dashboard', 'kpi', 'dashboard setup', 'dashboard config', 'kpi setup',
+  ]},
 ];
 
 function classifyTicket(t) {
-  const title   = (t.title || '').toLowerCase().replace(/[^\x20-\x7E]/g, ' ').replace(/\s+/g, ' ').trim();
-  const desc    = (t.description || '').toLowerCase().replace(/[^\x20-\x7E]/g, ' ').replace(/\s+/g, ' ').trim();
+  const norm    = s => (s || '').toLowerCase().replace(/[^\x20-\x7E]/g, ' ').replace(/\s+/g, ' ').trim();
+  const title   = norm(t.title);
+  const desc    = norm(t.description);
+  const summary = norm(t.aiSummary);
   const rawCmt  = t.latestComment;
   const cmtStr  = typeof rawCmt === 'string' ? rawCmt : getLatestComment(t);
-  const comment = cmtStr.toLowerCase().replace(/[^\x20-\x7E]/g, ' ').replace(/\s+/g, ' ').trim();
-  const text    = `${title} ${desc} ${comment}`;
+  const comment = norm(cmtStr);
+  const text    = `${title} ${desc} ${summary} ${comment}`;
 
   for (const cat of CATEGORIES) {
     for (const kw of cat.keywords) {
@@ -1001,7 +1094,7 @@ app.get('/api/export', async (req, res) => {
     }
 
     const tickets = await fetchInboxTickets(start, end, cachedLastSkip);
-    const enriched = tickets.length <= 1000 ? await enrichTickets(tickets, 5) : tickets;
+    const enriched = tickets.length <= 3000 ? await enrichTickets(tickets, 8) : tickets;
     const rows = processTickets(enriched);
 
     const XLSX = require('xlsx');

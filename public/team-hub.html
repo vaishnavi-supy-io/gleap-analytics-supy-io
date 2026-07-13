@@ -2185,6 +2185,15 @@ function closeUploadPreview(){
   _ratingsPeriodLabel='';
 }
 
+// Runs fn over items with at most `size` in flight at once — avoids
+// exhausting the browser's connection pool on large uploads (thousands
+// of concurrent fetches trigger net::ERR_INSUFFICIENT_RESOURCES).
+async function runInBatches(items,size,fn){
+  for(let i=0;i<items.length;i+=size){
+    await Promise.all(items.slice(i,i+size).map(fn));
+  }
+}
+
 async function applyMultiUpload(){
   if(!_pendingUpload)return;
   const inp=document.getElementById('upm-period-label');
@@ -2198,23 +2207,28 @@ async function applyMultiUpload(){
   }
   const btn=document.getElementById('upm-confirm-btn');
   btn.disabled=true;
-  btn.textContent='Saving…';
+  btn.textContent=`Saving… 0/${totalChanges}`;
   try{
     const scheduleChanges=_pendingUpload.schedule.changes;
     const leaveChanges=_pendingUpload.leave.changes;
     const ratingsChanges=_pendingUpload.ratings.changes.map(c=>({...c,period_label:_ratingsPeriodLabel.trim()}));
     const accountChanges=_pendingUpload.accounts.changes;
     if(sb){
-      await Promise.all([
-        ...scheduleChanges.map(c=>dbSaveScheduleCell(c.key,c.name,c.dayIdx,c.wkOffset,c.newVal)),
-        ...leaveChanges.map(c=>dbSaveLeaveEntry(c)),
-        ...ratingsChanges.map(c=>dbSaveAgentRating(c)),
-        ...accountChanges.map(c=>dbSaveAccountAssignment(c)),
-      ]);
+      const BATCH=25;
+      let done=0;
+      const tick=()=>{done++;btn.textContent=`Saving… ${done}/${totalChanges}`;};
+      await runInBatches(scheduleChanges,BATCH,c=>dbSaveScheduleCell(c.key,c.name,c.dayIdx,c.wkOffset,c.newVal).then(tick));
+      await runInBatches(leaveChanges,BATCH,c=>dbSaveLeaveEntry(c).then(tick));
+      await runInBatches(ratingsChanges,BATCH,c=>dbSaveAgentRating(c).then(tick));
+      await runInBatches(accountChanges,BATCH,c=>dbSaveAccountAssignment(c).then(tick));
     }
     scheduleChanges.forEach(c=>{scheduleData[c.key]=c.newVal;});
     leaveChanges.forEach(c=>{leaveData[c.key]={name:c.name,dayIdx:c.dayIdx,wkOffset:c.wkOffset};});
-    ratingsChanges.forEach(c=>{ratingsData[`${c.name}__${c.period_label}__${c.sourceSheet}`]=c;});
+    ratingsChanges.forEach(c=>{ratingsData[`${c.name}__${c.period_label}__${c.sourceSheet}`]={
+      name:c.name,period_label:c.period_label,source_sheet:c.sourceSheet,
+      tickets:c.tickets,rating_pct:c.rating_pct,sla_pct:c.sla_pct,
+      combined_pct:c.combined_pct,avg_val:c.avg_val,more_than_75:c.more_than_75,
+    };});
     accountChanges.forEach(c=>{accountData[c.key]=c;});
     closeUploadPreview();
     renderSchedule();

@@ -12,6 +12,7 @@ export async function onRequestGet({ request, env }) {
     const agentFilter  = url.searchParams.get('agent')  || '';
     const statusFilter = url.searchParams.get('status') || '';
     const typeFilter   = url.searchParams.get('type')   || '';
+    const categoryFilter = url.searchParams.get('category') || '';
     const page         = parseInt(url.searchParams.get('page')  || '1');
     const limit        = parseInt(url.searchParams.get('limit') || '50');
 
@@ -29,6 +30,7 @@ export async function onRequestGet({ request, env }) {
     if (typeFilter === 'archived')   rows = rows.filter(r => r.isArchived);
     if (typeFilter === 'unassigned') rows = rows.filter(r => r.agent === 'Unassigned');
     if (typeFilter === 'sla')        rows = rows.filter(r => r.slaBreached);
+    if (categoryFilter) rows = rows.filter(r => (r.category||'').toLowerCase() === categoryFilter.toLowerCase());
 
     const total = rows.length;
     const paged = rows.slice((page - 1) * limit, page * limit);

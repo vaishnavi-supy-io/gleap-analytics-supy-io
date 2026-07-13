@@ -747,7 +747,7 @@ const _svgUrgent  = `<span style="display:inline-block;width:7px;height:7px;bord
 const CATEGORY_NAMES = [
   'Item Configuration', 'Item Costing', 'Central Kitchen Module', 'Recipe',
   'Supplier Configuration', 'Roles and Permissions', 'Integration', 'GRN/Invoices',
-  'Wastages', 'Production', 'Transfers', 'Reports and Analysis', 'Dashboard'
+  'Wastages', 'Production', 'Transfers', 'Reports and Analysis', 'Dashboard', 'Tech'
 ];
 
 // ── State ─────────────────────────────────────────────────
@@ -1178,6 +1178,7 @@ async function loadData() {
   const to   = document.getElementById('dateTo').value;
   if (!from || !to) { alert('Please set both dates'); return; }
 
+  currentOverviewCategory = '';
   document.getElementById('overviewContent').innerHTML = overviewSkeleton();
   document.getElementById('pageSub').textContent = 'Fetching data…';
 
@@ -1217,6 +1218,63 @@ async function loadData() {
 }
 
 // ── Overview ──────────────────────────────────────────────
+// Analyst-style comparison panel shown when a single category is selected in
+// Overview — puts the filtered slice in context against the unfiltered period
+// baseline, instead of just re-showing the same charts scoped to one category
+// (which makes the Category Breakdown chart tautological: 100% one category).
+function renderCategoryInsight(catStats, baseline, categoryName) {
+  if (!baseline || !baseline.total || !catStats.total) return '';
+  const share       = Math.round((catStats.total/baseline.total)*100);
+  const catResolve  = Math.round((catStats.closedCount/catStats.total)*100);
+  const baseResolve = baseline.total ? Math.round((baseline.closedCount/baseline.total)*100) : 0;
+  const catSla      = Math.round((catStats.slaBreached/catStats.total)*100);
+  const baseSla     = baseline.total ? Math.round((baseline.slaBreached/baseline.total)*100) : 0;
+  const closeDeltaPct = (catStats.avgClose!=null && baseline.avgClose)
+    ? Math.round(((catStats.avgClose-baseline.avgClose)/baseline.avgClose)*100) : null;
+
+  function deltaTag(diff, goodWhenNegative) {
+    if (diff === 0) return `<span style="font-size:10.5px;color:var(--muted)">= overall</span>`;
+    const good  = goodWhenNegative ? diff < 0 : diff > 0;
+    const arrow = diff > 0 ? '▲' : '▼';
+    return `<span style="font-size:10.5px;font-weight:700;color:${good?'#059669':'#DC2626'}">${arrow} ${Math.abs(diff)}pt vs overall</span>`;
+  }
+
+  const topAgents = (catStats.agents||[]).filter(a=>a.name!=='Unassigned').sort((a,b)=>b.handled-a.handled).slice(0,3);
+
+  return `
+  <div class="chart-card" style="border:1.5px solid #c4b5fd;background:linear-gradient(135deg, rgba(124,58,237,0.07), rgba(124,58,237,0.01))">
+    <div class="chart-title" style="display:flex;align-items:center;gap:6px">
+      <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
+      Category Insight — ${escHtml(categoryName)}
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:28px;padding-top:10px">
+      <div>
+        <div style="font-size:24px;font-weight:800;color:var(--ink)">${catStats.total}</div>
+        <div style="font-size:11px;color:var(--muted)">tickets · ${share}% of ${baseline.total} total this period</div>
+      </div>
+      <div>
+        <div style="font-size:24px;font-weight:800;color:var(--ink)">${catResolve}%</div>
+        <div style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:5px">resolve rate ${deltaTag(catResolve-baseResolve, false)}</div>
+      </div>
+      <div>
+        <div style="font-size:24px;font-weight:800;color:var(--ink)">${catSla}%</div>
+        <div style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:5px">SLA breach rate ${deltaTag(catSla-baseSla, true)}</div>
+      </div>
+      <div>
+        <div style="font-size:24px;font-weight:800;color:var(--ink)">${catStats.avgCloseFmt||'—'}</div>
+        <div style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:5px">avg time to close ${closeDeltaPct!=null?deltaTag(closeDeltaPct,true):''}</div>
+      </div>
+    </div>
+    ${topAgents.length ? `
+    <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border2)">
+      <div style="font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Top agents on this category</div>
+      <div style="display:flex;gap:20px;flex-wrap:wrap">
+        ${topAgents.map(a=>`<div style="font-size:12px;color:var(--ink)"><b>${escHtml(a.name)}</b> — ${a.handled} handled, ${a.replyRate}% reply rate</div>`).join('')}
+      </div>
+    </div>` : ''}
+  </div>`;
+}
+
 function renderOverview(s) {
   const resolveRate = s.total ? Math.round((s.closedCount/s.total)*100) : 0;
   const replyRate   = s.total ? Math.round((s.withReply/s.total)*100) : 0;
@@ -1237,6 +1295,7 @@ function renderOverview(s) {
 
   document.getElementById('overviewContent').innerHTML = `
     ${alerts ? `<div style="display:flex;flex-direction:column;gap:6px">${alerts}</div>` : ''}
+    ${currentOverviewCategory ? renderCategoryInsight(s, globalStats, currentOverviewCategory) : ''}
     ${renderPerformanceLeaderboard(s)}
     ${renderAgingBuckets(s)}
     <div class="kpi-grid">
@@ -1276,14 +1335,14 @@ function renderOverview(s) {
         </div>
       </div>
     </div>
-    <div class="chart-card">
+    ${currentOverviewCategory ? '' : `<div class="chart-card">
       <div class="chart-title" style="margin-bottom:12px">
         <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z"/><path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6z"/></svg>
         Category Breakdown
       </div>
       <div style="display:flex;flex-direction:column;gap:6px">
         ${(() => {
-          const catColors = {'Item Configuration':'#7C3AED','Item Costing':'#DC2626','Central Kitchen Module':'#0891B2','Recipe':'#059669','Supplier Configuration':'#D97706','Roles and Permissions':'#4F46E5','Integration':'#0D9488','GRN/Invoices':'#9333EA','Wastages':'#DC2626','Production':'#2563EB','Transfers':'#CA8A04','Reports and Analysis':'#6366F1','Dashboard':'#8B5CF6'};
+          const catColors = {'Item Configuration':'#7C3AED','Item Costing':'#DC2626','Central Kitchen Module':'#0891B2','Recipe':'#059669','Supplier Configuration':'#D97706','Roles and Permissions':'#4F46E5','Integration':'#0D9488','GRN/Invoices':'#9333EA','Wastages':'#DC2626','Production':'#2563EB','Transfers':'#CA8A04','Reports and Analysis':'#6366F1','Dashboard':'#8B5CF6','Tech':'#EA580C'};
           const countMap = {};
           for (const c of (s.categoryBreakdown||[])) countMap[c.category] = c.count;
           const rows = CATEGORY_NAMES.map(n => ({ category: n, count: countMap[n] || 0 }));
@@ -1300,7 +1359,7 @@ function renderOverview(s) {
           }).join('');
         })()}
       </div>
-    </div>
+    </div>`}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
       <div class="chart-card">
         <div class="chart-title">Status Breakdown</div>
@@ -1873,7 +1932,7 @@ function renderTicketList() {
     'Recipe': '#059669', 'Supplier Configuration': '#D97706', 'Roles and Permissions': '#4F46E5',
     'Integration': '#0D9488', 'GRN/Invoices': '#9333EA', 'Wastages': '#DC2626',
     'Production': '#2563EB', 'Transfers': '#CA8A04', 'Reports and Analysis': '#6366F1',
-    'Dashboard': '#8B5CF6', 'Uncategorized': '#9CA3AF'
+    'Dashboard': '#8B5CF6', 'Tech': '#EA580C', 'Uncategorized': '#9CA3AF'
   };
 
   const html = slice.map(t => {

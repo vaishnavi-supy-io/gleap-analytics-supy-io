@@ -474,6 +474,17 @@ const CATEGORIES = [
   { name: 'Dashboard', keywords: [
     'dashboard', 'kpi', 'dashboard setup', 'dashboard config', 'kpi setup',
   ]},
+  // Catch-all for generic technical/bug complaints not tied to a specific module.
+  // Kept last so business-domain keywords above always get first match.
+  { name: 'Tech', keywords: [
+    'crash', 'crashing', 'bug', 'glitch', 'not loading', "won't load", 'blank screen',
+    'white screen', 'blank page', 'freeze', 'freezing', 'frozen', 'timeout', 'timed out',
+    '500 error', 'internal server error', 'network error', 'session expired',
+    'not responding', 'app not working', 'browser issue', 'technical issue',
+    'technical error', 'sync issue', 'stuck loading', 'system error', 'app freeze',
+    'not saving', 'button not working', 'page error', 'loading forever', 'infinite loading',
+    'app crash', 'keeps logging out', 'keeps crashing', 'refresh issue',
+  ]},
 ];
 
 export function classifyTicket(t) {
@@ -612,6 +623,15 @@ export function computeStats(rows) {
   for (const r of rows) if (r.company) companyMap[r.company]=(companyMap[r.company]||0)+1;
   const topCompanies=Object.entries(companyMap).sort((a,b)=>b[1]-a[1]).slice(0,15).map(([name,count])=>({name,count}));
 
+  const categoryMap={};
+  for (const r of rows) {
+    const cat = r.category || 'Uncategorized';
+    categoryMap[cat] = (categoryMap[cat]||0) + 1;
+  }
+  const categoryBreakdown=Object.entries(categoryMap)
+    .sort((a,b)=>b[1]-a[1])
+    .map(([category,count])=>({category,count}));
+
   return {
     total,openCount:openRows.length,closedCount:closedRows.length,archivedCount:archivedRows.length,
     escalatedCount:escalated.length,callRequestCount:callRows.length,
@@ -623,7 +643,7 @@ export function computeStats(rows) {
     withEmail:rows.filter(r=>r.email).length,
     avgFirstInteraction:avgFirstInteractionMins,avgClose:avg(closeVals),
     avgFirstInteractionFmt:fmtMins(avgFirstInteractionMins),avgCloseFmt:fmtMins(avg(closeVals)),
-    statusBreakdown, typeBreakdown,
+    statusBreakdown, typeBreakdown, categoryBreakdown,
     daily:Object.entries(daily).sort((a,b)=>a[0].localeCompare(b[0])).map(([day,count])=>({day,count})),
     dow:Object.entries(dow).map(([day,count])=>({day,count})),
     hourly:Object.entries(hourly).sort((a,b)=>+a[0]-+b[0]).map(([hour,count])=>({hour:+hour,count})),

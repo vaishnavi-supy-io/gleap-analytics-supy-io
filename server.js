@@ -281,6 +281,17 @@ const CATEGORIES = [
   { name: 'Dashboard', keywords: [
     'dashboard', 'kpi', 'dashboard setup', 'dashboard config', 'kpi setup',
   ]},
+  // Catch-all for generic technical/bug complaints not tied to a specific module.
+  // Kept last so business-domain keywords above always get first match.
+  { name: 'Tech', keywords: [
+    'crash', 'crashing', 'bug', 'glitch', 'not loading', "won't load", 'blank screen',
+    'white screen', 'blank page', 'freeze', 'freezing', 'frozen', 'timeout', 'timed out',
+    '500 error', 'internal server error', 'network error', 'session expired',
+    'not responding', 'app not working', 'browser issue', 'technical issue',
+    'technical error', 'sync issue', 'stuck loading', 'system error', 'app freeze',
+    'not saving', 'button not working', 'page error', 'loading forever', 'infinite loading',
+    'app crash', 'keeps logging out', 'keeps crashing', 'refresh issue',
+  ]},
 ];
 
 function classifyTicket(t) {

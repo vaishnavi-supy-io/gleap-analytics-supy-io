@@ -434,9 +434,10 @@ body.is-admin .admin-only{display:flex}
             <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>
             Upload Excel
           </button>
-          <input type="file" id="scheduleFileInput" accept=".xlsx,.xls" style="display:none" onchange="handleScheduleFile(this)">
+          <input type="file" id="scheduleFileInput" accept=".xlsx,.xls,.xlsm" style="display:none" onchange="handleScheduleFile(this)">
         </div>
       </div>
+      <div id="leaveStrip" style="display:none;padding:10px 20px;background:var(--light-purple);border-bottom:1px solid var(--border);font-size:12px;color:var(--purple)"></div>
       <div class="sched-wrap"><table class="sched-table" id="schedTable"></table></div>
     </div>
   </div>
@@ -487,6 +488,24 @@ body.is-admin .admin-only{display:flex}
             </div>
             <button class="save-btn" onclick="addNewPreset()" style="margin-top:4px">Add Preset</button>
           </div>
+        </div>
+      </div>
+
+      <!-- Agent Ratings (from Excel upload) -->
+      <div class="admin-section">
+        <div class="admin-section-hdr" style="display:flex;align-items:center;gap:6px"><svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> Agent Ratings <span>From uploaded Commision/Sheet6 data</span></div>
+        <div class="admin-section-body">
+          <select id="ratingsPeriodFilter" onchange="renderRatingsPanel()" style="margin-bottom:8px;width:100%"></select>
+          <div id="ratingsMgmtList"></div>
+        </div>
+      </div>
+
+      <!-- Account Assignments (from Excel upload) -->
+      <div class="admin-section">
+        <div class="admin-section-hdr" style="display:flex;align-items:center;gap:6px"><svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21"/></svg> Account Assignments <span>From uploaded Sheet2/Sheet3 data</span></div>
+        <div class="admin-section-body">
+          <input type="text" id="accountsSearchFilter" placeholder="Filter by member name…" oninput="renderAccountsPanel()" style="margin-bottom:8px;width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px">
+          <div id="accountsMgmtList"></div>
         </div>
       </div>
     </div>
@@ -709,7 +728,7 @@ body.is-admin .admin-only{display:flex}
       <div id="upm-body"></div>
       <div style="display:flex;gap:10px;margin-top:16px">
         <button onclick="closeUploadPreview()" style="padding:9px 20px;border:1px solid var(--border);border-radius:var(--r);background:var(--white);color:var(--mid);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">Cancel</button>
-        <button class="save-btn" id="upm-confirm-btn" onclick="applyUploadedSchedule()" style="flex:1">Apply changes</button>
+        <button class="save-btn" id="upm-confirm-btn" onclick="applyMultiUpload()" style="flex:1">Apply changes</button>
       </div>
     </div>
   </div>
@@ -800,6 +819,9 @@ let editingPasswordMember = null;
 let editingMemberOldName  = null;
 let weekOffset  = 0;
 let scheduleData = {};  // key -> shift string (populated from DB)
+let leaveData    = {};  // sched_key -> {name,dayIdx,wkOffset} (from Leave Application upload)
+let ratingsData  = {};  // rating_key -> row (from Commision/Sheet6 upload)
+let accountData  = {};  // assignment_key -> row (from Sheet2/Sheet3 upload)
 let attState    = {};   // per member, today's state
 let attLog      = [];   // today's log (local copy, written to DB on each action)
 let activeAttMember  = null;
@@ -985,6 +1007,83 @@ async function dbSaveScheduleCell(key, name, dayIdx, wkOffset, value) {
   }, {onConflict: 'sched_key'});
   setSyncState(error ? 'error' : 'synced');
   if (error) console.error('save sched:', error);
+}
+
+// ── LEAVE REQUESTS (from Leave Application sheet upload) ───────
+async function dbLoadLeaveData() {
+  if (!sb) return;
+  const {data, error} = await sb.from('leave_requests').select('*');
+  if (error) { console.error('load leave:', error); return; }
+  leaveData = {};
+  (data || []).forEach(row => {
+    leaveData[row.sched_key] = {name: row.name, dayIdx: row.day_idx, wkOffset: row.week_offset};
+  });
+}
+async function dbSaveLeaveEntry(c) {
+  setSyncState('syncing');
+  const {error} = await sb.from('leave_requests').upsert({
+    sched_key:   c.key,
+    name:        c.name,
+    day_idx:     c.dayIdx,
+    week_offset: c.wkOffset,
+    source_row:  c.sourceRow || null,
+    set_by:      currentUser,
+    uploaded_at: new Date().toISOString(),
+  }, {onConflict: 'sched_key'});
+  setSyncState(error ? 'error' : 'synced');
+  if (error) console.error('save leave:', error);
+}
+
+// ── AGENT RATINGS (from Commision/Sheet6 upload) ────────────────
+async function dbLoadAgentRatings() {
+  if (!sb) return;
+  const {data, error} = await sb.from('agent_ratings').select('*');
+  if (error) { console.error('load ratings:', error); return; }
+  ratingsData = {};
+  (data || []).forEach(row => { ratingsData[row.rating_key] = row; });
+}
+async function dbSaveAgentRating(c) {
+  setSyncState('syncing');
+  const ratingKey = `${c.name}__${c.period_label}__${c.sourceSheet}`;
+  const {error} = await sb.from('agent_ratings').upsert({
+    rating_key:   ratingKey,
+    name:         c.name,
+    period_label: c.period_label,
+    source_sheet: c.sourceSheet,
+    tickets:      c.tickets,
+    rating_pct:   c.rating_pct,
+    sla_pct:      c.sla_pct,
+    combined_pct: c.combined_pct,
+    avg_val:      c.avg_val,
+    more_than_75: c.more_than_75,
+    set_by:       currentUser,
+    uploaded_at:  new Date().toISOString(),
+  }, {onConflict: 'rating_key'});
+  setSyncState(error ? 'error' : 'synced');
+  if (error) console.error('save rating:', error);
+}
+
+// ── ACCOUNT ASSIGNMENTS (from Sheet2/Sheet3 upload, best-effort) ─
+async function dbLoadAccountAssignments() {
+  if (!sb) return;
+  const {data, error} = await sb.from('account_assignments').select('*');
+  if (error) { console.error('load accounts:', error); return; }
+  accountData = {};
+  (data || []).forEach(row => { accountData[row.assignment_key] = row; });
+}
+async function dbSaveAccountAssignment(c) {
+  setSyncState('syncing');
+  const {error} = await sb.from('account_assignments').upsert({
+    assignment_key: c.key,
+    name:           c.name,
+    account_name:   c.account_name,
+    category_tag:   c.category_tag,
+    source_sheet:   c.source_sheet,
+    set_by:         currentUser,
+    uploaded_at:    new Date().toISOString(),
+  }, {onConflict: 'assignment_key'});
+  setSyncState(error ? 'error' : 'synced');
+  if (error) console.error('save account:', error);
 }
 
 // ── TEAM CONFIG (members, passwords, presets) ─────────────────
@@ -1195,6 +1294,9 @@ async function doLogin() {
     rebuildLoginSelect();
     await dbLoadAttendanceState();
     await dbLoadSchedule();
+    await dbLoadLeaveData();
+    await dbLoadAgentRatings();
+    await dbLoadAccountAssignments();
     const logData = await dbLoadLog(TODAY_ISO, null);
     attLog = logData.map(r => ({
       id:       r.id,
@@ -1550,6 +1652,19 @@ function renderSchedule(){
   });
   html+='</tbody>';
   document.getElementById('schedTable').innerHTML=html;
+  renderLeaveStrip();
+}
+
+function renderLeaveStrip(){
+  const el=document.getElementById('leaveStrip');
+  if(!el)return;
+  const onLeave=Object.values(leaveData).filter(l=>l.wkOffset===weekOffset);
+  if(!onLeave.length){el.style.display='none';el.innerHTML='';return;}
+  const byDay={};
+  onLeave.forEach(l=>{(byDay[l.dayIdx]=byDay[l.dayIdx]||[]).push(l.name);});
+  const parts=Object.keys(byDay).sort((a,b)=>a-b).map(d=>`<b>${DAYS[d]}</b>: ${byDay[d].join(', ')}`);
+  el.innerHTML=`🏖️ On leave this week — ${parts.join(' &nbsp;|&nbsp; ')}`;
+  el.style.display='block';
 }
 
 function openSchedEdit(name,dayIdx){
@@ -1597,7 +1712,7 @@ async function saveShiftCell(){
 function closeEditSched(){document.getElementById('editSchedModal').classList.remove('open');editingSchedKey=null;}
 
 // ══════════════════════════════════════════════════════════════
-//  EXCEL UPLOAD
+//  EXCEL UPLOAD (Weekly Schedule / Leave Application / Ratings / Accounts)
 // ══════════════════════════════════════════════════════════════
 function triggerScheduleUpload(){
   if(currentRole!=='admin'){toast('⛔ Only admins can upload schedules');return;}
@@ -1613,10 +1728,8 @@ function handleScheduleFile(input){
   reader.onload=function(e){
     try{
       const wb=XLSX.read(e.target.result,{type:'array'});
-      const ws=wb.Sheets[wb.SheetNames[0]];
-      const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
-      const {changes,warnings}=buildScheduleDiff(rows);
-      showUploadPreviewModal(changes,warnings);
+      const result=parseScheduleWorkbook(wb);
+      showMultiUploadPreviewModal(result);
     }catch(err){
       console.error('Excel parse error:',err);
       toast('❌ Could not read the Excel file. Check the format and try again.');
@@ -1625,6 +1738,22 @@ function handleScheduleFile(input){
   reader.readAsArrayBuffer(file);
 }
 
+// ── Shared date/member helpers ──────────────────────────────────
+function excelSerialToDate(serial){
+  const utcDays=Math.floor(serial-25569);
+  const d=new Date(utcDays*86400*1000);
+  return new Date(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate());
+}
+function weekOffsetForDate(d){
+  const dow=d.getDay();
+  const daysToMon=dow===0?-6:1-dow;
+  const weekMon=new Date(d);
+  weekMon.setDate(d.getDate()+daysToMon);
+  weekMon.setHours(0,0,0,0);
+  const todayMon=getMonday(0);
+  return Math.round((weekMon.getTime()-todayMon.getTime())/(7*24*3600*1000));
+}
+// Legacy "Mon 1 Jan" string header support (kept for any hand-built sheets)
 function parseDateHeader(header){
   const months={Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
   const dayNames={Mon:0,Tue:1,Wed:2,Thu:3,Fri:4,Sat:5,Sun:6};
@@ -1639,154 +1768,466 @@ function parseDateHeader(header){
   const now=new Date();
   let year=now.getFullYear();
   let d=new Date(year,monthIdx,dayNum);
-  // If the date is more than 6 months in the past, assume next year
   if(d.getTime()<now.getTime()-180*24*3600*1000)year++;
   d=new Date(year,monthIdx,dayNum);
-  // Get Monday of that week
-  const dow=d.getDay();
-  const daysToMon=dow===0?-6:1-dow;
-  const weekMon=new Date(d);
-  weekMon.setDate(d.getDate()+daysToMon);
-  weekMon.setHours(0,0,0,0);
-  const todayMon=getMonday(0);
-  const wkOffset=Math.round((weekMon.getTime()-todayMon.getTime())/(7*24*3600*1000));
-  return{dayIdx,wkOffset};
+  return{dayIdx,wkOffset:weekOffsetForDate(d)};
 }
 
-function buildScheduleDiff(rows){
-  const changes=[];
-  const warnings=[];
-  if(!rows||rows.length<2){warnings.push('File appears empty or has no data rows.');return{changes,warnings};}
-  const headers=rows[0];
-  // Map column index → {dayIdx, wkOffset}; skip col 0 (Name) and col 1 (Team)
-  const colMap=[];
-  for(let c=2;c<headers.length;c++){
-    const h=headers[c];
-    if(!h){colMap.push(null);continue;}
-    const parsed=parseDateHeader(String(h));
-    if(!parsed){
-      warnings.push(`Skipped unrecognised header: "${h}"`);
-      colMap.push(null);
+// Fuzzy member-name lookup: TRIMMED+UPPERCASE -> canonical TEAM_META key
+function buildMetaLookup(){
+  const lookup={};
+  Object.keys(TEAM_META).forEach(k=>{lookup[k.trim().toUpperCase()]=k;});
+  return lookup;
+}
+function matchMember(raw,lookup){
+  const key=String(raw||'').trim().toUpperCase();
+  return key?(lookup[key]||null):null;
+}
+
+// ── Shared: find repeating "7 consecutive day-serials" week blocks ─
+// Used by both Weekly Schedule and Leave Application sheets.
+// startCol: first column of the 7 day-serial columns (0 = no leading Name
+// column, as in Leave Application; 1 = col0 is Name, as in Weekly Schedule).
+function isSerialHeaderRow(row,startCol){
+  if(startCol>0&&row[startCol-1]!==''&&row[startCol-1]!==undefined)return null;
+  const serials=[];
+  for(let c=startCol;c<startCol+7;c++){
+    const v=row[c];
+    if(typeof v==='number'&&v>30000&&v<80000)serials.push(v);
+    else return null;
+  }
+  return serials;
+}
+function findWeekBlocks(rows,startCol){
+  const blocks=[];
+  let r=0;
+  while(r<rows.length){
+    const row=rows[r]||[];
+    const serials=isSerialHeaderRow(row,startCol);
+    if(serials){
+      let consecutive=true;
+      for(let i=1;i<7;i++){if(serials[i]-serials[i-1]!==1){consecutive=false;break;}}
+      const days=[];
+      if(consecutive){
+        for(let i=0;i<7;i++){
+          const col=startCol+i;
+          const wkOffset=weekOffsetForDate(excelSerialToDate(serials[i]));
+          days.push({col,dayIdx:i,wkOffset});
+        }
+      }
+      // Data rows start after this header row (skip an optional day-name row like MON/TUE/...)
+      let dataStart=r+1;
+      const next=rows[dataStart]||[];
+      if(String(next[startCol]||'').trim().toUpperCase().startsWith('MON'))dataStart++;
+      let dataEnd=dataStart;
+      while(dataEnd<rows.length&&!isSerialHeaderRow(rows[dataEnd]||[],startCol)){dataEnd++;}
+      blocks.push({headerRow:r,days,consecutive,dataStart,dataEnd});
+      r=dataEnd;
     }else{
-      colMap.push(parsed);
+      r++;
     }
   }
-  for(let r=1;r<rows.length;r++){
-    const row=rows[r];
-    const name=String(row[0]||'').trim();
-    if(!name)continue;
-    if(!TEAM_META[name]){
-      warnings.push(`Row ${r+1}: unknown member "${name}" — skipped.`);
-      continue;
+  return blocks;
+}
+
+// ── Weekly Schedule sheet ────────────────────────────────────────
+function buildWeeklyScheduleDiff(rows){
+  const changes=[],warnings=[];
+  if(!rows||rows.length<2){warnings.push('Weekly Schedule: file appears empty.');return{changes,warnings};}
+  const lookup=buildMetaLookup();
+  const blocks=findWeekBlocks(rows,1);
+  if(!blocks.length){warnings.push('Weekly Schedule: no recognizable weekly blocks found.');return{changes,warnings};}
+  blocks.forEach(block=>{
+    if(!block.consecutive){
+      warnings.push(`Weekly Schedule: block at row ${block.headerRow+1} has non-consecutive day dates — skipped.`);
+      return;
     }
-    for(let c=2;c<headers.length;c++){
-      const col=colMap[c-2];
-      if(!col)continue;
-      const cellRaw=row[c];
-      if(cellRaw===undefined||cellRaw==='')continue;
-      const newVal=String(cellRaw).trim();
-      if(!newVal)continue;
-      const{dayIdx,wkOffset}=col;
-      const key=schedKey(name,dayIdx,wkOffset);
-      const oldVal=getShift(name,dayIdx,wkOffset);
-      if(newVal!==oldVal){
-        changes.push({key,name,dayIdx,wkOffset,oldVal,newVal});
+    for(let r=block.dataStart;r<block.dataEnd;r++){
+      const row=rows[r]||[];
+      const rawName=row[0];
+      if(!rawName)continue;
+      const name=matchMember(rawName,lookup);
+      if(!name){
+        warnings.push(`Weekly Schedule row ${r+1}: unknown member "${rawName}" — skipped.`);
+        continue;
       }
+      block.days.forEach(({col,dayIdx,wkOffset})=>{
+        const cellRaw=row[col];
+        if(cellRaw===undefined||cellRaw==='')return;
+        const newVal=String(cellRaw).trim();
+        if(!newVal)return;
+        const key=schedKey(name,dayIdx,wkOffset);
+        const oldVal=getShift(name,dayIdx,wkOffset);
+        if(newVal!==oldVal)changes.push({key,name,dayIdx,wkOffset,oldVal,newVal});
+      });
+    }
+  });
+  return{changes,warnings};
+}
+
+// ── Leave Application sheet ──────────────────────────────────────
+function isLikelyCommentRow(row){
+  for(let c=0;c<7;c++){
+    const v=String(row[c]||'').trim();
+    if(v&&v.split(/\s+/).length>3)return true;
+  }
+  return false;
+}
+function buildLeaveDiff(rows){
+  const changes=[],warnings=[];
+  if(!rows||rows.length<2){warnings.push('Leave Application: file appears empty.');return{changes,warnings};}
+  const lookup=buildMetaLookup();
+  const blocks=findWeekBlocks(rows,0);
+  if(!blocks.length){warnings.push('Leave Application: no recognizable weekly blocks found.');return{changes,warnings};}
+  blocks.forEach(block=>{
+    if(!block.consecutive){
+      warnings.push(`Leave Application: block at row ${block.headerRow+1} has non-consecutive day dates — skipped.`);
+      return;
+    }
+    for(let r=block.dataStart;r<block.dataEnd;r++){
+      const row=rows[r]||[];
+      if(isLikelyCommentRow(row))continue;
+      block.days.forEach(({col,dayIdx,wkOffset})=>{
+        const raw=row[col];
+        const val=String(raw||'').trim();
+        if(!val||val.split(/\s+/).length>2)return; // blank or sentence-like — not a name
+        const name=matchMember(val,lookup);
+        if(!name){
+          warnings.push(`Leave Application row ${r+1}, ${DAYS[dayIdx]}: unrecognized name "${val}" — skipped.`);
+          return;
+        }
+        const key='lv__'+schedKey(name,dayIdx,wkOffset);
+        changes.push({key,name,dayIdx,wkOffset,sourceRow:r+1});
+      });
+    }
+  });
+  return{changes,warnings};
+}
+
+// ── Commision / Sheet6 ratings sheets ────────────────────────────
+function findLabeledBlocks(rows){
+  const blocks=[];
+  let r=0;
+  while(r<rows.length){
+    const row=rows[r]||[];
+    if(String(row[0]||'').trim().toLowerCase()==='name'){
+      let dataStart=r+1,dataEnd=dataStart;
+      while(dataEnd<rows.length){
+        const dr=rows[dataEnd]||[];
+        const c0=String(dr[0]||'').trim().toLowerCase();
+        if(c0==='total'||c0==='name')break;
+        if(dr.every(v=>v===''||v===undefined))break;
+        dataEnd++;
+      }
+      blocks.push({headerRow:r,header:row,dataStart,dataEnd});
+      r=dataEnd+1;
+    }else{
+      r++;
+    }
+  }
+  return blocks;
+}
+function mapRatingColumns(header){
+  const map={tickets:-1,rating:-1,sla:-1,combined:-1,avg:-1,more75:-1};
+  header.forEach((h,c)=>{
+    const t=String(h||'').toLowerCase();
+    if(!t)return;
+    if(map.tickets===-1&&/ticket/.test(t)&&/rating/.test(t))map.tickets=c;
+    else if(map.rating===-1&&/rating/.test(t)&&!/sla|combine/.test(t))map.rating=c;
+    if(map.sla===-1&&/sla/.test(t))map.sla=c;
+    if(map.combined===-1&&/combine/.test(t))map.combined=c;
+    if(map.avg===-1&&/avg/.test(t))map.avg=c;
+    if(map.more75===-1&&/more than 75/.test(t))map.more75=c;
+  });
+  return map;
+}
+function buildRatingsDiff(rows,sheetName){
+  const changes=[],warnings=[];
+  if(!rows||!rows.length){warnings.push(`${sheetName}: file appears empty.`);return{changes,warnings};}
+  const lookup=buildMetaLookup();
+  const blocks=findLabeledBlocks(rows);
+  if(!blocks.length){warnings.push(`${sheetName}: no "Name" header row found.`);return{changes,warnings};}
+  blocks.forEach((block,bi)=>{
+    const cols=mapRatingColumns(block.header);
+    const blockLabel=blocks.length>1?`${sheetName}-Block${bi+1}`:sheetName;
+    for(let r=block.dataStart;r<block.dataEnd;r++){
+      const row=rows[r]||[];
+      const rawName=row[0];
+      if(!rawName)continue;
+      const name=matchMember(rawName,lookup);
+      if(!name){
+        warnings.push(`${sheetName} row ${r+1}: unknown member "${rawName}" — skipped.`);
+        continue;
+      }
+      const num=v=>{const n=parseFloat(v);return isNaN(n)?null:n;};
+      changes.push({
+        name,sourceSheet:blockLabel,
+        tickets:cols.tickets>=0?num(row[cols.tickets]):null,
+        rating_pct:cols.rating>=0?num(row[cols.rating]):null,
+        sla_pct:cols.sla>=0?num(row[cols.sla]):null,
+        combined_pct:cols.combined>=0?num(row[cols.combined]):null,
+        avg_val:cols.avg>=0?num(row[cols.avg]):null,
+        more_than_75:cols.more75>=0?String(row[cols.more75]??'').trim():null,
+      });
+    }
+  });
+  return{changes,warnings};
+}
+
+// ── Sheet2 / Sheet3 account assignments (best-effort) ────────────
+function buildAccountAssignmentsDiff(rows,sheetName){
+  const changes=[],warnings=[];
+  if(!rows||!rows.length){warnings.push(`${sheetName}: file appears empty.`);return{changes,warnings};}
+  const lookup=buildMetaLookup();
+  for(let r=0;r<rows.length;r++){
+    const row=rows[r]||[];
+    const nameStr=String(row[0]||'').trim();
+    if(!nameStr||/^name$/i.test(nameStr))continue;
+    const matched=matchMember(nameStr,lookup);
+    const name=matched||nameStr;
+    if(!matched)warnings.push(`${sheetName} row ${r+1}: "${nameStr}" not in team roster — included anyway.`);
+    for(let c=1;c<row.length;c++){
+      const val=String(row[c]||'').trim();
+      if(!val)continue;
+      changes.push({key:`${name}__${val}__${sheetName}`,name,account_name:val,category_tag:null,source_sheet:sheetName});
     }
   }
   return{changes,warnings};
 }
 
-let _pendingUploadChanges=[];
+// ── Orchestrator: parse all 6 sheets of the workbook ─────────────
+function parseScheduleWorkbook(wb){
+  const sheetLookup={};
+  wb.SheetNames.forEach(n=>{sheetLookup[n.trim().toLowerCase()]=n;});
+  const sheetsFound=[],sheetsMissing=[];
+  function getRows(name){
+    const actual=sheetLookup[name.trim().toLowerCase()];
+    if(!actual){sheetsMissing.push(name);return null;}
+    sheetsFound.push(name);
+    return XLSX.utils.sheet_to_json(wb.Sheets[actual],{header:1,defval:''});
+  }
+  const scheduleRows=getRows('Weekly Schedule');
+  const leaveRows=getRows('Leave Application');
+  const commisionRows=getRows('Commision');
+  const sheet6Rows=getRows('Sheet6');
+  const sheet2Rows=getRows('Sheet2');
+  const sheet3Rows=getRows('Sheet3');
 
-function showUploadPreviewModal(changes,warnings){
-  _pendingUploadChanges=changes;
-  const count=changes.length;
+  const schedule=scheduleRows?buildWeeklyScheduleDiff(scheduleRows):{changes:[],warnings:[]};
+  const leave=leaveRows?buildLeaveDiff(leaveRows):{changes:[],warnings:[]};
+  const ratingsA=commisionRows?buildRatingsDiff(commisionRows,'Commision'):{changes:[],warnings:[]};
+  const ratingsB=sheet6Rows?buildRatingsDiff(sheet6Rows,'Sheet6'):{changes:[],warnings:[]};
+  const ratings={changes:[...ratingsA.changes,...ratingsB.changes],warnings:[...ratingsA.warnings,...ratingsB.warnings]};
+  const accountsA=sheet2Rows?buildAccountAssignmentsDiff(sheet2Rows,'Sheet2'):{changes:[],warnings:[]};
+  const accountsB=sheet3Rows?buildAccountAssignmentsDiff(sheet3Rows,'Sheet3'):{changes:[],warnings:[]};
+  const accounts={changes:[...accountsA.changes,...accountsB.changes],warnings:[...accountsA.warnings,...accountsB.warnings]};
+
+  return{schedule,leave,ratings,accounts,sheetsFound,sheetsMissing};
+}
+
+// ── Preview modal (tabbed: Schedule / Leave / Ratings / Accounts) ─
+let _pendingUpload=null;
+let _activeUploadPane='schedule';
+let _ratingsPeriodLabel='';
+const UPLOAD_PANES=[
+  {key:'schedule',label:'Schedule'},
+  {key:'leave',label:'Leave'},
+  {key:'ratings',label:'Ratings'},
+  {key:'accounts',label:'Accounts'},
+];
+const LEAVE_TYPES=['TIME OFF','VACATION LEAVE','SICK LEAVE','OFFSET','ANNUAL LEAVE','AL'];
+function shiftPillStyle(val){
+  if(!val||LEAVE_TYPES.includes(val))return'background:#f0ece8;color:#888;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600';
+  return'background:var(--light-purple);color:var(--purple);padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600';
+}
+function dayLabel(c){
+  const mon=getMonday(c.wkOffset);const d=new Date(mon);d.setDate(mon.getDate()+c.dayIdx);
+  return DAYS[c.dayIdx]+' '+fmtDate(d)+(c.wkOffset!==0?` (wk ${c.wkOffset>0?'+':''}${c.wkOffset})`:'');
+}
+function renderDiffTable(items,columns){
+  let tbl=`<div style="overflow-x:auto;max-height:360px;overflow-y:auto;border:1px solid var(--border);border-radius:8px">
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead style="position:sticky;top:0;z-index:1"><tr style="background:var(--bg)">`;
+  columns.forEach(c=>{tbl+=`<th style="padding:8px 12px;text-align:left;border-bottom:1px solid var(--border);font-weight:700;color:var(--purple)">${escHtml(c.label)}</th>`;});
+  tbl+='</tr></thead><tbody>';
+  items.forEach((it,i)=>{
+    tbl+=`<tr style="background:${i%2===0?'#fff':'#fdfcff'}">`;
+    columns.forEach(c=>{tbl+=`<td style="padding:7px 12px">${c.get(it)}</td>`;});
+    tbl+='</tr>';
+  });
+  tbl+='</tbody></table></div>';
+  return tbl;
+}
+function renderScheduleDiffTable(changes){
+  const sorted=[...changes].sort((a,b)=>a.name.localeCompare(b.name)||a.wkOffset-b.wkOffset||a.dayIdx-b.dayIdx);
+  return renderDiffTable(sorted,[
+    {label:'Member',get:c=>escHtml(c.name)},
+    {label:'Day',get:c=>escHtml(dayLabel(c))},
+    {label:'Current',get:c=>`<span style="${shiftPillStyle(c.oldVal)}">${escHtml(c.oldVal)}</span>`},
+    {label:'',get:()=>'<span style="color:var(--mid);font-size:10px">→</span>'},
+    {label:'New',get:c=>`<span style="${shiftPillStyle(c.newVal)};background:var(--green-l);color:var(--green-d)">${escHtml(c.newVal)}</span>`},
+  ]);
+}
+function renderLeaveDiffTable(changes){
+  const sorted=[...changes].sort((a,b)=>a.name.localeCompare(b.name)||a.wkOffset-b.wkOffset||a.dayIdx-b.dayIdx);
+  return renderDiffTable(sorted,[
+    {label:'Member',get:c=>escHtml(c.name)},
+    {label:'Day',get:c=>escHtml(dayLabel(c))},
+  ]);
+}
+function renderRatingsDiffTable(changes){
+  const sorted=[...changes].sort((a,b)=>a.name.localeCompare(b.name)||a.sourceSheet.localeCompare(b.sourceSheet));
+  return renderDiffTable(sorted,[
+    {label:'Member',get:c=>escHtml(c.name)},
+    {label:'Sheet',get:c=>escHtml(c.sourceSheet)},
+    {label:'Tickets',get:c=>c.tickets??'--'},
+    {label:'Rating %',get:c=>c.rating_pct??'--'},
+    {label:'SLA %',get:c=>c.sla_pct??'--'},
+    {label:'Combined %',get:c=>c.combined_pct??'--'},
+  ]);
+}
+function renderAccountsDiffTable(changes){
+  const sorted=[...changes].sort((a,b)=>a.name.localeCompare(b.name)||a.source_sheet.localeCompare(b.source_sheet));
+  return renderDiffTable(sorted,[
+    {label:'Member',get:c=>escHtml(c.name)},
+    {label:'Account / Value',get:c=>escHtml(c.account_name)},
+    {label:'Sheet',get:c=>escHtml(c.source_sheet)},
+  ]);
+}
+
+function showMultiUploadPreviewModal(result){
+  _pendingUpload=result;
+  _ratingsPeriodLabel='';
+  _activeUploadPane=UPLOAD_PANES.find(p=>result[p.key].changes.length>0)?.key||'schedule';
+  const totalChanges=UPLOAD_PANES.reduce((s,p)=>s+result[p.key].changes.length,0);
   document.getElementById('upm-title').textContent=
-    count===0?'No Changes Detected':`Schedule Upload Preview — ${count} change${count!==1?'s':''}`;
-  document.getElementById('upm-sub').textContent=
-    count===0?'The uploaded file matches the current schedule.':
-    `Review the changes below, then click Apply to commit.`;
-  // Warnings
-  const warnEl=document.getElementById('upm-warnings');
-  if(warnings.length){
-    warnEl.style.display='block';
-    warnEl.innerHTML=warnings.map(w=>`<div>⚠️ ${escHtml(w)}</div>`).join('');
-  }else{
-    warnEl.style.display='none';
-    warnEl.innerHTML='';
-  }
-  // Body
-  const bodyEl=document.getElementById('upm-body');
-  if(count===0){
-    bodyEl.innerHTML='<div style="text-align:center;padding:24px;color:var(--mid);font-size:13px">No differences found between the uploaded file and the current schedule.</div>';
-  }else{
-    const leaveTypes=['TIME OFF','VACATION LEAVE','SICK LEAVE','OFFSET','ANNUAL LEAVE','AL'];
-    function pillStyle(val){
-      if(!val||leaveTypes.includes(val))return'background:#f0ece8;color:#888;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600';
-      return'background:var(--light-purple);color:var(--purple);padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600';
-    }
-    let tbl=`<div style="overflow-x:auto;max-height:400px;overflow-y:auto;border:1px solid var(--border);border-radius:8px">
-      <table style="width:100%;border-collapse:collapse;font-size:12px">
-        <thead style="position:sticky;top:0;z-index:1">
-          <tr style="background:var(--bg)">
-            <th style="padding:8px 12px;text-align:left;border-bottom:1px solid var(--border);font-weight:700;color:var(--purple)">Member</th>
-            <th style="padding:8px 12px;text-align:left;border-bottom:1px solid var(--border);font-weight:700;color:var(--purple)">Day</th>
-            <th style="padding:8px 12px;text-align:left;border-bottom:1px solid var(--border);font-weight:700;color:var(--mid)">Current</th>
-            <th style="padding:8px 4px;border-bottom:1px solid var(--border);color:var(--mid)"></th>
-            <th style="padding:8px 12px;text-align:left;border-bottom:1px solid var(--border);font-weight:700;color:var(--green-d)">New</th>
-          </tr>
-        </thead><tbody>`;
-    const sorted=[...changes].sort((a,b)=>a.name.localeCompare(b.name)||a.wkOffset-b.wkOffset||a.dayIdx-b.dayIdx);
-    sorted.forEach((c,i)=>{
-      const mon=getMonday(c.wkOffset);
-      const d=new Date(mon);d.setDate(mon.getDate()+c.dayIdx);
-      const dateLabel=DAYS[c.dayIdx]+' '+fmtDate(d)+(c.wkOffset!==0?` (wk ${c.wkOffset>0?'+':''}${c.wkOffset})`:'');
-      tbl+=`<tr style="background:${i%2===0?'#fff':'#fdfcff'}">
-        <td style="padding:7px 12px;font-weight:600;color:var(--navy)">${escHtml(c.name)}</td>
-        <td style="padding:7px 12px;color:var(--mid)">${escHtml(dateLabel)}</td>
-        <td style="padding:7px 12px"><span style="${pillStyle(c.oldVal)}">${escHtml(c.oldVal)}</span></td>
-        <td style="padding:7px 4px;color:var(--mid);font-size:10px">→</td>
-        <td style="padding:7px 12px"><span style="${pillStyle(c.newVal)};background:var(--green-l);color:var(--green-d)">${escHtml(c.newVal)}</span></td>
-      </tr>`;
-    });
-    tbl+='</tbody></table></div>';
-    bodyEl.innerHTML=tbl;
-  }
-  const confirmBtn=document.getElementById('upm-confirm-btn');
-  confirmBtn.style.display=count===0?'none':'flex';
-  confirmBtn.textContent=`Apply ${count} change${count!==1?'s':''}`;
+    totalChanges===0?'No Changes Detected':`Upload Preview — ${totalChanges} change${totalChanges!==1?'s':''}`;
+  let sub=totalChanges===0?'The uploaded file matches current data.':'Review each tab, then click Apply to commit.';
+  if(result.sheetsMissing.length)sub+=` Missing sheets: ${result.sheetsMissing.join(', ')}.`;
+  document.getElementById('upm-sub').textContent=sub;
+  document.getElementById('upm-warnings').style.display='none';
+  const modalEl=document.querySelector('#uploadPreviewModal .modal');
+  if(modalEl)modalEl.style.width='min(920px, 92vw)';
+  renderUploadTabs();
   document.getElementById('uploadPreviewModal').classList.add('open');
+}
+
+function sheetMissingFor(paneKey){
+  const m=_pendingUpload.sheetsMissing;
+  if(paneKey==='schedule')return m.includes('Weekly Schedule');
+  if(paneKey==='leave')return m.includes('Leave Application');
+  if(paneKey==='ratings')return m.includes('Commision')&&m.includes('Sheet6');
+  if(paneKey==='accounts')return m.includes('Sheet2')&&m.includes('Sheet3');
+  return false;
+}
+
+function renderUploadTabs(){
+  const bodyEl=document.getElementById('upm-body');
+  const tabsHtml=UPLOAD_PANES.map(p=>{
+    const n=_pendingUpload[p.key].changes.length;
+    const missing=sheetMissingFor(p.key);
+    return `<button class="tab-btn${_activeUploadPane===p.key?' active':''}" ${missing?'disabled':''} style="${missing?'opacity:.4;cursor:not-allowed':''}" onclick="switchUploadPane('${p.key}')">${p.label} (${n})</button>`;
+  }).join('');
+  bodyEl.innerHTML=`
+    <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">${tabsHtml}</div>
+    <div id="upm-period-row" style="display:none;margin-bottom:10px">
+      <label style="font-size:12px;font-weight:600;color:var(--mid)">Ratings period label (required)</label><br>
+      <input type="text" id="upm-period-label" placeholder="e.g. July 2026" style="margin-top:4px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;width:220px">
+    </div>
+    <div id="upm-pane-warnings" style="display:none;background:var(--amber-l);border:1px solid #e6c96a;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:var(--amber);line-height:1.7"></div>
+    <div id="upm-pane-body"></div>`;
+  renderActiveUploadPane();
+}
+
+function switchUploadPane(key){
+  const inp=document.getElementById('upm-period-label');
+  if(inp)_ratingsPeriodLabel=inp.value;
+  _activeUploadPane=key;
+  renderUploadTabs();
+}
+
+function renderActiveUploadPane(){
+  const pane=_pendingUpload[_activeUploadPane];
+  const warnEl=document.getElementById('upm-pane-warnings');
+  if(pane.warnings.length){
+    warnEl.style.display='block';
+    warnEl.innerHTML=pane.warnings.map(w=>`<div>⚠️ ${escHtml(w)}</div>`).join('');
+  }else{
+    warnEl.style.display='none';warnEl.innerHTML='';
+  }
+  document.getElementById('upm-period-row').style.display=
+    _activeUploadPane==='ratings'&&pane.changes.length?'block':'none';
+  const bodyEl=document.getElementById('upm-pane-body');
+  if(!pane.changes.length){
+    bodyEl.innerHTML='<div style="text-align:center;padding:24px;color:var(--mid);font-size:13px">No differences found for this sheet.</div>';
+  }else if(_activeUploadPane==='schedule'){
+    bodyEl.innerHTML=renderScheduleDiffTable(pane.changes);
+  }else if(_activeUploadPane==='leave'){
+    bodyEl.innerHTML=renderLeaveDiffTable(pane.changes);
+  }else if(_activeUploadPane==='ratings'){
+    bodyEl.innerHTML=renderRatingsDiffTable(pane.changes);
+  }else{
+    bodyEl.innerHTML=renderAccountsDiffTable(pane.changes);
+  }
+  if(_activeUploadPane==='ratings'){
+    const inp=document.getElementById('upm-period-label');
+    if(inp){inp.value=_ratingsPeriodLabel;inp.oninput=e=>{_ratingsPeriodLabel=e.target.value;};}
+  }
+  const totalChanges=UPLOAD_PANES.reduce((s,p)=>s+_pendingUpload[p.key].changes.length,0);
+  const confirmBtn=document.getElementById('upm-confirm-btn');
+  confirmBtn.style.display=totalChanges===0?'none':'flex';
+  confirmBtn.textContent=`Apply ${totalChanges} change${totalChanges!==1?'s':''}`;
 }
 
 function closeUploadPreview(){
   document.getElementById('uploadPreviewModal').classList.remove('open');
-  _pendingUploadChanges=[];
+  _pendingUpload=null;
+  _ratingsPeriodLabel='';
 }
 
-async function applyUploadedSchedule(){
-  if(!_pendingUploadChanges.length)return;
+async function applyMultiUpload(){
+  if(!_pendingUpload)return;
+  const inp=document.getElementById('upm-period-label');
+  if(inp)_ratingsPeriodLabel=inp.value;
+  const totalChanges=UPLOAD_PANES.reduce((s,p)=>s+_pendingUpload[p.key].changes.length,0);
+  if(!totalChanges)return;
+  if(_pendingUpload.ratings.changes.length&&!_ratingsPeriodLabel.trim()){
+    toast('⚠️ Enter a period label for the ratings data before applying.');
+    switchUploadPane('ratings');
+    return;
+  }
   const btn=document.getElementById('upm-confirm-btn');
   btn.disabled=true;
   btn.textContent='Saving…';
   try{
+    const scheduleChanges=_pendingUpload.schedule.changes;
+    const leaveChanges=_pendingUpload.leave.changes;
+    const ratingsChanges=_pendingUpload.ratings.changes.map(c=>({...c,period_label:_ratingsPeriodLabel.trim()}));
+    const accountChanges=_pendingUpload.accounts.changes;
     if(sb){
-      await Promise.all(_pendingUploadChanges.map(c=>
-        dbSaveScheduleCell(c.key,c.name,c.dayIdx,c.wkOffset,c.newVal)
-      ));
+      await Promise.all([
+        ...scheduleChanges.map(c=>dbSaveScheduleCell(c.key,c.name,c.dayIdx,c.wkOffset,c.newVal)),
+        ...leaveChanges.map(c=>dbSaveLeaveEntry(c)),
+        ...ratingsChanges.map(c=>dbSaveAgentRating(c)),
+        ...accountChanges.map(c=>dbSaveAccountAssignment(c)),
+      ]);
     }
-    // Update local state
-    _pendingUploadChanges.forEach(c=>{scheduleData[c.key]=c.newVal;});
+    scheduleChanges.forEach(c=>{scheduleData[c.key]=c.newVal;});
+    leaveChanges.forEach(c=>{leaveData[c.key]={name:c.name,dayIdx:c.dayIdx,wkOffset:c.wkOffset};});
+    ratingsChanges.forEach(c=>{ratingsData[`${c.name}__${c.period_label}__${c.sourceSheet}`]=c;});
+    accountChanges.forEach(c=>{accountData[c.key]=c;});
     closeUploadPreview();
     renderSchedule();
-    toast(`✓ Schedule updated — ${_pendingUploadChanges.length} cell${_pendingUploadChanges.length!==1?'s':''} changed`);
+    if(currentRole==='admin')renderAdminPanel();
+    toast(`✓ Uploaded — schedule: ${scheduleChanges.length}, leave: ${leaveChanges.length}, ratings: ${ratingsChanges.length}, accounts: ${accountChanges.length}`);
   }catch(err){
     console.error('Upload apply error:',err);
     toast('❌ Error saving changes. Please try again.');
     btn.disabled=false;
-    btn.textContent=`Apply ${_pendingUploadChanges.length} changes`;
+    btn.textContent=`Apply ${totalChanges} changes`;
   }
 }
+
 
 // ══════════════════════════════════════════════════════════════
 //  LOG
@@ -2293,8 +2734,64 @@ async function applyBulkSchedule() {
 // ══════════════════════════════════════════════════════════════
 //  ADMIN PANEL RENDER
 // ══════════════════════════════════════════════════════════════
+function renderRatingsPanel() {
+  const listEl = document.getElementById('ratingsMgmtList');
+  const filterEl = document.getElementById('ratingsPeriodFilter');
+  if (!listEl || !filterEl) return;
+  const rows = Object.values(ratingsData);
+  const periods = [...new Set(rows.map(r => r.period_label))].sort();
+  const prevSelected = filterEl.value;
+  filterEl.innerHTML = '<option value="">All periods</option>' +
+    periods.map(p => `<option value="${escHtml(p)}">${escHtml(p)}</option>`).join('');
+  filterEl.value = periods.includes(prevSelected) ? prevSelected : '';
+  const activePeriod = filterEl.value;
+  const filtered = activePeriod ? rows.filter(r => r.period_label === activePeriod) : rows;
+  if (!filtered.length) {
+    listEl.innerHTML = '<div style="font-size:12px;color:var(--mid);padding:8px 0">No ratings uploaded yet.</div>';
+    return;
+  }
+  const sorted = [...filtered].sort((a, b) => a.name.localeCompare(b.name) || a.source_sheet.localeCompare(b.source_sheet));
+  listEl.innerHTML = `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">
+    <thead><tr style="background:var(--bg)">
+      <th style="padding:6px 8px;text-align:left">Member</th>
+      <th style="padding:6px 8px;text-align:left">Period</th>
+      <th style="padding:6px 8px;text-align:left">Sheet</th>
+      <th style="padding:6px 8px;text-align:left">Rating %</th>
+      <th style="padding:6px 8px;text-align:left">Combined %</th>
+    </tr></thead><tbody>
+    ${sorted.map(r => `<tr>
+      <td style="padding:5px 8px;font-weight:600">${escHtml(r.name)}</td>
+      <td style="padding:5px 8px">${escHtml(r.period_label)}</td>
+      <td style="padding:5px 8px;color:var(--mid)">${escHtml(r.source_sheet)}</td>
+      <td style="padding:5px 8px">${r.rating_pct ?? '--'}</td>
+      <td style="padding:5px 8px">${r.combined_pct ?? '--'}</td>
+    </tr>`).join('')}
+  </tbody></table></div>`;
+}
+
+function renderAccountsPanel() {
+  const listEl = document.getElementById('accountsMgmtList');
+  const filterEl = document.getElementById('accountsSearchFilter');
+  if (!listEl) return;
+  const q = (filterEl?.value || '').trim().toLowerCase();
+  const rows = Object.values(accountData).filter(r => !q || r.name.toLowerCase().includes(q));
+  if (!rows.length) {
+    listEl.innerHTML = '<div style="font-size:12px;color:var(--mid);padding:8px 0">No account assignments uploaded yet.</div>';
+    return;
+  }
+  const byName = {};
+  rows.forEach(r => { (byName[r.name] = byName[r.name] || []).push(r); });
+  listEl.innerHTML = Object.keys(byName).sort().map(name => `
+    <div style="padding:6px 0;border-bottom:1px solid var(--border)">
+      <div style="font-weight:600;font-size:12px">${escHtml(name)}</div>
+      <div style="font-size:11px;color:var(--mid)">${byName[name].map(r => escHtml(r.account_name)).join(', ')}</div>
+    </div>`).join('');
+}
+
 function renderAdminPanel() {
   if (currentRole !== 'admin') return;
+  renderRatingsPanel();
+  renderAccountsPanel();
 
   // Member list
   const memberList = document.getElementById('memberMgmtList');
@@ -2367,6 +2864,9 @@ async function resumeSession(name, role) {
     if (!MEMBERS.includes(name)) throw new Error('Member not found after config load');
     await dbLoadAttendanceState();
     await dbLoadSchedule();
+    await dbLoadLeaveData();
+    await dbLoadAgentRatings();
+    await dbLoadAccountAssignments();
     const logData = await dbLoadLog(TODAY_ISO, null);
     attLog = logData.map(r => ({
       id: r.id, name: r.name, team: r.team, action: r.action,

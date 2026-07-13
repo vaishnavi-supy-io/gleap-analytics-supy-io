@@ -326,6 +326,32 @@ function getLatestComment(t) {
   return '';
 }
 
+// ── Recurring-word extraction (Uncategorized keyword feedback loop) ────
+const KEYWORD_STOPWORDS = new Set([
+  'the','a','an','and','or','but','is','are','was','were','be','been','to','of','in','on',
+  'at','for','with','this','that','it','its','i','we','you','they','my','our','your','their',
+  'not','no','do','does','did','can','could','would','should','have','has','had','will',
+  'just','get','got','please','need','how','what','when','where','why','which','who',
+  'issue','ticket','help','app','item','also','from','as','by','if','so','me','us','them',
+  'all','any','some','one','two','there','here','been','being','than','then','now','still',
+  'about','into','over','out','up','down','only','same','more','most','via','per',
+]);
+function extractKeywords(rows, limit=20) {
+  const counts = {};
+  for (const r of rows) {
+    const text = `${r.title||''} ${r.aiSummary||''} ${r.latestComment||''}`.toLowerCase();
+    const words = text.replace(/[^a-z0-9\s]/g,' ').split(/\s+/)
+      .filter(w => w.length>2 && !KEYWORD_STOPWORDS.has(w) && isNaN(w));
+    const seenInTicket = new Set(); // count once per ticket so one verbose ticket can't dominate
+    for (const w of words) {
+      if (seenInTicket.has(w)) continue;
+      seenInTicket.add(w);
+      counts[w] = (counts[w]||0) + 1;
+    }
+  }
+  return Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,limit).map(([word,count])=>({word,count}));
+}
+
 async function gleapFetch(url, params={}, retries=3) {
   const qs = new URLSearchParams(params).toString();
   const fullUrl = qs ? `${url}?${qs}` : url;
@@ -480,9 +506,39 @@ function countAgentResponses(t, agentName) {
 
 // Gleap sets `sentiment` via AI only on individual ticket fetches, not bulk list.
 // Use it when present; otherwise derive from objective signals.
+// Lightweight lexicon check on actual ticket language — used as a stronger
+// signal than the operational-only fallback below (SLA breach, closed+replied).
+// Returns null (no clear signal) when neither word list hits, or on a tie,
+// so callers fall through to the existing heuristic rather than guessing.
+const SENTIMENT_POS_WORDS = [
+  'thank you', 'thanks', 'great', 'awesome', 'appreciate', 'excellent', 'perfect',
+  'happy', 'love', 'helpful', 'resolved', 'amazing', 'wonderful', 'fantastic', 'pleased',
+];
+const SENTIMENT_NEG_WORDS = [
+  'frustrated', 'frustrating', 'disappointed', 'disappointing', 'terrible', 'awful',
+  'worst', 'unacceptable', 'angry', 'upset', 'annoyed', 'broken', 'useless', 'horrible',
+  'ridiculous', 'complain', 'complaint', 'refund', 'cancel', 'still not working',
+  'still broken', 'waste of time', 'fed up', 'unhappy', 'not happy', 'very poor',
+];
+function textSentimentScore(text) {
+  const t = (text || '').toLowerCase();
+  let pos = 0, neg = 0;
+  for (const w of SENTIMENT_POS_WORDS) if (t.includes(w)) pos++;
+  for (const w of SENTIMENT_NEG_WORDS) if (t.includes(w)) neg++;
+  if (pos === 0 && neg === 0) return null;
+  if (neg > pos) return 'negative';
+  if (pos > neg) return 'positive';
+  return null;
+}
+
 function resolveSentiment(t, isClosed) {
   const raw = String(t.sentiment || '').toLowerCase().trim();
   if (raw === 'positive' || raw === 'negative' || raw === 'neutral') return raw;
+
+  const cmtStr = typeof t.latestComment === 'string' ? t.latestComment : getLatestComment(t);
+  const textSignal = textSentimentScore(`${t.title||''} ${t.description||''} ${t.aiSummary||''} ${cmtStr||''}`);
+  if (textSignal) return textSignal;
+
   if (t.slaBreached) return 'negative';
   if (isClosed && t.hasAgentReply && !t.slaBreached) return 'positive';
   return 'neutral';
@@ -630,14 +686,50 @@ function computeStats(rows) {
   for (const r of rows) if (r.company) companyMap[r.company]=(companyMap[r.company]||0)+1;
   const topCompanies=Object.entries(companyMap).sort((a,b)=>b[1]-a[1]).slice(0,15).map(([name,count])=>({name,count}));
 
-  const categoryMap={};
+  // Category cross-tab: count + resolve/SLA rates + top company/agent per
+  // category, instead of just a raw count — answers "which category has the
+  // worst SLA breach rate" without a separate manual drill-down per category.
+  const catBuckets={};
   for (const r of rows) {
     const cat = r.category || 'Uncategorized';
-    categoryMap[cat] = (categoryMap[cat]||0) + 1;
+    (catBuckets[cat] = catBuckets[cat] || []).push(r);
   }
-  const categoryBreakdown=Object.entries(categoryMap)
-    .sort((a,b)=>b[1]-a[1])
-    .map(([category,count])=>({category,count}));
+  const categoryBreakdown = Object.entries(catBuckets).map(([category,catRows])=>{
+    const cnt = catRows.length;
+    const closedC = catRows.filter(r=>r.isClosed).length;
+    const slaC = catRows.filter(r=>r.slaBreached).length;
+    const closeValsC = catRows.map(r=>r.closeMins).filter(v=>v!==null);
+    const companyCountsC={};
+    for (const r of catRows) if (r.company) companyCountsC[r.company]=(companyCountsC[r.company]||0)+1;
+    const topCompany = Object.entries(companyCountsC).sort((a,b)=>b[1]-a[1])[0]?.[0] || null;
+    const agentCountsC={};
+    for (const r of catRows) if (r.agent && r.agent!=='Unassigned') agentCountsC[r.agent]=(agentCountsC[r.agent]||0)+1;
+    const topAgent = Object.entries(agentCountsC).sort((a,b)=>b[1]-a[1])[0]?.[0] || null;
+    return {
+      category, count:cnt,
+      pct: total ? Math.round((cnt/total)*100) : 0,
+      resolveRate: cnt ? Math.round((closedC/cnt)*100) : 0,
+      slaBreachRate: cnt ? Math.round((slaC/cnt)*100) : 0,
+      avgCloseFmt: fmtMins(avg(closeValsC)),
+      topCompany, topAgent,
+    };
+  }).sort((a,b)=>b.count-a.count);
+
+  // Category trend over time — one row per day, spread with a count per
+  // category present that day — powers a "is this category climbing" chart.
+  const catTrendMap={};
+  for (const r of rows) {
+    const cat = r.category || 'Uncategorized';
+    (catTrendMap[r.day] = catTrendMap[r.day] || {})[cat] = (catTrendMap[r.day]?.[cat]||0) + 1;
+  }
+  const categoryTrend = Object.entries(catTrendMap)
+    .sort((a,b)=>a[0].localeCompare(b[0]))
+    .map(([day,cats])=>({day,...cats}));
+
+  // Recurring words in Uncategorized tickets — a feedback loop for tuning
+  // CATEGORIES keywords systematically instead of reactively.
+  const uncategorizedRows = catBuckets['Uncategorized'] || [];
+  const uncategorizedKeywords = extractKeywords(uncategorizedRows);
 
   return {
     total,openCount:openRows.length,closedCount:closedRows.length,archivedCount:archivedRows.length,
@@ -654,7 +746,7 @@ function computeStats(rows) {
     daily:Object.entries(daily).sort((a,b)=>a[0].localeCompare(b[0])).map(([day,count])=>({day,count})),
     dow:Object.entries(dow).map(([day,count])=>({day,count})),
     hourly:Object.entries(hourly).sort((a,b)=>+a[0]-+b[0]).map(([hour,count])=>({hour:+hour,count})),
-    agents,topCompanies,categoryBreakdown,
+    agents,topCompanies,categoryBreakdown,categoryTrend,uncategorizedKeywords,
     openTickets:openRows,escalatedTickets:escalated,callTickets:callRows,tickets:rows,
   };
 }

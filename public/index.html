@@ -752,6 +752,8 @@ const CATEGORY_NAMES = [
 
 // ── State ─────────────────────────────────────────────────
 let globalStats = null;
+let previousStats = null; // same-length period immediately before the selected range — powers PoP deltas
+let currentOverviewCategory = ''; // declared here (not near setOverviewCategory) so init()'s synchronous loadData() call can read it
 let allTickets  = [];
 let filteredTickets = [];
 let currentFilter = 'all';
@@ -925,13 +927,30 @@ function alertBar(type, msg, id) {
   </div>`;
 }
 
+// Period-over-period delta badge — null prevVal means no baseline available
+// (e.g. brand new inbox, or previous-period fetch failed) so we just omit it
+// rather than show a misleading 0% or infinite change.
+// mode: 'higher' (higher=better, e.g. resolve rate), 'lower' (lower=better,
+// e.g. SLA breaches), or 'neutral' (pure volume metric, no good/bad framing).
+function popDelta(currVal, prevVal, mode='higher') {
+  if (prevVal === null || prevVal === undefined || typeof currVal !== 'number') return '';
+  if (prevVal === 0 && currVal === 0) return '';
+  const diff = currVal - prevVal;
+  if (diff === 0) return `<span style="font-size:10.5px;font-weight:600;color:var(--muted)">→ same as last period</span>`;
+  const pctChange = prevVal !== 0 ? Math.round((diff/prevVal)*100) : 100;
+  const arrow = diff > 0 ? '▲' : '▼';
+  const color = mode==='neutral' ? 'var(--muted)' : ((mode==='lower' ? diff<0 : diff>0) ? '#059669' : '#DC2626');
+  return `<span style="font-size:10.5px;font-weight:700;color:${color}">${arrow} ${Math.abs(pctChange)}% vs last period</span>`;
+}
+
 // ── KPI card helper ───────────────────────────────────────
-function kpiCard(value, label, sub, color, infoKey, iconSvg) {
+function kpiCard(value, label, sub, color, infoKey, iconSvg, delta) {
   return `<div class="kpi-card ${color||''}">
     ${iconSvg ? `<div class="kpi-icon-svg">${iconSvg}</div>` : ''}
     <div class="kpi-value">${value}</div>
     <div class="kpi-label">${label} ${infoKey ? infoBtn(infoKey) : ''}</div>
     ${sub ? `<div class="kpi-sub">${sub}</div>` : ''}
+    ${delta ? `<div class="kpi-sub" style="margin-top:2px">${delta}</div>` : ''}
   </div>`;
 }
 
@@ -1183,11 +1202,26 @@ async function loadData() {
   document.getElementById('pageSub').textContent = 'Fetching data…';
 
   try {
-    const resp = await fetch(`/api/analytics?start=${from}T00:00:00.000Z&end=${to}T23:59:59.999Z`);
+    // Previous period = same number of days immediately preceding the selected range —
+    // fetched in parallel so PoP deltas don't add extra wait time on top of the main load.
+    const fromD = new Date(from + 'T00:00:00.000Z');
+    const toD   = new Date(to   + 'T00:00:00.000Z');
+    const rangeDays = Math.max(1, Math.round((toD - fromD) / 86400000) + 1);
+    const prevTo   = new Date(fromD); prevTo.setUTCDate(prevTo.getUTCDate() - 1);
+    const prevFrom = new Date(prevTo); prevFrom.setUTCDate(prevFrom.getUTCDate() - (rangeDays - 1));
+    const prevFromStr = prevFrom.toISOString().slice(0,10);
+    const prevToStr   = prevTo.toISOString().slice(0,10);
+
+    const [resp, prevResp] = await Promise.all([
+      fetch(`/api/analytics?start=${from}T00:00:00.000Z&end=${to}T23:59:59.999Z`),
+      fetch(`/api/analytics?start=${prevFromStr}T00:00:00.000Z&end=${prevToStr}T23:59:59.999Z`).catch(()=>null),
+    ]);
     const data = await resp.json();
     if (!data.ok) throw new Error(data.error);
+    const prevData = prevResp ? await prevResp.json().catch(()=>null) : null;
 
-    globalStats = data.stats;
+    globalStats   = data.stats;
+    previousStats = (prevData && prevData.ok) ? prevData.stats : null;
     allTickets  = data.stats.tickets || [];
     filteredTickets = [...allTickets];
 
@@ -1275,10 +1309,101 @@ function renderCategoryInsight(catStats, baseline, categoryName) {
   </div>`;
 }
 
+const CATEGORY_CHART_COLORS = {'Item Configuration':'#7C3AED','Item Costing':'#DC2626','Central Kitchen Module':'#0891B2','Recipe':'#059669','Supplier Configuration':'#D97706','Roles and Permissions':'#4F46E5','Integration':'#0D9488','GRN/Invoices':'#9333EA','Wastages':'#DC2626','Production':'#2563EB','Transfers':'#CA8A04','Reports and Analysis':'#6366F1','Dashboard':'#8B5CF6','Tech':'#EA580C','Uncategorized':'#9CA3AF'};
+
+// Cross-tab table: which category has the worst SLA breach rate, which
+// company/agent drives it — the questions a single category-count bar
+// chart can't answer without manually filtering one category at a time.
+function renderCategoryDeepDive(s) {
+  const rows = (s.categoryBreakdown||[]).filter(c=>c.count>0).slice(0,12);
+  if (!rows.length) return '';
+  return `<div class="chart-card">
+    <div class="chart-title" style="margin-bottom:12px">Category Deep-Dive</div>
+    <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:11.5px">
+        <thead><tr style="border-bottom:1.5px solid var(--border2)">
+          <th style="text-align:left;padding:6px 8px;color:var(--muted);font-weight:700">Category</th>
+          <th style="text-align:right;padding:6px 8px;color:var(--muted);font-weight:700">Count</th>
+          <th style="text-align:right;padding:6px 8px;color:var(--muted);font-weight:700">Resolve %</th>
+          <th style="text-align:right;padding:6px 8px;color:var(--muted);font-weight:700">SLA Breach %</th>
+          <th style="text-align:right;padding:6px 8px;color:var(--muted);font-weight:700">Avg Close</th>
+          <th style="text-align:left;padding:6px 8px;color:var(--muted);font-weight:700">Top Agent</th>
+          <th style="text-align:left;padding:6px 8px;color:var(--muted);font-weight:700">Top Company</th>
+        </tr></thead>
+        <tbody>
+          ${rows.map(c=>{
+            const cc = CATEGORY_CHART_COLORS[c.category] || '#9CA3AF';
+            const slaColor = c.slaBreachRate >= 20 ? '#DC2626' : c.slaBreachRate >= 10 ? '#D97706' : 'var(--muted)';
+            return `<tr style="border-bottom:1px solid var(--border2)">
+              <td style="padding:6px 8px"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${cc};margin-right:6px;vertical-align:middle"></span>${escHtml(c.category)}</td>
+              <td style="text-align:right;padding:6px 8px;font-weight:700">${c.count}</td>
+              <td style="text-align:right;padding:6px 8px">${c.resolveRate}%</td>
+              <td style="text-align:right;padding:6px 8px;font-weight:700;color:${slaColor}">${c.slaBreachRate}%</td>
+              <td style="text-align:right;padding:6px 8px;color:var(--muted)">${c.avgCloseFmt}</td>
+              <td style="padding:6px 8px;color:var(--muted)">${c.topAgent?escHtml(c.topAgent):'—'}</td>
+              <td style="padding:6px 8px;color:var(--muted)">${c.topCompany?escHtml(c.topCompany):'—'}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+// Feedback loop for keeping CATEGORIES keyword lists current — surfaces what's
+// actually showing up in Uncategorized tickets instead of tuning reactively.
+function renderUncategorizedSignals(s) {
+  const words = (s.uncategorizedKeywords||[]).filter(w=>w.count>1);
+  const uncatCount = (s.categoryBreakdown||[]).find(c=>c.category==='Uncategorized')?.count || 0;
+  if (!words.length || !uncatCount) return '';
+  const pct = s.total ? Math.round((uncatCount/s.total)*100) : 0;
+  return `<div class="chart-card">
+    <div class="chart-title" style="margin-bottom:4px">Uncategorized Signals</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:10px">${uncatCount} tickets (${pct}%) landed in Uncategorized — recurring words below are candidates for new keywords</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px">
+      ${words.map(w=>`<span style="font-size:11px;padding:3px 10px;border-radius:99px;background:var(--p100);color:var(--p700);font-weight:600">${escHtml(w.word)} <span style="opacity:0.65">${w.count}</span></span>`).join('')}
+    </div>
+  </div>`;
+}
+
+function renderCategoryTrendChart(s) {
+  const ctx = document.getElementById('chartCategoryTrend');
+  if (!ctx) return;
+  if (charts.categoryTrend) charts.categoryTrend.destroy();
+  const days = (s.daily||[]).map(d=>d.day);
+  const topCats = (s.categoryBreakdown||[]).filter(c=>c.category!=='Uncategorized' && c.count>0).slice(0,5).map(c=>c.category);
+  const trendByDay = {};
+  for (const row of (s.categoryTrend||[])) trendByDay[row.day] = row;
+  const datasets = topCats.map(cat => ({
+    label: cat,
+    data: days.map(d => (trendByDay[d]||{})[cat] || 0),
+    borderColor: CATEGORY_CHART_COLORS[cat] || '#9CA3AF',
+    backgroundColor: 'transparent',
+    tension: 0.3,
+    pointRadius: 2,
+  }));
+  if (!datasets.length) return;
+  charts.categoryTrend = new Chart(ctx, {
+    type: 'line',
+    data: { labels: days, datasets },
+    options: { responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ position:'bottom', labels:{ font:{family:'Inter',size:10}, boxWidth:10, padding:8 } } },
+      scales:{ x:{ ticks:{ font:{family:'Inter',size:9}, maxRotation:0, autoSkip:true } }, y:{ beginAtZero:true, ticks:{ font:{family:'Inter',size:10}, precision:0 } } } },
+  });
+}
+
 function renderOverview(s) {
   const resolveRate = s.total ? Math.round((s.closedCount/s.total)*100) : 0;
   const replyRate   = s.total ? Math.round((s.withReply/s.total)*100) : 0;
   const assignRate  = s.total ? Math.round((s.assignedCount/s.total)*100) : 0;
+
+  // PoP deltas only make sense against the same (unfiltered) period comparison —
+  // when a category filter is active, the Category Insight panel above already
+  // covers "vs baseline" using the current period's own overall stats instead.
+  const prev = currentOverviewCategory ? null : previousStats;
+  const prevResolveRate = prev && prev.total ? Math.round((prev.closedCount/prev.total)*100) : null;
+  const prevReplyRate   = prev && prev.total ? Math.round((prev.withReply/prev.total)*100)   : null;
+  const prevAssignRate  = prev && prev.total ? Math.round((prev.assignedCount/prev.total)*100): null;
 
   let alerts = '';
   if (s.slaBreached > 0)     alerts += alertBar('danger',  `${_svgWarnS} ${s.slaBreached} ticket${s.slaBreached>1?'s':''} with SLA breached — review immediately`, 'alert-sla');
@@ -1299,11 +1424,11 @@ function renderOverview(s) {
     ${renderPerformanceLeaderboard(s)}
     ${renderAgingBuckets(s)}
     <div class="kpi-grid">
-      ${kpiCard(s.total, 'Total Conversations', 'INQUIRY type tickets', '', 'totalConversations', svgChat)}
-      ${kpiCard(s.openCount, 'Open / Active', `${s.closedCount} closed · ${s.archivedCount} archived`, s.openCount>0?'amber':'green', 'openCount', svgOpen)}
-      ${kpiCard(s.slaBreached, 'SLA Breached', `${s.total - s.slaBreached} within SLA`, s.slaBreached>0?'red':'', 'slaBreached', svgSla)}
-      ${kpiCard(s.unassignedCount, 'Unassigned', `${s.assignedCount} assigned to agents`, s.unassignedCount>0?'amber':'', 'unassignedCount', svgUser)}
-      ${kpiCard(s.callRequestCount, 'Call Requests', 'call_flow = true tickets', 'blue', 'callRequests', svgPhone)}
+      ${kpiCard(s.total, 'Total Conversations', 'INQUIRY type tickets', '', 'totalConversations', svgChat, popDelta(s.total, prev?.total, 'neutral'))}
+      ${kpiCard(s.openCount, 'Open / Active', `${s.closedCount} closed · ${s.archivedCount} archived`, s.openCount>0?'amber':'green', 'openCount', svgOpen, popDelta(s.openCount, prev?.openCount, 'lower'))}
+      ${kpiCard(s.slaBreached, 'SLA Breached', `${s.total - s.slaBreached} within SLA`, s.slaBreached>0?'red':'', 'slaBreached', svgSla, popDelta(s.slaBreached, prev?.slaBreached, 'lower'))}
+      ${kpiCard(s.unassignedCount, 'Unassigned', `${s.assignedCount} assigned to agents`, s.unassignedCount>0?'amber':'', 'unassignedCount', svgUser, popDelta(s.unassignedCount, prev?.unassignedCount, 'lower'))}
+      ${kpiCard(s.callRequestCount, 'Call Requests', 'call_flow = true tickets', 'blue', 'callRequests', svgPhone, popDelta(s.callRequestCount, prev?.callRequestCount, 'neutral'))}
       ${kpiCard(s.withCompany, 'With Company', `${s.withPhone} have phone number`, '', '', svgBldg)}
       ${kpiCard(s.withEmail, 'With Email', 'Contact info available', '', '', svgMail)}
     </div>
@@ -1319,9 +1444,9 @@ function renderOverview(s) {
       <div class="chart-card">
         <div class="chart-title" style="display:flex;align-items:center;gap:5px"><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/></svg> Resolution Rates</div>
         <div style="display:flex;flex-direction:column;gap:12px;padding-top:4px">
-          ${rateRow('Resolve Rate', resolveRate, 'green', 'resolveRate')}
-          ${rateRow('Reply Rate', replyRate, 'purple', 'replyRate')}
-          ${rateRow('Assignment Rate', assignRate, 'blue', 'assignmentRate')}
+          ${rateRow('Resolve Rate', resolveRate, 'green', 'resolveRate', popDelta(resolveRate, prevResolveRate, 'higher'))}
+          ${rateRow('Reply Rate', replyRate, 'purple', 'replyRate', popDelta(replyRate, prevReplyRate, 'higher'))}
+          ${rateRow('Assignment Rate', assignRate, 'blue', 'assignmentRate', popDelta(assignRate, prevAssignRate, 'higher'))}
         </div>
       </div>
       <div class="chart-card">
@@ -1360,6 +1485,12 @@ function renderOverview(s) {
         })()}
       </div>
     </div>`}
+    ${currentOverviewCategory ? '' : renderCategoryDeepDive(s)}
+    ${currentOverviewCategory ? '' : `<div class="chart-card">
+      <div class="chart-title">Category Trend — is a category climbing?</div>
+      <div class="chart-wrap"><canvas id="chartCategoryTrend"></canvas></div>
+    </div>`}
+    ${currentOverviewCategory ? '' : renderUncategorizedSignals(s)}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
       <div class="chart-card">
         <div class="chart-title">Status Breakdown</div>
@@ -1371,7 +1502,7 @@ function renderOverview(s) {
       </div>
     </div>
   `;
-  setTimeout(() => { renderStatusDonut(s); renderDowSmall(s); }, 50);
+  setTimeout(() => { renderStatusDonut(s); renderDowSmall(s); if (!currentOverviewCategory) renderCategoryTrendChart(s); }, 50);
 }
 
 // ── Ticket age helpers ────────────────────────────────────
@@ -1542,13 +1673,13 @@ function metricRow(label, value, raw, benchmark) {
   </div>`;
 }
 
-function rateRow(label, pct, color, infoKey) {
+function rateRow(label, pct, color, infoKey, delta) {
   const colorMap = { green:'var(--green)', blue:'var(--blue)', purple:'var(--p500)' };
   const c = colorMap[color] || 'var(--p500)';
   return `<div>
     <div style="display:flex;justify-content:space-between;margin-bottom:4px;align-items:center">
       <span style="font-size:11px;font-weight:600;color:var(--muted);display:flex;align-items:center;gap:3px">${label} ${infoKey?infoBtn(infoKey):''}</span>
-      <span style="font-size:12px;font-weight:700;color:${c}">${pct}%</span>
+      <span style="display:flex;align-items:center;gap:6px">${delta||''}<span style="font-size:12px;font-weight:700;color:${c}">${pct}%</span></span>
     </div>
     <div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${c}"></div></div>
   </div>`;
@@ -1816,7 +1947,6 @@ function setCategoryFilter(val) {
   applyFilters();
 }
 
-let currentOverviewCategory = '';
 let overviewLoading = false;
 async function setOverviewCategory(val) {
   currentOverviewCategory = val;

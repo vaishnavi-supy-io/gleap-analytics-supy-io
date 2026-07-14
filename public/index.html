@@ -597,6 +597,7 @@
       <button class="filter-btn" onclick="setFilter('call',this)">Call</button>
       <button class="filter-btn" onclick="setFilter('sla',this)">SLA Breached</button>
       <button class="filter-btn" onclick="setFilter('archived',this)">Archived</button>
+      <button class="filter-btn" onclick="setFilter('uncategorized',this)">Uncategorized</button>
       <div class="filter-row2">
         <span class="filter-label">Agent</span>
         <select class="filter-select" id="agentFilter" onchange="applyFilters()">
@@ -1875,6 +1876,7 @@ function renderInboxStats(tickets) {
   const sla        = tickets.filter(r=>r.slaBreached).length;
   const noReply    = tickets.filter(r=>!r.hasAgentReply).length;
   const call       = tickets.filter(r=>r.isCallRequest).length;
+  const uncat      = tickets.filter(r=>(r.category||'Uncategorized')==='Uncategorized').length;
 
   const chip = (label, count, filter, color='') =>
     `<span class="inbox-stat-chip${currentTypeFilter===filter?' active':''}" onclick="setFilter('${filter}',this)" style="${color?'border-color:'+color+';color:'+color:''}">
@@ -1888,7 +1890,8 @@ function renderInboxStats(tickets) {
     chip('Unassigned', unassigned, 'unassigned', unassigned>0?'#DC2626':'') +
     chip('SLA Breached', sla, 'sla', sla>0?'#DC2626':'') +
     chip('No Reply', noReply, 'noreply', noReply>0?'#7C3AED':'') +
-    chip('Call', call, 'call', '#4F46E5');
+    chip('Call', call, 'call', '#4F46E5') +
+    chip('Uncategorized', uncat, 'uncategorized', uncat>0?'#6B7280':'');
 
   // Populate agent dropdown
   const agents = [...new Set(tickets.map(r=>r.agent).filter(Boolean))].sort();
@@ -2000,6 +2003,7 @@ function applyFilters() {
   else if (currentTypeFilter === 'sla')        rows = rows.filter(r=>r.slaBreached);
   else if (currentTypeFilter === 'archived')   rows = rows.filter(r=>r.isArchived);
   else if (currentTypeFilter === 'noreply')    rows = rows.filter(r=>!r.hasAgentReply);
+  else if (currentTypeFilter === 'uncategorized') rows = rows.filter(r=>(r.category||'Uncategorized')==='Uncategorized');
 
   // Extra filters
   if (agentVal)             rows = rows.filter(r=>r.agent === agentVal);

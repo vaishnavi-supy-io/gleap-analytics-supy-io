@@ -217,12 +217,19 @@ export function extractKeywords(rows, limit=20) {
 // ── Get first real human agent response time ─────────────────
 // Gleap does not return a messages array — only latestComment.
 // Checks: firstAgentReplyAt (when Gleap provides it) → latestComment.createdAt
-// when bot===false and kaiChat===false (human agent message).
+// when bot===false and it's not a Kai AI-chat message (human agent message).
+//
+// Verified against live tickets (2026-07-14): real human replies never carry
+// a `kaiChat` key at all — it's only ever present (and `true`) on Kai AI
+// messages. The previous `lc.kaiChat === false` check required the key to be
+// explicitly false, which never happens, so `undefined === false` silently
+// failed every time and this function always returned null. Use `!== true`
+// so an absent key (the normal case) doesn't get excluded.
 export function getAgentResponseTime(t) {
   const fr = t.firstAgentReplyAt||t.firstAgentResponseAt||t.firstResponseAt||t.firstReplyAt;
   if (fr) return fr;
   const lc = t.latestComment;
-  if (lc && typeof lc === 'object' && lc.bot === false && lc.kaiChat === false && lc.user && lc.createdAt) {
+  if (lc && typeof lc === 'object' && lc.bot === false && lc.kaiChat !== true && lc.user && lc.createdAt) {
     return lc.createdAt;
   }
   return null;

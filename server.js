@@ -142,13 +142,6 @@ function getPhone(t) {
   return '';
 }
 
-function getFirstResponseMins(t) {
-  const created = t.createdAt || t.createdDate;
-  const fr = t.firstAgentReplyAt||t.firstAgentResponseAt||t.firstResponseAt||t.firstReplyAt;
-  if (fr) return minsBetween(created, fr);
-  return null;
-}
-
 function isEscalated(t) {
   const linked = t.linkedTickets||t.linkedBugs||t.links||[];
   if (Array.isArray(linked) && linked.length > 0) return true;
@@ -324,6 +317,26 @@ function getLatestComment(t) {
     const msg=lc.message||lc.text||''; if (msg) return String(msg).slice(0,200);
   }
   return '';
+}
+
+// ── Get first real human agent response time ─────────────────
+// Gleap does not return a messages array — only latestComment.
+// Checks: firstAgentReplyAt (when Gleap provides it) → latestComment.createdAt
+// when bot===false and it's not a Kai AI-chat message (human agent message).
+//
+// Verified against live tickets (2026-07-14): real human replies never carry
+// a `kaiChat` key at all — it's only ever present (and `true`) on Kai AI
+// messages. Checking `lc.kaiChat === false` requires the key to be explicitly
+// false, which never happens, so `undefined === false` silently fails every
+// time. Use `!== true` so an absent key (the normal case) isn't excluded.
+function getAgentResponseTime(t) {
+  const fr = t.firstAgentReplyAt||t.firstAgentResponseAt||t.firstResponseAt||t.firstReplyAt;
+  if (fr) return fr;
+  const lc = t.latestComment;
+  if (lc && typeof lc === 'object' && lc.bot === false && lc.kaiChat !== true && lc.user && lc.createdAt) {
+    return lc.createdAt;
+  }
+  return null;
 }
 
 // ── Recurring-word extraction (Uncategorized keyword feedback loop) ────
@@ -574,7 +587,7 @@ function processTickets(tickets) {
       category:classifyTicket(t),
       createdAt:created, updatedAt:updated, firstAssignAt:firstAssign, closeAt:closeTime,
       assignMins:minsBetween(created,firstAssign),
-      firstResponseMins:getFirstResponseMins(t),
+      firstResponseMins:minsBetween(created, getAgentResponseTime(t)),
       closeMins:minsBetween(created,closeTime),
       hasAgentReply:Boolean(t.hasAgentReply),
       slaBreached:Boolean(t.slaBreached),
@@ -602,16 +615,13 @@ function computeStats(rows) {
   const closeVals=rows.map(r=>r.closeMins).filter(v=>v!==null);
   const firstRespVals=rows.map(r=>r.firstResponseMins).filter(v=>v!==null);
 
-  // NEW: Avg time to first agent interaction (for tickets with agent replies)
-  // Estimate: agents typically reply within first 30% of close time
-  const repliedTickets=rows.filter(r=>r.hasAgentReply);
-  const repliedCloseTimes=repliedTickets.map(r=>r.closeMins).filter(v=>v!==null);
-  const avgFirstInteractionMins = repliedCloseTimes.length > 0 
-    ? avg(repliedCloseTimes) * 0.35  // Estimate ~35% of close time is when reply happens
-    : null;
+  // Real avg first interaction — from latestComment.createdAt (when bot===false
+  // and not a Kai AI-chat message) or firstAgentReplyAt when Gleap provides it.
+  // No estimation.
+  const avgFirstInteractionMins = firstRespVals.length > 0 ? avg(firstRespVals) : null;
 
   // Debug: Log what we have
-  console.log(`📊 Stats calc: ${rows.length} rows | replied: ${repliedCloseTimes.length} | avg first interaction: ${avgFirstInteractionMins} | close vals: ${closeVals.length}`);
+  console.log(`📊 Stats calc: ${rows.length} rows | firstResp samples: ${firstRespVals.length} | avg first interaction: ${avgFirstInteractionMins} | close vals: ${closeVals.length}`);
 
   const daily={};
   for (const r of rows) daily[r.day]=(daily[r.day]||0)+1;

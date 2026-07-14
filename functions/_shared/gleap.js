@@ -440,6 +440,8 @@ const CATEGORIES = [
     'delivery note', 'accounts payable', 'lpo', 'vendor invoice', 'bulk post',
     'resolve dispute', 'payment link', 'purchase order', 'po item', 'po entry',
     'payment due date', 'outlet purchase', 'receive purchase',
+    'receiving error', 'received stock', 'deliverynote',
+    'purchase action', 'po layout', 'cannot post',
   ]},
   { name: 'Recipe', keywords: [
     'recipe', 'ingredient', 'semi-finished', 'publish recipe', 'recipe breakdown',
@@ -458,6 +460,7 @@ const CATEGORIES = [
     'shipping', 'shipment', 'ship date', 'order not', 'order placed', 'placed order', 'order item',
     'disable product ordering', 'missing menu items', 'templates displaying',
     'approve request', 'place request', 'warehouse list',
+    'kitchen management', 'order cancellation', 'order popup', 'closed order',
   ]},
   { name: 'Integration', keywords: [
     'integration', 'pos integration', 'accounting integration', 'pos setup', 'accounting setup',
@@ -467,6 +470,7 @@ const CATEGORIES = [
     'api credentials', 'api key', 'webhook', 'sync error', 'sales submission',
     'manual sales', 'pos sync', 'product linking', 'product connection', 'linking status',
     'sales record', 'accounting', 'po link', 'void mapping', 'canceled mapping',
+    'unmapped', 'mapping lost', 'mappings lost',
   ]},
   { name: 'Item Costing', keywords: [
     'item cost', 'costing', 'cost price', 'item price', 'costing module',
@@ -477,6 +481,8 @@ const CATEGORIES = [
     'price anomal', 'pricing anomal', 'pricing anomol', 'unit price', 'price missing',
     'margin', 'incorrect price', 'wrong price', 'price issue', 'tax ', 'unexpected price',
     'unexpected cost', 'price information', 'event cost',
+    '$0', 'pricing calculation', 'change price', 'changing price',
+    'cost not calculated', 'price not updating',
   ]},
   { name: 'Wastages', keywords: [
     'wastage', 'waste', 'wastage template', 'shrinkage', 'spoilage', 'spoilt',
@@ -495,6 +501,8 @@ const CATEGORIES = [
     'counted stock', 'count submission', 'inventory opening', 'stock discrep',
     'item count', 'wrong item count', 'inventory item', 'stock template', 'merged item',
     'inventory download',
+    'stock correction', 'modify submitted', 'reopen inventory', 'inventory closing',
+    'inventory not displaying',
   ]},
   { name: 'Roles and Permissions', keywords: [
     'role', 'permission', 'user role', 'access control', 'assign role', 'user permission',
@@ -506,6 +514,7 @@ const CATEGORIES = [
     'consumption store', 'store access', 'inventory access', 'login',
     'add branch', 'adding branch', 'mobile number', 'language', 'legal name',
     'business name', 'application language',
+    'close account', 'location change', 'change location',
   ]},
   { name: 'Supplier Configuration', keywords: [
     'supplier', 'vendor', 'supplier config', 'supplier detail', 'vendor setup',
@@ -525,6 +534,7 @@ const CATEGORIES = [
     'unlock item', 'unlock base', 'drafted item', 'cost center', 'cost centre', 'repository',
     'add item to', 'add items to', 'rename item', 'barcode', 'item sort', 'item list',
     'item display', 'reorganize categor', 'parent category', 'display name', 'multi-select',
+    'default unit', 'staff meal', 'missing item', 'menu categories not reflecting', 'unable to merge',
   ]},
   { name: 'Reports and Analysis', keywords: [
     'report', 'analysis', 'analytics', 'reporting', 'download report',
@@ -533,6 +543,7 @@ const CATEGORIES = [
     'purchase report', 'sales report', 'consumption report', 'subcategory column',
     'mismatch', 'discrepancy report', 'missing data in excel', 'amount display',
     'consumption in portal', 'allergen matrix', 'allergen sheet',
+    'order history', 'currency display',
   ]},
   { name: 'Dashboard', keywords: [
     'dashboard', 'kpi', 'dashboard setup', 'dashboard config', 'kpi setup',
@@ -547,6 +558,7 @@ const CATEGORIES = [
     'technical error', 'sync issue', 'stuck loading', 'system error', 'app freeze',
     'not saving', 'button not working', 'page error', 'loading forever', 'infinite loading',
     'app crash', 'keeps logging out', 'keeps crashing', 'refresh issue',
+    'inaccessible', 'system restart', 'error message', 'recurring error',
   ]},
 ];
 

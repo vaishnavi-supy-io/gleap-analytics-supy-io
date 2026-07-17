@@ -1993,23 +1993,34 @@ function setCategoryFilter(val) {
 }
 
 let overviewLoading = false;
+let overviewReqId = 0; // guards against a slow earlier request overwriting a newer selection
 async function setOverviewCategory(val) {
   currentOverviewCategory = val;
   const from = document.getElementById('dateFrom').value;
   const to   = document.getElementById('dateTo').value;
   if (!from || !to) return;
-  const url = `/api/analytics?start=${from}T00:00:00.000Z&end=${to}T23:59:59.999Z${val?'&category='+encodeURIComponent(val):''}&force=true`;
+  const reqId = ++overviewReqId;
+  // Show a loading state immediately — the server may need to run the pipeline
+  // on a cold category, and without feedback the filter looks like it did nothing.
+  document.getElementById('overviewContent').innerHTML = overviewSkeleton();
+  // No &force — reuse the server cache so repeat selections are instant.
+  const url = `/api/analytics?start=${from}T00:00:00.000Z&end=${to}T23:59:59.999Z${val?'&category='+encodeURIComponent(val):''}`;
   try {
     overviewLoading = true;
     const resp = await fetch(url);
     const data = await resp.json();
+    if (reqId !== overviewReqId) return; // a newer selection is in flight — drop this stale result
     if (!data.ok) throw new Error(data.error);
     renderOverview(data.stats);
     renderCharts(data.stats);
   } catch(e) {
     console.error('Overview category filter error:', e);
+    if (reqId === overviewReqId) {
+      document.getElementById('overviewContent').innerHTML =
+        `<div class="error-box">${_svgXS} Failed to filter by "${escHtml(val)}": ${escHtml(e.message)}</div>`;
+    }
   } finally {
-    overviewLoading = false;
+    if (reqId === overviewReqId) overviewLoading = false;
   }
 }
 

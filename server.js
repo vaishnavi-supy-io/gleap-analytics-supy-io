@@ -1243,14 +1243,22 @@ app.get('/api/analytics', async (req,res) => {
 
     console.log(`🔃 Cache miss [${cacheKey}] — running full pipeline`);
     try {
-      const result = await runFullPipeline(start, end);
-      // If a category filter is active, compute per‑category stats on the full ticket set
+      // A category filter is just a subset of the full ticket set — reuse the
+      // already-cached rows for this date range instead of re-fetching Gleap,
+      // so filtering is near-instant after the overview has loaded once.
       if (cat) {
-        const filtered = result.rows.filter(r => (r.category||'').toLowerCase() === cat.toLowerCase());
+        const baseKey = `${start.slice(0,10)}::${end.slice(0,10)}`;
+        let base = analyticsCache.get(baseKey);
+        if (!base || !base.rows) {
+          base = await runFullPipeline(start, end);
+          analyticsCache.set(baseKey, base);
+        }
+        const filtered = base.rows.filter(r => (r.category||'').toLowerCase() === cat.toLowerCase());
         const catStats = computeStats(filtered);
-        analyticsCache.set(cacheKey, { stats: catStats, rows: filtered, rawTickets: result.rawTickets, generatedAt: result.generatedAt, lastIncrementalAt: result.lastIncrementalAt });
-        return res.json({ ok: true, stats: catStats, generatedAt: result.generatedAt, fromCache: false });
+        analyticsCache.set(cacheKey, { stats: catStats, rows: filtered, rawTickets: base.rawTickets, generatedAt: base.generatedAt, lastIncrementalAt: base.lastIncrementalAt });
+        return res.json({ ok: true, stats: catStats, generatedAt: base.generatedAt, fromCache: false });
       }
+      const result = await runFullPipeline(start, end);
       analyticsCache.set(cacheKey, result);
       res.json({ ok: true, stats: result.stats, generatedAt: result.generatedAt, fromCache: false });
     } catch(e) {

@@ -214,6 +214,106 @@ export function extractKeywords(rows, limit=20) {
   return Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,limit).map(([word,count])=>({word,count}));
 }
 
+// ── Uncategorized sub-clustering ──────────────────────────────────────────
+// Turns the residual "Uncategorized" bucket into MECE emergent theme clusters
+// (each ticket in exactly one cluster; clusters sum to the residual total),
+// mirroring classifyTicket's "first/best match wins" discipline. Bigrams are
+// preferred as labels; tickets matching no recurring seed fall into
+// "Other (residual)" — kept visible on purpose so we never fabricate a trend.
+const UNCAT_MAX_CLUSTERS = 12;
+// Agent-boilerplate / greeting tokens that pollute clustering (they describe
+// how a ticket was answered, not what it was about). Clustering uses only
+// title + aiSummary — never latestComment, which is usually the agent's reply.
+const UNCAT_BOILERPLATE = new Set([
+  'thank','thanks','thanking','trusting','trust','feel','free','reach','reaching',
+  'regards','kindly','welcome','glad','happy','assist','assistance','hello','dear',
+  'team','support','further','queries','query','hesitate','anytime','pleasure',
+  'greetings','warm','sincerely','cheers','noted','acknowledged','request','inquiry',
+]);
+function uncatTerms(r) {
+  const title = (r.title && r.title !== '(No title)') ? r.title : ''; // drop the sentinel
+  const text = `${title} ${r.aiSummary||''}`.toLowerCase();
+  const words = text.replace(/[^a-z0-9\s]/g,' ').split(/\s+/)
+    .filter(w => w.length>2 && !KEYWORD_STOPWORDS.has(w) && !UNCAT_BOILERPLATE.has(w) && isNaN(w));
+  const terms = new Set();
+  for (let i=0;i<words.length-1;i++) terms.add(`${words[i]} ${words[i+1]}`); // bigrams first
+  for (const w of words) terms.add(w);
+  return { terms, words };
+}
+// Closest existing category by keyword-token overlap. Only returned when the
+// overlap is strong enough to be a real tuning hint — a misleading chip is
+// worse than none, and these tickets matched no keyword by definition.
+function nearestCategory(catRows) {
+  const tokenDf = {};
+  for (const r of catRows) {
+    const seen = new Set();
+    for (const w of uncatTerms(r).words) {
+      if (seen.has(w)) continue; seen.add(w);
+      tokenDf[w] = (tokenDf[w]||0) + 1;
+    }
+  }
+  let best=null, bestScore=0;
+  for (const cat of CATEGORIES) {
+    let score=0;
+    for (const kw of cat.keywords) for (const kt of kw.split(' ')) if (tokenDf[kt]) score += tokenDf[kt];
+    if (score>bestScore) { bestScore=score; best=cat.name; }
+  }
+  const threshold = Math.max(3, Math.ceil(0.3 * catRows.length));
+  return bestScore>=threshold ? best : null;
+}
+export function clusterUncategorized(rows) {
+  const N = rows.length;
+  if (!N) return [];
+  const ticketTerms = [];
+  const df = {};
+  for (const r of rows) {
+    const { terms } = uncatTerms(r);
+    ticketTerms.push(terms);
+    for (const t of terms) df[t] = (df[t]||0) + 1;
+  }
+  const EMPTY = '(no title / summary)'; // honest bucket for content-less tickets
+  const floor = Math.max(3, Math.ceil(0.02 * N));
+  // Seed candidates: bigrams before unigrams, each group by df desc.
+  const seeds = Object.entries(df)
+    .filter(([,c]) => c >= floor)
+    .sort((a,b) => (b[0].includes(' ')?1:0)-(a[0].includes(' ')?1:0) || b[1]-a[1])
+    .map(([t]) => t);
+  const assign = idx => { for (const s of seeds) if (ticketTerms[idx].has(s)) return s; return null; };
+  // Pass 1 — tentative assignment; drop seeds whose cluster falls below floor.
+  const counts = {};
+  for (let i=0;i<N;i++) { const s=assign(i); if (s) counts[s]=(counts[s]||0)+1; }
+  const validSeeds = seeds.filter(s => (counts[s]||0) >= floor).slice(0, UNCAT_MAX_CLUSTERS);
+  const validSet = new Set(validSeeds);
+  // Pass 2 — content-less → EMPTY; first *valid* seed present → its cluster;
+  // else Other (residual).
+  const buckets = {};
+  for (let i=0;i<N;i++) {
+    let label = ticketTerms[i].size===0 ? EMPTY : 'Other (residual)';
+    if (label!==EMPTY) for (const s of seeds) if (validSet.has(s) && ticketTerms[i].has(s)) { label=s; break; }
+    (buckets[label] = buckets[label] || []).push(rows[i]);
+  }
+  const residualLabels = new Set([EMPTY, 'Other (residual)']);
+  const clusters = Object.entries(buckets).map(([label,catRows]) => ({
+    label,
+    count: catRows.length,
+    pct: Math.round((catRows.length/N)*100),
+    sampleTitles: catRows.slice(0,3).map(r => (r.title||'').slice(0,80)).filter(t=>t && t!=='(No title)'),
+    nearestCategory: residualLabels.has(label) ? null : nearestCategory(catRows),
+  }));
+  // Sort by count desc, but pin the residual buckets last.
+  return clusters.sort((a,b) =>
+    (residualLabels.has(a.label)?1:0)-(residualLabels.has(b.label)?1:0) || b.count-a.count);
+}
+
+// Prompt for the on-demand "Refine with AI" upgrade of the deterministic clusters.
+export function buildUncatRefinePrompt(clusters) {
+  const existing = CATEGORIES.map(c=>c.name).join(', ');
+  const list = clusters.map((c,i) =>
+    `${i+1}. "${c.label}" — ${c.count} tickets${c.nearestCategory?`, nearest existing: ${c.nearestCategory}`:''}\n   Examples: ${(c.sampleTitles||[]).map(t=>`"${t}"`).join('; ')||'n/a'}`
+  ).join('\n');
+  return `You are a support-analytics expert tuning a ticket taxonomy. The clusters below were auto-extracted from tickets that matched NO existing category keyword.\n\nExisting categories: ${existing}\n\nResidual clusters:\n${list}\n\nFor EACH cluster give exactly:\n- **Theme name** — a clean human-readable name\n- What it's about — one sentence\n- Recommendation — either "Add as new category: <name>" OR "Fold into existing: <category>", naming the specific keyword(s) to add\n\nBe concise, use markdown. End with a one-line summary of the single highest-impact taxonomy change to make.`;
+}
+
 // ── Get first real human agent response time ─────────────────
 // Gleap does not return a messages array — only latestComment.
 // Checks: firstAgentReplyAt (when Gleap provides it) → latestComment.createdAt
@@ -738,10 +838,10 @@ export function computeStats(rows) {
     .sort((a,b)=>a[0].localeCompare(b[0]))
     .map(([day,cats])=>({day,...cats}));
 
-  // Recurring words in Uncategorized tickets — a feedback loop for tuning
-  // CATEGORIES keywords systematically instead of reactively.
+  // Sub-cluster the Uncategorized residual into emergent themes + nearest
+  // existing category — a feedback loop for tuning CATEGORIES systematically.
   const uncategorizedRows = catBuckets['Uncategorized'] || [];
-  const uncategorizedKeywords = extractKeywords(uncategorizedRows);
+  const uncategorizedClusters = clusterUncategorized(uncategorizedRows);
 
   return {
     total,openCount:openRows.length,closedCount:closedRows.length,archivedCount:archivedRows.length,
@@ -754,7 +854,7 @@ export function computeStats(rows) {
     withEmail:rows.filter(r=>r.email).length,
     avgFirstInteraction:avgFirstInteractionMins,avgClose:avg(closeVals),
     avgFirstInteractionFmt:fmtMins(avgFirstInteractionMins),avgCloseFmt:fmtMins(avg(closeVals)),
-    statusBreakdown, typeBreakdown, categoryBreakdown,categoryTrend,uncategorizedKeywords,
+    statusBreakdown, typeBreakdown, categoryBreakdown,categoryTrend,uncategorizedClusters,
     daily:Object.entries(daily).sort((a,b)=>a[0].localeCompare(b[0])).map(([day,count])=>({day,count})),
     dow:Object.entries(dow).map(([day,count])=>({day,count})),
     hourly:Object.entries(hourly).sort((a,b)=>+a[0]-+b[0]).map(([hour,count])=>({hour:+hour,count})),

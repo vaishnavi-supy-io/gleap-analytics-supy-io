@@ -1351,20 +1351,62 @@ function renderCategoryDeepDive(s) {
   </div>`;
 }
 
-// Feedback loop for keeping CATEGORIES keyword lists current — surfaces what's
-// actually showing up in Uncategorized tickets instead of tuning reactively.
-function renderUncategorizedSignals(s) {
-  const words = (s.uncategorizedKeywords||[]).filter(w=>w.count>1);
+// Breaks the residual Uncategorized bucket into emergent theme clusters, each
+// tagged with its closest existing category — a feedback loop for tuning
+// CATEGORIES systematically. "Refine with AI" upgrades labels + recommendations.
+function renderUncategorizedBreakdown(s) {
+  const clusters = (s.uncategorizedClusters||[]).filter(c=>c.count>0);
   const uncatCount = (s.categoryBreakdown||[]).find(c=>c.category==='Uncategorized')?.count || 0;
-  if (!words.length || !uncatCount) return '';
-  const pct = s.total ? Math.round((uncatCount/s.total)*100) : 0;
+  if (!clusters.length || !uncatCount) return '';
+  const pctTotal = s.total ? Math.round((uncatCount/s.total)*100) : 0;
+  const maxCount = Math.max(...clusters.map(c=>c.count));
   return `<div class="chart-card">
-    <div class="chart-title" style="margin-bottom:4px">Uncategorized Signals</div>
-    <div style="font-size:11px;color:var(--muted);margin-bottom:10px">${uncatCount} tickets (${pct}%) landed in Uncategorized — recurring words below are candidates for new keywords</div>
-    <div style="display:flex;flex-wrap:wrap;gap:6px">
-      ${words.map(w=>`<span style="font-size:11px;padding:3px 10px;border-radius:99px;background:var(--p100);color:var(--p700);font-weight:600">${escHtml(w.word)} <span style="opacity:0.65">${w.count}</span></span>`).join('')}
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px">
+      <div class="chart-title" style="margin-bottom:0">Uncategorized Breakdown</div>
+      <button id="uncatRefineBtn" onclick="refineUncategorized()" style="font-size:11px;padding:4px 10px;border:1.5px solid var(--p300);background:var(--p100);color:var(--p700);border-radius:8px;font-weight:600;cursor:pointer">✨ Refine with AI</button>
     </div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:12px">${uncatCount} tickets (${pctTotal}%) landed in Uncategorized — grouped into emergent themes below. Chips show the closest existing category (a keyword-tuning hint).</div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      ${clusters.map(c=>{
+        const barPct = maxCount ? Math.round((c.count/maxCount)*100) : 0;
+        const isOther = c.label==='Other (residual)';
+        const chip = c.nearestCategory
+          ? `<span style="font-size:10px;padding:2px 8px;border-radius:99px;background:var(--p100);color:var(--p700);font-weight:600;white-space:nowrap">→ ${escHtml(c.nearestCategory)}</span>`
+          : (isOther ? '<span style="font-size:10px;color:var(--faint);white-space:nowrap">one-offs</span>' : '');
+        return `<div style="display:flex;align-items:center;gap:8px">
+          <span style="min-width:150px;font-size:11px;font-weight:500;color:var(--ink)">${escHtml(c.label)}</span>
+          <div class="mini-bar" style="flex:1"><div class="mini-fill" style="width:${barPct}%;background:${isOther?'#9CA3AF':'#EA580C'}"></div></div>
+          <span style="min-width:26px;text-align:right;font-size:11px;font-weight:700;color:var(--muted)">${c.count}</span>
+          <span style="min-width:120px">${chip}</span>
+        </div>`;
+      }).join('')}
+    </div>
+    <div id="uncatRefineOut" style="margin-top:12px"></div>
   </div>`;
+}
+
+async function refineUncategorized() {
+  const clusters = (globalStats && globalStats.uncategorizedClusters) || [];
+  if (!clusters.length) { showToast('No clusters to refine', 'warning'); return; }
+  const btn = document.getElementById('uncatRefineBtn');
+  const out = document.getElementById('uncatRefineOut');
+  const orig = btn.innerHTML;
+  btn.disabled = true; btn.innerHTML = '✨ Refining…';
+  out.innerHTML = '<div style="font-size:11px;color:var(--muted)">Analysing residual themes…</div>';
+  try {
+    const resp = await fetch('/api/uncat-refine', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clusters }),
+    });
+    const data = await resp.json();
+    if (!resp.ok || !data.ok) throw new Error(data.error || `Server error ${resp.status}`);
+    out.innerHTML = `<div class="ai-report-rendered" style="padding:14px"><p>${mdToHtml(data.report)}</p></div>`;
+  } catch(e) {
+    out.innerHTML = '';
+    showToast(`Refine failed: ${e.message}`, 'error');
+  }
+  btn.disabled = false; btn.innerHTML = orig;
 }
 
 function renderCategoryTrendChart(s) {
@@ -1491,7 +1533,7 @@ function renderOverview(s) {
       <div class="chart-title">Category Trend — is a category climbing?</div>
       <div class="chart-wrap"><canvas id="chartCategoryTrend"></canvas></div>
     </div>`}
-    ${currentOverviewCategory ? '' : renderUncategorizedSignals(s)}
+    ${currentOverviewCategory ? '' : renderUncategorizedBreakdown(s)}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
       <div class="chart-card">
         <div class="chart-title">Status Breakdown</div>

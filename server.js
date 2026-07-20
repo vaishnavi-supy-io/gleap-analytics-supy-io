@@ -457,13 +457,31 @@ function clusterUncategorized(rows) {
     (buckets[label] = buckets[label] || []).push(rows[i]);
   }
   const residualLabels = new Set([EMPTY, 'Other (residual)']);
-  const clusters = Object.entries(buckets).map(([label,catRows]) => ({
-    label,
-    count: catRows.length,
-    pct: Math.round((catRows.length/N)*100),
-    sampleTitles: catRows.slice(0,3).map(r => (r.title||'').slice(0,80)).filter(t=>t && t!=='(No title)'),
-    nearestCategory: residualLabels.has(label) ? null : nearestCategory(catRows),
-  }));
+  const clusters = Object.entries(buckets).map(([label,catRows]) => {
+    const companyCounts = {};
+    for (const r of catRows) if (r.company) companyCounts[r.company] = (companyCounts[r.company]||0) + 1;
+    const topEntry = Object.entries(companyCounts).sort((a,b)=>b[1]-a[1])[0];
+    const slaCount = catRows.filter(r=>r.slaBreached).length;
+    const resolveVals = catRows.map(r=>r.closeMins).filter(v=>v!==null);
+    return {
+      label,
+      count: catRows.length,
+      pct: Math.round((catRows.length/N)*100),
+      sampleTitles: catRows.slice(0,3).map(r => (r.title||'').slice(0,80)).filter(t=>t && t!=='(No title)'),
+      nearestCategory: residualLabels.has(label) ? null : nearestCategory(catRows),
+      // Impact metrics — what a CSM / manager / lead needs to triage the theme.
+      // Raw counts (slaCount, resolveSum/N) are included so merged AI themes can
+      // re-aggregate exactly on the client.
+      slaBreachPct: catRows.length ? Math.round(slaCount/catRows.length*100) : 0,
+      slaCount,
+      resolveSum: resolveVals.reduce((a,b)=>a+b,0),
+      resolveN: resolveVals.length,
+      avgResolveFmt: fmtMins(avg(resolveVals)),
+      openCount: catRows.filter(r=>r.isOpen).length,
+      escalatedCount: catRows.filter(r=>r.isEscalated).length,
+      topAccount: topEntry ? { name: topEntry[0], count: topEntry[1] } : null,
+    };
+  });
   // Sort by count desc, but pin the residual buckets last.
   return clusters.sort((a,b) =>
     (residualLabels.has(a.label)?1:0)-(residualLabels.has(b.label)?1:0) || b.count-a.count);
@@ -473,9 +491,45 @@ function clusterUncategorized(rows) {
 function buildUncatRefinePrompt(clusters) {
   const existing = CATEGORIES.map(c=>c.name).join(', ');
   const list = clusters.map((c,i) =>
-    `${i+1}. "${c.label}" — ${c.count} tickets${c.nearestCategory?`, nearest existing: ${c.nearestCategory}`:''}\n   Examples: ${(c.sampleTitles||[]).map(t=>`"${t}"`).join('; ')||'n/a'}`
+    `${i+1}. label="${c.label}" — ${c.count} tickets, ${c.slaBreachPct||0}% SLA-breached${c.nearestCategory?`, nearest existing: ${c.nearestCategory}`:''}\n   Examples: ${(c.sampleTitles||[]).map(t=>`"${t}"`).join('; ')||'n/a'}`
   ).join('\n');
-  return `You are a support-analytics expert tuning a ticket taxonomy. The clusters below were auto-extracted from tickets that matched NO existing category keyword.\n\nExisting categories: ${existing}\n\nResidual clusters:\n${list}\n\nFor EACH cluster give exactly:\n- **Theme name** — a clean human-readable name\n- What it's about — one sentence\n- Recommendation — either "Add as new category: <name>" OR "Fold into existing: <category>", naming the specific keyword(s) to add\n\nBe concise, use markdown. End with a one-line summary of the single highest-impact taxonomy change to make.`;
+  return `You are a support-analytics expert helping a support manager make sense of tickets that matched NO existing category. Below are auto-extracted keyword clusters from those tickets.
+
+Existing categories: ${existing}
+
+Clusters:
+${list}
+
+Merge clusters that describe the SAME underlying theme (e.g. "human", "human agent", "live agent", "speak agent" are all one theme: customers asking for a human). For each merged theme output:
+- "name": a short human-readable theme name in Title Case (2-4 words), e.g. "Requests To Reach A Human", "WhatsApp Channel Inquiries"
+- "action": ONE concrete action for a support manager, e.g. "Add a 'Human Handoff' category and a bot-escalation macro", "Route to logistics team", "Fix the ticket-capture form"
+- "labels": the array of the original cluster label strings you merged into this theme
+
+Return ONLY valid minified JSON — no markdown, no code fences, no commentary — in exactly this shape:
+{"groups":[{"name":"...","action":"...","labels":["...","..."]}]}
+Every input label must appear in exactly one group. Keep residual labels like "Other (residual)" and "(no title / summary)" as their own groups.`;
+}
+
+// Parse the model's JSON groups defensively (tolerates code fences / stray prose).
+function parseUncatGroups(raw) {
+  try {
+    let s = String(raw||'').trim().replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,'');
+    const a = s.indexOf('{'), b = s.lastIndexOf('}');
+    if (a>=0 && b>a) s = s.slice(a, b+1);
+    const obj = JSON.parse(s);
+    if (obj && Array.isArray(obj.groups)) {
+      const groups = obj.groups
+        .filter(g => g && typeof g.name==='string' && Array.isArray(g.labels))
+        .map(g => ({
+          name: g.name.slice(0,60),
+          action: typeof g.action==='string' ? g.action.slice(0,160) : '',
+          labels: g.labels.filter(l=>typeof l==='string'),
+        }))
+        .filter(g => g.labels.length);
+      return groups.length ? groups : null;
+    }
+  } catch {}
+  return null;
 }
 
 async function gleapFetch(url, params={}, retries=3) {
@@ -1496,21 +1550,27 @@ app.post('/api/ai-report', async (req,res) => {
   }
 });
 
-// ── /api/uncat-refine — on-demand AI upgrade of Uncategorized clusters ───────
+// ── /api/uncat-refine — AI naming/merging of Uncategorized clusters ──────────
+const uncatRefineCache = new Map(); // signature -> { groups, ts }
 app.post('/api/uncat-refine', async (req,res) => {
   try {
     if (!OPENROUTER_KEY) return res.status(500).json({ok:false,error:'OPENROUTER_KEY not configured. Add to .env'});
     const {clusters}=req.body;
     if (!Array.isArray(clusters) || !clusters.length) return res.status(400).json({ok:false,error:'clusters required'});
-    const slim = clusters.slice(0,15).map(c=>({label:c.label,count:c.count,nearestCategory:c.nearestCategory,sampleTitles:(c.sampleTitles||[]).slice(0,3)}));
 
+    // Cache by cluster signature so repeated overview loads reuse one AI call.
+    const sig = clusters.map(c=>`${c.label}:${c.count}`).sort().join('|');
+    const hit = uncatRefineCache.get(sig);
+    if (hit && (Date.now()-hit.ts) < 600000) return res.json({ok:true, groups:hit.groups, fromCache:true});
+
+    const slim = clusters.slice(0,20).map(c=>({label:c.label,count:c.count,slaBreachPct:c.slaBreachPct,nearestCategory:c.nearestCategory,sampleTitles:(c.sampleTitles||[]).slice(0,3)}));
     const timeoutPromise = new Promise((_, reject) =>
       setTimeout(() => reject(new Error('API timeout after 30s')), 30000)
     );
     const fetchPromise = fetch('https://openrouter.ai/api/v1/chat/completions',{
       method:'POST',
       headers:{'Authorization':`Bearer ${OPENROUTER_KEY}`,'Content-Type':'application/json','HTTP-Referer':'https://gleap-analytics.app','X-Title':'Gleap Analytics'},
-      body:JSON.stringify({model:AI_MODEL,messages:[{role:'user',content:buildUncatRefinePrompt(slim)}],max_tokens:1500,temperature:0.2}),
+      body:JSON.stringify({model:AI_MODEL,messages:[{role:'user',content:buildUncatRefinePrompt(slim)}],max_tokens:1200,temperature:0.1}),
     });
     const aiResp = await Promise.race([fetchPromise, timeoutPromise]);
     if (!aiResp.ok) {
@@ -1519,7 +1579,10 @@ app.post('/api/uncat-refine', async (req,res) => {
       return res.status(502).json({ok:false,error:`AI API returned ${aiResp.status}. Check key or network.`});
     }
     const data=await aiResp.json();
-    res.json({ok:true,report:data.choices?.[0]?.message?.content||'No suggestions generated.'});
+    const groups = parseUncatGroups(data.choices?.[0]?.message?.content);
+    if (!groups) return res.status(502).json({ok:false,error:'AI returned unparseable output'});
+    uncatRefineCache.set(sig, {groups, ts:Date.now()});
+    res.json({ok:true, groups});
   } catch(e) {
     console.error('Uncat Refine Error:', e.message);
     res.status(500).json({ok:false,error:e.message||'Server error. Check .env OPENROUTER_KEY.'});

@@ -1,4 +1,4 @@
-import { buildUncatRefinePrompt } from '../_shared/gleap.js';
+import { buildUncatRefinePrompt, parseUncatGroups, getCachedJson, setCachedJson } from '../_shared/gleap.js';
 
 export async function onRequestPost({ request, env }) {
   try {
@@ -9,9 +9,18 @@ export async function onRequestPost({ request, env }) {
     if (!Array.isArray(clusters) || !clusters.length) {
       return Response.json({ ok: false, error: 'clusters required' }, { status: 400 });
     }
-    const slim = clusters.slice(0, 15).map(c => ({
-      label: c.label, count: c.count, nearestCategory: c.nearestCategory,
-      sampleTitles: (c.sampleTitles || []).slice(0, 3),
+
+    // Cache by cluster signature so repeated overview loads reuse one AI call.
+    const sig = clusters.map(c => `${c.label}:${c.count}`).sort().join('|');
+    const cacheKey = `uncat-refine::${sig}`;
+    const cached = await getCachedJson(cacheKey);
+    if (cached && cached.groups) {
+      return Response.json({ ok: true, groups: cached.groups, fromCache: true });
+    }
+
+    const slim = clusters.slice(0, 20).map(c => ({
+      label: c.label, count: c.count, slaBreachPct: c.slaBreachPct,
+      nearestCategory: c.nearestCategory, sampleTitles: (c.sampleTitles || []).slice(0, 3),
     }));
 
     const aiModel = env.AI_MODEL || 'anthropic/claude-sonnet-4-6';
@@ -31,8 +40,8 @@ export async function onRequestPost({ request, env }) {
         body: JSON.stringify({
           model: aiModel,
           messages: [{ role: 'user', content: buildUncatRefinePrompt(slim) }],
-          max_tokens: 1500,
-          temperature: 0.2,
+          max_tokens: 1200,
+          temperature: 0.1,
         }),
         signal: controller.signal,
       });
@@ -46,7 +55,12 @@ export async function onRequestPost({ request, env }) {
       return Response.json({ ok: false, error: `AI API returned ${aiResp.status}` }, { status: 502 });
     }
     const data = await aiResp.json();
-    return Response.json({ ok: true, report: data.choices?.[0]?.message?.content || 'No suggestions generated.' });
+    const groups = parseUncatGroups(data.choices?.[0]?.message?.content);
+    if (!groups) {
+      return Response.json({ ok: false, error: 'AI returned unparseable output' }, { status: 502 });
+    }
+    await setCachedJson(cacheKey, { groups }, 600);
+    return Response.json({ ok: true, groups });
   } catch (e) {
     console.error('Uncat Refine Error:', e.message);
     return Response.json({ ok: false, error: e.message || 'Server error' }, { status: 500 });

@@ -1351,83 +1351,201 @@ function renderCategoryDeepDive(s) {
   </div>`;
 }
 
-// Breaks the residual Uncategorized bucket into emergent theme clusters, each
-// tagged with its closest existing category — a feedback loop for tuning
-// CATEGORIES systematically. "Refine with AI" upgrades labels + recommendations.
+// ── Uncategorized Intelligence ─────────────────────────────────────────────
+// Turns the residual bucket into decision-grade themes for a CSM / manager /
+// lead: a plain-English headline + a table of Theme · Volume · Trend · SLA% ·
+// Avg resolve · Top account · Action. Renders deterministically at once, then
+// auto-upgrades in place with AI naming/merging (cached server- and client-side).
+let uncatGroupsCache = {}; // cluster-signature -> AI groups (client memo)
+
+function uncatSignature(clusters) { return clusters.map(c=>`${c.label}:${c.count}`).sort().join('|'); }
+function prettyLabel(l) {
+  if (l==='Other (residual)' || l==='(no title / summary)') return l;
+  return l.replace(/\b\w/g, ch=>ch.toUpperCase());
+}
+function fmtMinsShort(m) {
+  if (m===null || m===undefined || isNaN(m)) return '—';
+  if (m < 60)   return `${Math.round(m)}m`;
+  if (m < 1440) return `${(m/60).toFixed(1)}h`;
+  return `${(m/1440).toFixed(1)}d`;
+}
+const UNCAT_RESIDUAL_LABELS = new Set(['Other (residual)', '(no title / summary)']);
+
+// Merge clusters into themes (AI groups if available, else one per cluster) and
+// aggregate impact metrics exactly from the raw per-cluster counts.
+function buildUncatThemes(clusters, groups) {
+  const byLabel = {}; for (const c of clusters) byLabel[c.label] = c;
+  let view;
+  if (groups && groups.length) {
+    view = groups.map(g => {
+      const members = g.labels.map(l=>byLabel[l]).filter(Boolean);
+      return members.length ? { name: g.name, action: g.action||'', members } : null;
+    }).filter(Boolean);
+    const covered = new Set(view.flatMap(v=>v.members.map(m=>m.label)));
+    for (const c of clusters) if (!covered.has(c.label)) view.push({ name: prettyLabel(c.label), action:'', members:[c] });
+  } else {
+    view = clusters.map(c => ({ name: prettyLabel(c.label), action:'', members:[c] }));
+  }
+  return view.map(v => {
+    const sum = (f)=>v.members.reduce((a,m)=>a+(m[f]||0),0);
+    const count = sum('count'), resolveN = sum('resolveN');
+    const labels = v.members.map(m=>m.label);
+    const topAccount = v.members.map(m=>m.topAccount).filter(Boolean).sort((a,b)=>b.count-a.count)[0] || null;
+    return {
+      name: v.name, action: v.action, labels, count,
+      isResidual: labels.every(l=>UNCAT_RESIDUAL_LABELS.has(l)),
+      slaBreachPct: count ? Math.round(sum('slaCount')/count*100) : 0,
+      avgResolveMins: resolveN ? sum('resolveSum')/resolveN : null,
+      openCount: sum('openCount'),
+      topAccount,
+    };
+  }).sort((a,b)=> (a.isResidual?1:0)-(b.isResidual?1:0) || b.count-a.count);
+}
+
+// Trend of a theme vs the previous period (matched by member sub-theme labels).
+function uncatTrend(theme) {
+  const prev = (previousStats && previousStats.uncategorizedClusters) || null;
+  if (!prev) return null;
+  const prevByLabel = {}; for (const c of prev) prevByLabel[c.label] = c.count;
+  let prevCount = 0, matched = false;
+  for (const l of theme.labels) if (prevByLabel[l] != null) { prevCount += prevByLabel[l]; matched = true; }
+  if (!matched || prevCount === 0) return { kind:'new' };
+  const delta = Math.round((theme.count - prevCount)/prevCount*100);
+  return { kind: delta>5?'up':delta<-5?'down':'flat', delta };
+}
+function trendBadge(t) {
+  if (!t) return '<span style="color:var(--faint)">—</span>';
+  if (t.kind==='new')  return '<span style="color:#2563EB;font-weight:700">NEW</span>';
+  if (t.kind==='up')   return `<span style="color:#DC2626;font-weight:700" title="vs previous period">▲ ${Math.abs(t.delta)}%</span>`;
+  if (t.kind==='down') return `<span style="color:#059669;font-weight:700" title="vs previous period">▼ ${Math.abs(t.delta)}%</span>`;
+  return '<span style="color:var(--muted)">=</span>';
+}
+
 function renderUncategorizedBreakdown(s) {
   const clusters = (s.uncategorizedClusters||[]).filter(c=>c.count>0);
   const uncatCount = (s.categoryBreakdown||[]).find(c=>c.category==='Uncategorized')?.count || 0;
   if (!clusters.length || !uncatCount) return '';
+  const sig = uncatSignature(clusters);
+  const groups = uncatGroupsCache[sig] || null;
+  const aiPending = !groups;
+  const themes = buildUncatThemes(clusters, groups);
   const pctTotal = s.total ? Math.round((uncatCount/s.total)*100) : 0;
-  const maxCount = Math.max(...clusters.map(c=>c.count));
-  return `<div class="chart-card">
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px">
-      <div class="chart-title" style="margin-bottom:0">Uncategorized Breakdown</div>
-      <button id="uncatRefineBtn" onclick="refineUncategorized()" style="font-size:11px;padding:4px 10px;border:1.5px solid var(--p300);background:var(--p100);color:var(--p700);border-radius:8px;font-weight:600;cursor:pointer">✨ Refine with AI</button>
+  const overallSla = s.total ? Math.round((s.slaBreached/s.total)*100) : 0;
+
+  // Coverage trend for the headline
+  let covTrend = '';
+  if (previousStats && previousStats.total) {
+    const prevUncat = (previousStats.categoryBreakdown||[]).find(c=>c.category==='Uncategorized')?.count || 0;
+    const prevPct = Math.round((prevUncat/previousStats.total)*100);
+    const d = pctTotal - prevPct;
+    covTrend = d<=-1 ? ` Coverage is <strong style="color:#059669">improving</strong> (${prevPct}%→${pctTotal}% uncategorized).`
+             : d>=1  ? ` Coverage is <strong style="color:#DC2626">slipping</strong> (${prevPct}%→${pctTotal}%).`
+             : ` Coverage is steady vs last period.`;
+  }
+  const biggest = themes.find(t=>!t.isResidual);
+  let headline;
+  if (biggest) {
+    const slaNote = (biggest.slaBreachPct > overallSla*1.3 && biggest.slaBreachPct>0)
+      ? ` — breaching SLA <strong style="color:#DC2626">${biggest.slaBreachPct}%</strong> vs ${overallSla}% overall`
+      : '';
+    headline = `<strong>${pctTotal}%</strong> of tickets (${uncatCount}) are uncategorized. Biggest untracked theme: <strong>${escHtml(biggest.name)}</strong> (${biggest.count})${slaNote}.${covTrend}`;
+  } else {
+    headline = `<strong>${pctTotal}%</strong> of tickets (${uncatCount}) are uncategorized.${covTrend}`;
+  }
+
+  const rows = themes.map(t => {
+    const acct = t.topAccount ? `${escHtml(t.topAccount.name)} (${t.topAccount.count})` : '<span style="color:var(--faint)">—</span>';
+    const slaCell = t.isResidual ? '<span style="color:var(--faint)">—</span>'
+      : `<span style="color:${t.slaBreachPct>overallSla?'#DC2626':'var(--muted)'};font-weight:${t.slaBreachPct>overallSla?700:500}">${t.slaBreachPct}%</span>`;
+    const resolveCell = t.isResidual ? '<span style="color:var(--faint)">—</span>' : fmtMinsShort(t.avgResolveMins);
+    const actionCell = t.action ? escHtml(t.action)
+      : (aiPending && !t.isResidual ? '<span style="color:var(--faint)">…</span>' : '<span style="color:var(--faint)">—</span>');
+    const labelsAttr = escHtml(JSON.stringify(t.labels));
+    return `<tr class="uncat-theme-row" data-uncat-labels='${labelsAttr}' data-uncat-name="${escHtml(t.name)}" title="Show these ${t.count} tickets in the Inbox" style="cursor:pointer;border-top:1px solid var(--border)" onmouseover="this.style.background='var(--p50,rgba(124,58,237,0.05))'" onmouseout="this.style.background='transparent'">
+      <td style="padding:7px 8px;font-size:11.5px;font-weight:600;color:var(--ink)">${escHtml(t.name)}${t.isResidual?'<span style="font-weight:400;color:var(--faint);font-size:10px"> · one-offs</span>':''}</td>
+      <td style="padding:7px 8px;text-align:right;font-size:11px;font-weight:700">${t.count}<span style="color:var(--faint);font-weight:400"> · ${s.total?Math.round(t.count/s.total*100):0}%</span></td>
+      <td style="padding:7px 8px;text-align:center;font-size:10px">${trendBadge(uncatTrend(t))}</td>
+      <td style="padding:7px 8px;text-align:right;font-size:11px">${slaCell}</td>
+      <td style="padding:7px 8px;text-align:right;font-size:11px;color:var(--muted)">${resolveCell}</td>
+      <td style="padding:7px 8px;font-size:11px;color:var(--muted);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${acct}</td>
+      <td style="padding:7px 8px;font-size:11px;color:var(--ink)">${actionCell}</td>
+    </tr>`;
+  }).join('');
+
+  return `<div id="uncatPanel" class="chart-card">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px">
+      <div class="chart-title" style="margin-bottom:0">Uncategorized Intelligence</div>
+      <span id="uncatAiStatus" style="font-size:10px;color:var(--faint)">${aiPending?'✨ naming themes…':'✨ AI-named'}</span>
     </div>
-    <div style="font-size:11px;color:var(--muted);margin-bottom:12px">${uncatCount} tickets (${pctTotal}%) landed in Uncategorized — grouped into emergent themes below. Click a theme to see those tickets in the Inbox. Chips show the closest existing category (a keyword-tuning hint).</div>
-    <div style="display:flex;flex-direction:column;gap:6px">
-      ${clusters.map(c=>{
-        const barPct = maxCount ? Math.round((c.count/maxCount)*100) : 0;
-        const isOther = c.label==='Other (residual)';
-        const chip = c.nearestCategory
-          ? `<span style="font-size:10px;padding:2px 8px;border-radius:99px;background:var(--p100);color:var(--p700);font-weight:600;white-space:nowrap">→ ${escHtml(c.nearestCategory)}</span>`
-          : (isOther ? '<span style="font-size:10px;color:var(--faint);white-space:nowrap">one-offs</span>' : '');
-        return `<div class="uncat-cluster-row" data-uncat-theme="${escHtml(c.label)}" title="Show these ${c.count} tickets in the Inbox" style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:2px 4px;margin:0 -4px;border-radius:6px" onmouseover="this.style.background='var(--p50,rgba(124,58,237,0.06))'" onmouseout="this.style.background='transparent'">
-          <span style="min-width:150px;font-size:11px;font-weight:500;color:var(--ink)">${escHtml(c.label)}</span>
-          <div class="mini-bar" style="flex:1"><div class="mini-fill" style="width:${barPct}%;background:${isOther?'#9CA3AF':'#EA580C'}"></div></div>
-          <span style="min-width:26px;text-align:right;font-size:11px;font-weight:700;color:var(--muted)">${c.count}</span>
-          <span style="min-width:120px">${chip}</span>
-        </div>`;
-      }).join('')}
+    <div style="font-size:12px;color:var(--ink);line-height:1.5;margin-bottom:12px;padding:10px 12px;background:var(--p50,rgba(124,58,237,0.05));border-radius:8px">${headline}</div>
+    <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr style="text-align:left;color:var(--faint);font-size:10px;text-transform:uppercase;letter-spacing:0.4px">
+          <th style="padding:4px 8px">Theme</th>
+          <th style="padding:4px 8px;text-align:right">Volume</th>
+          <th style="padding:4px 8px;text-align:center">Trend</th>
+          <th style="padding:4px 8px;text-align:right">SLA breach</th>
+          <th style="padding:4px 8px;text-align:right">Avg resolve</th>
+          <th style="padding:4px 8px">Top account</th>
+          <th style="padding:4px 8px">Suggested action</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
     </div>
-    <div id="uncatRefineOut" style="margin-top:12px"></div>
+    <div style="font-size:10px;color:var(--faint);margin-top:8px">Click any theme to open its tickets in the Inbox. Trend and SLA are vs the overall period.</div>
   </div>`;
 }
 
-// Delegated click handler for Uncategorized cluster rows — the theme travels in
-// a data- attribute (escaped) rather than an inline handler string, so ticket
-// data can never break out of the attribute into executable markup.
-document.addEventListener('click', (e) => {
-  const el = e.target.closest('.uncat-cluster-row[data-uncat-theme]');
-  if (el) drillUncatTheme(el.getAttribute('data-uncat-theme'));
-});
-
-// Drill from an Overview cluster into the Inbox, filtered to that sub-theme.
-function drillUncatTheme(theme) {
-  currentTypeFilter = 'uncategorized';
-  currentUncatTheme = theme;
-  currentPage = 1;
-  showSection('inbox');
-  // sync the Inbox filter-button row to the Uncategorized state
-  document.querySelectorAll('#inboxFilters .filter-btn').forEach(b => b.classList.remove('active'));
-  document.querySelector('#inboxFilters [onclick*="uncategorized"]')?.classList.add('active');
-  applyFilters();
-  showToast(`Inbox filtered to Uncategorized · ${theme}`, 'info');
-}
-
-async function refineUncategorized() {
-  const clusters = (globalStats && globalStats.uncategorizedClusters) || [];
-  if (!clusters.length) { showToast('No clusters to refine', 'warning'); return; }
-  const btn = document.getElementById('uncatRefineBtn');
-  const out = document.getElementById('uncatRefineOut');
-  const orig = btn.innerHTML;
-  btn.disabled = true; btn.innerHTML = '✨ Refining…';
-  out.innerHTML = '<div style="font-size:11px;color:var(--muted)">Analysing residual themes…</div>';
+// Auto-fetch AI theme names/merging once per cluster signature, then swap the
+// panel in place (no chart re-render, no flicker). Falls back to the
+// deterministic table if the AI call fails.
+async function ensureUncatGroups() {
+  const s = globalStats;
+  const clusters = ((s && s.uncategorizedClusters) || []).filter(c=>c.count>0);
+  if (!clusters.length) return;
+  const sig = uncatSignature(clusters);
+  if (uncatGroupsCache[sig]) return; // already AI-named
   try {
     const resp = await fetch('/api/uncat-refine', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ clusters }),
     });
     const data = await resp.json();
-    if (!resp.ok || !data.ok) throw new Error(data.error || `Server error ${resp.status}`);
-    out.innerHTML = `<div class="ai-report-rendered" style="padding:14px"><p>${mdToHtml(data.report)}</p></div>`;
+    if (resp.ok && data.ok && Array.isArray(data.groups)) {
+      uncatGroupsCache[sig] = data.groups;
+      const panel = document.getElementById('uncatPanel');
+      if (panel && !currentOverviewCategory && globalStats === s) panel.outerHTML = renderUncategorizedBreakdown(s);
+    } else {
+      const st = document.getElementById('uncatAiStatus'); if (st) st.textContent = '';
+    }
   } catch(e) {
-    out.innerHTML = '';
-    showToast(`Refine failed: ${e.message}`, 'error');
+    const st = document.getElementById('uncatAiStatus'); if (st) st.textContent = '';
   }
-  btn.disabled = false; btn.innerHTML = orig;
+}
+
+// Delegated click handler — the member sub-theme labels travel in an escaped
+// data- attribute (never an inline handler string), so ticket-derived data
+// cannot break out into executable markup.
+document.addEventListener('click', (e) => {
+  const row = e.target.closest('.uncat-theme-row[data-uncat-labels]');
+  if (!row) return;
+  let labels = [];
+  try { labels = JSON.parse(row.getAttribute('data-uncat-labels')); } catch {}
+  drillUncatTheme(labels, row.getAttribute('data-uncat-name') || 'theme');
+});
+
+// Drill from an Overview theme into the Inbox, filtered to all its sub-themes.
+function drillUncatTheme(labels, name) {
+  if (!Array.isArray(labels) || !labels.length) return;
+  currentTypeFilter = 'uncategorized';
+  currentUncatThemes = labels;
+  currentUncatLabel = name;
+  currentPage = 1;
+  showSection('inbox');
+  document.querySelectorAll('#inboxFilters .filter-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector('#inboxFilters [onclick*="uncategorized"]')?.classList.add('active');
+  applyFilters();
+  showToast(`Inbox filtered to: ${name}`, 'info');
 }
 
 function renderCategoryTrendChart(s) {
@@ -1566,7 +1684,7 @@ function renderOverview(s) {
       </div>
     </div>
   `;
-  setTimeout(() => { renderStatusDonut(s); renderDowSmall(s); if (!currentOverviewCategory) renderCategoryTrendChart(s); }, 50);
+  setTimeout(() => { renderStatusDonut(s); renderDowSmall(s); if (!currentOverviewCategory) { renderCategoryTrendChart(s); ensureUncatGroups(); } }, 50);
 }
 
 // ── Ticket age helpers ────────────────────────────────────
@@ -1928,7 +2046,8 @@ let currentTypeFilter  = 'all';
 let currentPriFilter   = '';
 let currentSentFilter  = '';
 let currentCategoryFilter = '';
-let currentUncatTheme  = ''; // active Uncategorized sub-theme drill (from Overview breakdown)
+let currentUncatThemes = []; // active Uncategorized theme drill — set of member sub-theme labels
+let currentUncatLabel  = ''; // display name for the active drill
 
 const PRIORITY_ORDER = { CRITICAL:0, HIGH:1, MEDIUM:2, LOW:3 };
 
@@ -1984,7 +2103,7 @@ function renderInboxStats(tickets) {
 
 function setFilter(type, btn) {
   currentTypeFilter = type;
-  currentUncatTheme = ''; // a top-level filter click clears any active sub-theme drill
+  currentUncatThemes = []; currentUncatLabel = ''; // a top-level filter click clears any active theme drill
   currentPage = 1;
   // sync both the filter-btn row and the stats chips
   document.querySelectorAll('#inboxFilters .filter-btn').forEach(b => b.classList.remove('active'));
@@ -2048,7 +2167,7 @@ async function setOverviewCategory(val) {
 }
 
 function resetAllFilters() {
-  currentTypeFilter = 'all'; currentPriFilter = ''; currentSentFilter = ''; currentCategoryFilter = ''; currentUncatTheme = '';
+  currentTypeFilter = 'all'; currentPriFilter = ''; currentSentFilter = ''; currentCategoryFilter = ''; currentUncatThemes = []; currentUncatLabel = '';
   document.getElementById('ticketSearch').value = '';
   document.getElementById('agentFilter').value  = '';
   document.getElementById('categoryFilter').value = '';
@@ -2081,8 +2200,8 @@ function applyFilters() {
   else if (currentTypeFilter === 'noreply')    rows = rows.filter(r=>!r.hasAgentReply);
   else if (currentTypeFilter === 'uncategorized') rows = rows.filter(r=>(r.category||'Uncategorized')==='Uncategorized');
 
-  // Uncategorized sub-theme drill (from the Overview breakdown)
-  if (currentUncatTheme) rows = rows.filter(r=>(r.uncatTheme||'')===currentUncatTheme);
+  // Uncategorized theme drill (from the Overview breakdown) — match any member sub-theme
+  if (currentUncatThemes.length) rows = rows.filter(r=>currentUncatThemes.includes(r.uncatTheme||''));
 
   // Extra filters
   if (agentVal)             rows = rows.filter(r=>r.agent === agentVal);

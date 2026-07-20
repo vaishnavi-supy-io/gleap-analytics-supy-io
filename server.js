@@ -453,6 +453,7 @@ function clusterUncategorized(rows) {
   for (let i=0;i<N;i++) {
     let label = ticketTerms[i].size===0 ? EMPTY : 'Other (residual)';
     if (label!==EMPTY) for (const s of seeds) if (validSet.has(s) && ticketTerms[i].has(s)) { label=s; break; }
+    rows[i].uncatTheme = label; // stamp the row so the Inbox table can show/filter by theme
     (buckets[label] = buckets[label] || []).push(rows[i]);
   }
   const residualLabels = new Set([EMPTY, 'Other (residual)']);

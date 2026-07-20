@@ -1365,7 +1365,7 @@ function renderUncategorizedBreakdown(s) {
       <div class="chart-title" style="margin-bottom:0">Uncategorized Breakdown</div>
       <button id="uncatRefineBtn" onclick="refineUncategorized()" style="font-size:11px;padding:4px 10px;border:1.5px solid var(--p300);background:var(--p100);color:var(--p700);border-radius:8px;font-weight:600;cursor:pointer">✨ Refine with AI</button>
     </div>
-    <div style="font-size:11px;color:var(--muted);margin-bottom:12px">${uncatCount} tickets (${pctTotal}%) landed in Uncategorized — grouped into emergent themes below. Chips show the closest existing category (a keyword-tuning hint).</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:12px">${uncatCount} tickets (${pctTotal}%) landed in Uncategorized — grouped into emergent themes below. Click a theme to see those tickets in the Inbox. Chips show the closest existing category (a keyword-tuning hint).</div>
     <div style="display:flex;flex-direction:column;gap:6px">
       ${clusters.map(c=>{
         const barPct = maxCount ? Math.round((c.count/maxCount)*100) : 0;
@@ -1373,7 +1373,7 @@ function renderUncategorizedBreakdown(s) {
         const chip = c.nearestCategory
           ? `<span style="font-size:10px;padding:2px 8px;border-radius:99px;background:var(--p100);color:var(--p700);font-weight:600;white-space:nowrap">→ ${escHtml(c.nearestCategory)}</span>`
           : (isOther ? '<span style="font-size:10px;color:var(--faint);white-space:nowrap">one-offs</span>' : '');
-        return `<div style="display:flex;align-items:center;gap:8px">
+        return `<div onclick='drillUncatTheme(${JSON.stringify(c.label)})' title="Show these ${c.count} tickets in the Inbox" style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:2px 4px;margin:0 -4px;border-radius:6px" onmouseover="this.style.background='var(--p50,rgba(124,58,237,0.06))'" onmouseout="this.style.background='transparent'">
           <span style="min-width:150px;font-size:11px;font-weight:500;color:var(--ink)">${escHtml(c.label)}</span>
           <div class="mini-bar" style="flex:1"><div class="mini-fill" style="width:${barPct}%;background:${isOther?'#9CA3AF':'#EA580C'}"></div></div>
           <span style="min-width:26px;text-align:right;font-size:11px;font-weight:700;color:var(--muted)">${c.count}</span>
@@ -1383,6 +1383,19 @@ function renderUncategorizedBreakdown(s) {
     </div>
     <div id="uncatRefineOut" style="margin-top:12px"></div>
   </div>`;
+}
+
+// Drill from an Overview cluster into the Inbox, filtered to that sub-theme.
+function drillUncatTheme(theme) {
+  currentTypeFilter = 'uncategorized';
+  currentUncatTheme = theme;
+  currentPage = 1;
+  showSection('inbox');
+  // sync the Inbox filter-button row to the Uncategorized state
+  document.querySelectorAll('#inboxFilters .filter-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector('#inboxFilters [onclick*="uncategorized"]')?.classList.add('active');
+  applyFilters();
+  showToast(`Inbox filtered to Uncategorized · ${theme}`, 'info');
 }
 
 async function refineUncategorized() {
@@ -1655,7 +1668,7 @@ function renderUnassignedQueue() {
       </td>
       <td style="padding:10px 12px;font-size:11px;color:var(--muted);white-space:nowrap">${t.createdAt ? t.createdAt.slice(0, 10) : '—'}</td>
       <td style="padding:10px 12px;white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis">
-        ${t.category && t.category !== 'Uncategorized' ? `<span style="font-size:10px;color:var(--muted)">${escHtml(t.category)}</span>` : '<span style="color:var(--faint);font-size:10px">—</span>'}
+        ${t.category && t.category !== 'Uncategorized' ? `<span style="font-size:10px;color:var(--muted)">${escHtml(t.category)}</span>` : (t.uncatTheme && !['Other (residual)','(no title / summary)'].includes(t.uncatTheme) ? `<span style="font-size:10px;color:var(--faint)">Uncat · ${escHtml(t.uncatTheme)}</span>` : '<span style="color:var(--faint);font-size:10px">—</span>')}
       </td>
       <td style="padding:10px 12px;white-space:nowrap">
         ${t.isCallRequest ? '<span style="display:inline-flex;align-items:center;margin-right:4px"><svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z"/></svg></span>' : ''}
@@ -1907,6 +1920,7 @@ let currentTypeFilter  = 'all';
 let currentPriFilter   = '';
 let currentSentFilter  = '';
 let currentCategoryFilter = '';
+let currentUncatTheme  = ''; // active Uncategorized sub-theme drill (from Overview breakdown)
 
 const PRIORITY_ORDER = { CRITICAL:0, HIGH:1, MEDIUM:2, LOW:3 };
 
@@ -1962,6 +1976,7 @@ function renderInboxStats(tickets) {
 
 function setFilter(type, btn) {
   currentTypeFilter = type;
+  currentUncatTheme = ''; // a top-level filter click clears any active sub-theme drill
   currentPage = 1;
   // sync both the filter-btn row and the stats chips
   document.querySelectorAll('#inboxFilters .filter-btn').forEach(b => b.classList.remove('active'));
@@ -2025,7 +2040,7 @@ async function setOverviewCategory(val) {
 }
 
 function resetAllFilters() {
-  currentTypeFilter = 'all'; currentPriFilter = ''; currentSentFilter = ''; currentCategoryFilter = '';
+  currentTypeFilter = 'all'; currentPriFilter = ''; currentSentFilter = ''; currentCategoryFilter = ''; currentUncatTheme = '';
   document.getElementById('ticketSearch').value = '';
   document.getElementById('agentFilter').value  = '';
   document.getElementById('categoryFilter').value = '';
@@ -2057,6 +2072,9 @@ function applyFilters() {
   else if (currentTypeFilter === 'archived')   rows = rows.filter(r=>r.isArchived);
   else if (currentTypeFilter === 'noreply')    rows = rows.filter(r=>!r.hasAgentReply);
   else if (currentTypeFilter === 'uncategorized') rows = rows.filter(r=>(r.category||'Uncategorized')==='Uncategorized');
+
+  // Uncategorized sub-theme drill (from the Overview breakdown)
+  if (currentUncatTheme) rows = rows.filter(r=>(r.uncatTheme||'')===currentUncatTheme);
 
   // Extra filters
   if (agentVal)             rows = rows.filter(r=>r.agent === agentVal);
@@ -2096,6 +2114,15 @@ function applyFilters() {
   renderTicketList();
 }
 
+// The emergent sub-theme for an Uncategorized ticket (stamped server-side).
+// Shown after the "Uncategorized" badge as "· whatsapp"; residual/empty buckets
+// stay plain so the label doesn't add noise.
+const UNCAT_RESIDUAL = new Set(['Other (residual)', '(no title / summary)']);
+function uncatThemeSuffix(t) {
+  const th = t.uncatTheme;
+  return (th && !UNCAT_RESIDUAL.has(th)) ? ` · ${escHtml(th)}` : '';
+}
+
 function renderTicketList() {
   const total = filteredTickets.length;
   const pages = Math.ceil(total / PAGE_SIZE);
@@ -2129,7 +2156,7 @@ function renderTicketList() {
       statusBadge(t.status),
       t.category && t.category !== 'Uncategorized'
         ? `<span class="badge" style="background:${catColor}15;color:${catColor};border:1px solid ${catColor}30">${escHtml(t.category)}</span>`
-        : '<span class="badge" style="background:#f0f0f0;color:#aaa;border:1px solid #e0e0e0">Uncategorized</span>',
+        : `<span class="badge" style="background:#f0f0f0;color:#aaa;border:1px solid #e0e0e0">Uncategorized${uncatThemeSuffix(t)}</span>`,
       t.isEscalated ? '<span class="badge escalated">Escalated</span>' : '',
       t.isCallRequest ? '<span class="badge call">Call</span>' : '',
       t.slaBreached ? '<span class="badge sla">SLA</span>' : '',

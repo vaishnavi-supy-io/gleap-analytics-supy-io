@@ -1373,7 +1373,7 @@ function renderUncategorizedBreakdown(s) {
         const chip = c.nearestCategory
           ? `<span style="font-size:10px;padding:2px 8px;border-radius:99px;background:var(--p100);color:var(--p700);font-weight:600;white-space:nowrap">→ ${escHtml(c.nearestCategory)}</span>`
           : (isOther ? '<span style="font-size:10px;color:var(--faint);white-space:nowrap">one-offs</span>' : '');
-        return `<div onclick='drillUncatTheme(${JSON.stringify(c.label)})' title="Show these ${c.count} tickets in the Inbox" style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:2px 4px;margin:0 -4px;border-radius:6px" onmouseover="this.style.background='var(--p50,rgba(124,58,237,0.06))'" onmouseout="this.style.background='transparent'">
+        return `<div class="uncat-cluster-row" data-uncat-theme="${escHtml(c.label)}" title="Show these ${c.count} tickets in the Inbox" style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:2px 4px;margin:0 -4px;border-radius:6px" onmouseover="this.style.background='var(--p50,rgba(124,58,237,0.06))'" onmouseout="this.style.background='transparent'">
           <span style="min-width:150px;font-size:11px;font-weight:500;color:var(--ink)">${escHtml(c.label)}</span>
           <div class="mini-bar" style="flex:1"><div class="mini-fill" style="width:${barPct}%;background:${isOther?'#9CA3AF':'#EA580C'}"></div></div>
           <span style="min-width:26px;text-align:right;font-size:11px;font-weight:700;color:var(--muted)">${c.count}</span>
@@ -1384,6 +1384,14 @@ function renderUncategorizedBreakdown(s) {
     <div id="uncatRefineOut" style="margin-top:12px"></div>
   </div>`;
 }
+
+// Delegated click handler for Uncategorized cluster rows — the theme travels in
+// a data- attribute (escaped) rather than an inline handler string, so ticket
+// data can never break out of the attribute into executable markup.
+document.addEventListener('click', (e) => {
+  const el = e.target.closest('.uncat-cluster-row[data-uncat-theme]');
+  if (el) drillUncatTheme(el.getAttribute('data-uncat-theme'));
+});
 
 // Drill from an Overview cluster into the Inbox, filtered to that sub-theme.
 function drillUncatTheme(theme) {

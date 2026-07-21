@@ -28,11 +28,13 @@ export async function onRequestGet({ request, env }) {
     if (cat) {
       const baseKey = `analytics::${start.slice(0,10)}::${end.slice(0,10)}`;
       let base = force ? null : await getCachedJson(baseKey);
-      if (!base || !base.rows) {
+      // runFullPipeline returns { stats, generatedAt } — the full ticket set
+      // lives in stats.tickets, NOT a top-level `rows` field.
+      if (!base || !base.stats || !base.stats.tickets) {
         base = await runFullPipeline(start, end, getGleapHeaders(env), env.PROJECT_ID);
         await setCachedJson(baseKey, base, 600);
       }
-      const filtered = base.rows.filter(r => (r.category||'').toLowerCase() === cat.toLowerCase());
+      const filtered = (base.stats.tickets || []).filter(r => (r.category||'').toLowerCase() === cat.toLowerCase());
       const catStats = computeStats(filtered);
       await setCachedJson(cacheKey, { stats: catStats, generatedAt: base.generatedAt }, 600);
       return Response.json({ ok: true, stats: catStats, generatedAt: base.generatedAt, fromCache: false });

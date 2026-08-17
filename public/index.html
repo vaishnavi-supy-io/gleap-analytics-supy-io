@@ -465,6 +465,82 @@
     .modal-btn-primary:hover { background: var(--p700); }
     .modal-btn-secondary { background: var(--surface3); color: var(--ink); }
     .modal-btn-secondary:hover { background: var(--border2); }
+    /* Monthly Briefing — a plain-language memo built from the same stats the
+       dashboards use. Reads like a document, not a dashboard, so a manager can
+       print it or paste it into Slack without translating charts first. */
+    .memo { max-width: 860px; margin: 0 auto; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r16); padding: 40px 48px 44px; box-shadow: var(--sh1); }
+    @media (max-width: 700px) { .memo { padding: 26px 20px 32px; } }
+    .memo-eyebrow { font-size: 10px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase; color: var(--p600); margin-bottom: 8px; }
+    .memo h1 { font-size: 26px; font-weight: 800; letter-spacing: -0.5px; line-height: 1.2; color: var(--ink); margin-bottom: 10px; }
+    .memo-meta { font-size: 12.5px; color: var(--muted); line-height: 1.7; padding-bottom: 20px; border-bottom: 1px solid var(--border); }
+    .memo-meta strong { color: var(--ink); font-weight: 600; }
+    .memo h2 { font-size: 15.5px; font-weight: 700; color: var(--ink); margin: 34px 0 4px; letter-spacing: -0.2px; }
+    .memo-sub { font-size: 12.5px; color: var(--muted); margin-bottom: 14px; max-width: 64ch; line-height: 1.65; }
+    .memo p { font-size: 13px; color: var(--ink); line-height: 1.7; max-width: 68ch; margin-bottom: 12px; }
+    .memo-note { font-size: 12px; color: var(--muted); line-height: 1.65; border-left: 2px solid var(--border2); padding-left: 12px; margin-top: 10px; }
+    .memo-note strong { color: var(--p700); font-weight: 700; }
+    .memo-table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--r8); }
+    .memo-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    .memo-table thead th { text-align: left; background: var(--surface3); color: var(--p700); font-size: 10px; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase; padding: 9px 14px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+    .memo-table tbody td { padding: 10px 14px; border-bottom: 1px solid var(--border); color: var(--ink); vertical-align: top; line-height: 1.55; }
+    .memo-table tbody tr:last-child td { border-bottom: none; }
+    .memo-table tbody tr:hover { background: var(--p50); }
+    .memo-table .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .memo-pill { display: inline-block; padding: 1px 8px; border-radius: 99px; font-size: 10.5px; font-weight: 700; white-space: nowrap; }
+    .memo-pill.high { background: #FEE2E2; color: var(--red); }
+    .memo-pill.mid  { background: #FEF3C7; color: var(--amber); }
+    .memo-pill.good { background: #D1FAE5; color: var(--green); }
+    .memo-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: var(--r8); overflow: hidden; }
+    @media (max-width: 620px) { .memo-stats { grid-template-columns: repeat(2, 1fr); } }
+    .memo-stat { background: var(--surface); padding: 14px 14px 12px; }
+    .memo-stat .n { display: block; font-size: 22px; font-weight: 800; color: var(--p700); letter-spacing: -0.6px; font-variant-numeric: tabular-nums; }
+    .memo-stat .l { font-size: 10px; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase; color: var(--muted); }
+    .memo-stat .s { font-size: 11px; color: var(--faint); margin-top: 2px; }
+    .memo-callout { border-left: 3px solid var(--p500); background: var(--p50); border-radius: 0 var(--r8) var(--r8) 0; padding: 14px 18px; }
+    .memo-callout p { margin-bottom: 8px; max-width: none; }
+    .memo-callout p:last-child { margin-bottom: 0; }
+    .memo-callout strong { color: var(--p700); }
+    .memo-ex { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+    .memo-ex li { font-size: 12px; color: var(--ink); line-height: 1.5; }
+    .memo-ex a { color: var(--p600); font-weight: 600; text-decoration: none; }
+    .memo-ex a:hover { text-decoration: underline; }
+    .memo-actions { margin-top: 34px; border: 1px solid var(--border2); background: var(--p50); border-radius: var(--r12); padding: 20px 22px; }
+    .memo-actions h2 { margin-top: 0; color: var(--p700); }
+    .memo-actions ol { list-style: none; margin: 0; padding: 0; counter-reset: memoact; }
+    .memo-actions li { display: flex; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 12.5px; line-height: 1.6; color: var(--ink); counter-increment: memoact; }
+    .memo-actions li:last-child { border-bottom: none; }
+    .memo-actions li::before { content: counter(memoact); flex: 0 0 18px; width: 18px; height: 18px; margin-top: 1px; border-radius: 5px; background: var(--p600); color: #fff; font-size: 10px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+    .memo-foot { margin-top: 30px; padding-top: 14px; border-top: 1px solid var(--border); font-size: 11px; color: var(--faint); line-height: 1.6; }
+    .memo-toggle { margin-top: 10px; }
+    .memo-toggle summary { cursor: pointer; font-size: 11.5px; font-weight: 700; color: var(--p600); padding: 4px 0; list-style: none; }
+    .memo-toggle summary::-webkit-details-marker { display: none; }
+    .memo-toggle summary::before { content: '▸ '; }
+    .memo-toggle[open] summary::before { content: '▾ '; }
+    .memo-toggle .memo-table { font-size: 10.5px; }
+    .memo-toggle .memo-table thead th, .memo-toggle .memo-table tbody td { padding: 5px 8px; }
+    /* Heatmap: 7 rows (day) × 24 cols (hour UTC), shaded on the purple ramp */
+    .hm-wrap { overflow-x: auto; padding-bottom: 4px; }
+    .hm-grid { display: grid; grid-template-columns: 34px repeat(24, minmax(18px, 1fr)); gap: 3px; min-width: 600px; }
+    .hm-day { display: flex; align-items: center; font-size: 10px; font-weight: 700; color: var(--muted); }
+    .hm-day.corner { visibility: hidden; }
+    .hm-hr { font-size: 9px; color: var(--faint); text-align: center; font-variant-numeric: tabular-nums; }
+    .hm-cell { aspect-ratio: 1; border-radius: 3px; border: 1px solid var(--border); background: var(--surface2); }
+    .hm-cell.peak { outline: 1.5px solid var(--p700); outline-offset: 1px; }
+    .hm-legend { display: flex; align-items: center; gap: 7px; margin-top: 10px; font-size: 11px; color: var(--muted); }
+    .hm-bar { width: 110px; height: 9px; border-radius: 5px; border: 1px solid var(--border); background: linear-gradient(to right, var(--p100), var(--p700)); }
+    .hm-legend .hm-hint { margin-left: auto; font-style: italic; color: var(--faint); }
+    /* Print: the memo is the page — drop all app chrome */
+    @media print {
+      .sidebar, .topbar, .memo-noprint { display: none !important; }
+      .main { margin-left: 0 !important; }
+      .section { display: none !important; }
+      .section.active { display: block !important; padding: 0 !important; }
+      body { background: #fff; font-size: 11.5px; }
+      .memo { border: none; box-shadow: none; max-width: none; padding: 0; }
+      .memo-table tbody tr:hover { background: none; }
+      .memo h2 { break-after: avoid; }
+      .memo-table-wrap, .memo-callout, .memo-actions, .memo-stats { break-inside: avoid; }
+    }
   </style>
 </head>
 <body>
@@ -503,6 +579,9 @@
     <div class="nav-section">Analytics</div>
     <button class="nav-item" onclick="showSection('charts')">
       <span class="ni-icon"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/></svg></span> Trends & Charts
+    </button>
+    <button class="nav-item" onclick="showSection('briefing')">
+      <span class="ni-icon"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg></span> Monthly Briefing
     </button>
     <button class="nav-item" onclick="showSection('ai')">
       <span class="ni-icon"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z"/></svg></span> AI Report
@@ -677,6 +756,28 @@
     </div>
   </div>
 
+  <div id="section-briefing" class="section">
+    <div class="section-header memo-noprint">
+      <div class="section-title">
+        <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>
+        Monthly Briefing <span class="stag" id="briefingRangeTag">—</span>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn btn-outline" onclick="copyBriefing()" id="briefingCopyBtn" style="font-size:11px;padding:6px 12px" title="Copy the briefing as plain text for Slack or email">
+          <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" style="vertical-align:middle;margin-right:4px"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 01-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 011.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 00-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 01-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 00-3.375-3.375h-1.5a1.125 1.125 0 01-1.125-1.125v-1.5a3.375 3.375 0 00-3.375-3.375H9.75"/></svg>
+          Copy as text
+        </button>
+        <button class="btn btn-primary" onclick="window.print()" style="font-size:11px;padding:6px 12px" title="Print or save the briefing as a PDF">
+          <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" style="vertical-align:middle;margin-right:4px"><path stroke-linecap="round" stroke-linejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0110.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0l.229 2.523a1.125 1.125 0 01-1.12 1.227H7.231c-.662 0-1.18-.568-1.12-1.227L6.34 18m11.318 0h1.091A2.25 2.25 0 0021 15.75V9.456c0-1.081-.768-2.015-1.837-2.175a48.055 48.055 0 00-1.913-.247M6.34 18H5.25A2.25 2.25 0 013 15.75V9.456c0-1.081.768-2.015 1.837-2.175a48.041 48.041 0 011.913-.247m10.5 0a48.536 48.536 0 00-10.5 0m10.5 0V3.375c0-.621-.504-1.125-1.125-1.125h-8.25c-.621 0-1.125.504-1.125 1.125v3.659M18 10.5h.008v.008H18V10.5zm-3 0h.008v.008H15V10.5z"/></svg>
+          Print / PDF
+        </button>
+      </div>
+    </div>
+    <div id="briefingContent">
+      <div class="loader"><div class="spinner"></div><div class="loader-text">Preparing the briefing…</div></div>
+    </div>
+  </div>
+
   <div id="section-ai" class="section">
     <div class="ai-chat-header">
       <div class="section-title" style="margin:0">
@@ -779,6 +880,7 @@ const titles = {
   calls:      ['Call Requests', 'Tickets with call_flow = true'],
   unassigned: ['Unassigned Queue', 'Open tickets with no agent assigned — sorted oldest first'],
   charts:     ['Trends & Charts', 'Volume by day, time, and company'],
+  briefing:   ['Monthly Briefing', 'A plain-language read of the period — what came in, what needs attention'],
   ai:         ['AI Team Lead Report', 'AI-powered analysis and recommendations'],
   teamhub:    ['Team Hub', 'Attendance, scheduling, and shift management'],
 };
@@ -1230,6 +1332,7 @@ async function loadData() {
     renderAgents(data.stats);
     renderCalls(data.stats);
     renderCharts(data.stats);
+    renderBriefing(data.stats);
     renderInboxStats(allTickets);
     renderTicketList();
     renderUnassignedQueue();
@@ -2338,6 +2441,385 @@ function renderTicketList() {
 }
 
 function goPage(p) { currentPage = p; renderTicketList(); window.scrollTo({top:0,behavior:'smooth'}); }
+
+// ── Monthly Briefing ──────────────────────────────────────
+// The narrative counterpart to Overview: the same period, written as a memo a
+// CSM lead can print or paste into Slack without translating charts first.
+// Everything is derived client-side from the stats loadData() already fetched,
+// so opening this section costs nothing and can never disagree with Overview.
+
+const BRIEF_HIGH_PRIORITY = new Set(['HIGH', 'URGENT', 'CRITICAL']);
+const BRIEF_DAYS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+let briefingPlainText = '';
+
+// A conversation with no title, no AI summary and no comment carries no content
+// at all — usually an abandoned widget/bot session. Counting those as
+// conversations inflates every rate, so the briefing sets them aside and says so.
+function briefIsEmptySession(t) {
+  const title = (t.title || '').trim();
+  const noTitle = !title || title === '(No title)' || title === '(no title / summary)';
+  return noTitle && !(t.aiSummary || '').trim() && !(t.latestComment || '').trim();
+}
+
+function briefAvg(vals) {
+  const v = vals.filter(x => x !== null && x !== undefined && !isNaN(x));
+  return v.length ? v.reduce((a,b)=>a+b,0) / v.length : null;
+}
+
+function briefMode(vals) {
+  const m = {};
+  for (const v of vals) if (v) m[v] = (m[v]||0) + 1;
+  return Object.entries(m).sort((a,b)=>b[1]-a[1])[0]?.[0] || null;
+}
+
+// Ease the ramp so mid-volume cells stay distinguishable instead of all
+// collapsing into pale lavender against one dark peak.
+function briefHeatColor(v, max) {
+  const t = Math.pow(v / max, 0.6);
+  const from = [243,232,255], to = [76,29,149];
+  return `rgb(${from.map((c,i)=>Math.round(c + (to[i]-c)*t)).join(',')})`;
+}
+
+// One table, two renderings (HTML + plain text) from one row array, so the
+// "Copy as text" output can never drift from what's on screen.
+function briefTable(headers, rows) {
+  const th = headers.map(h => `<th${h.num ? ' class="num"' : ''}>${escHtml(h.label)}</th>`).join('');
+  const tb = rows.map(r => `<tr>${r.map((c,i) =>
+    `<td${headers[i].num ? ' class="num"' : ''}>${c.html !== undefined ? c.html : escHtml(String(c.v))}</td>`
+  ).join('')}</tr>`).join('');
+  return {
+    html: `<div class="memo-table-wrap"><table class="memo-table"><thead><tr>${th}</tr></thead><tbody>${tb}</tbody></table></div>`,
+    text: [headers.map(h=>h.label).join(' · '), ...rows.map(r => r.map(c => String(c.v)).join(' · '))].join('\n'),
+  };
+}
+
+function renderBriefing(s) {
+  const el = document.getElementById('briefingContent');
+  const from = document.getElementById('dateFrom').value;
+  const to   = document.getElementById('dateTo').value;
+  const rows = (s && s.tickets) || [];
+
+  const fmtDate = d => d ? new Date(d + 'T00:00:00Z').toLocaleDateString('en-GB', { day:'numeric', month:'long', year:'numeric', timeZone:'UTC' }) : '—';
+  const periodLabel = `${fmtDate(from)} – ${fmtDate(to)}`;
+  document.getElementById('briefingRangeTag').textContent = `${from} → ${to}`;
+
+  if (!rows.length) {
+    el.innerHTML = `<div class="memo"><p class="memo-eyebrow">Support Team Briefing</p><h1>Nothing to report yet</h1>
+      <p class="memo-meta">No conversations were found for ${escHtml(periodLabel)}. Pick a wider date range and hit <strong>Load Data</strong>.</p></div>`;
+    briefingPlainText = '';
+    return;
+  }
+
+  // ── Model ───────────────────────────────────────────────
+  const empties = rows.filter(briefIsEmptySession);
+  const real    = rows.filter(t => !briefIsEmptySession(t));
+  const total   = real.length;
+  const pct     = n => total ? Math.round((n/total)*100) : 0;
+
+  const resolved   = real.filter(t => t.isClosed || t.isArchived);
+  const openRows   = real.filter(t => t.isOpen);
+  const highPri    = real.filter(t => BRIEF_HIGH_PRIORITY.has(t.priority));
+  const highPriOpen= highPri.filter(t => t.isOpen);
+  const negative   = real.filter(t => t.sentiment === 'negative');
+  const slaRows    = real.filter(t => t.slaBreached);
+  const noReply    = real.filter(t => !t.hasAgentReply);
+  const noSummary  = real.filter(t => !(t.aiSummary || '').trim());
+  const unassigned = real.filter(t => t.agent === 'Unassigned');
+  const unassignedOpen = unassigned.filter(t => t.isOpen);
+  const dayMs = 86400000;
+  const unassignedStale = unassignedOpen.filter(t => t.createdAt && (Date.now() - new Date(t.createdAt).getTime()) > dayMs);
+
+  // Day × hour grid (UTC) — the coverage question Overview's two separate
+  // day-of-week and hour-of-day charts can't answer on their own.
+  const grid = {};
+  BRIEF_DAYS.forEach(d => grid[d] = new Array(24).fill(0));
+  for (const t of real) if (grid[t.dayOfWeek] && t.hour >= 0) grid[t.dayOfWeek][t.hour]++;
+  const cells = [];
+  for (const d of BRIEF_DAYS) for (let h = 0; h < 24; h++) cells.push({ day:d, hour:h, n:grid[d][h] });
+  const gridMax = Math.max(1, ...cells.map(c => c.n));
+  const peaks = [...cells].sort((a,b) => b.n - a.n).slice(0, 3).filter(c => c.n > 0);
+  const peakKeys = new Set(peaks.map(c => `${c.day}-${c.hour}`));
+  // "Busy stretch" = hours carrying at least 60% of the busiest hour's total,
+  // which is the band worth staffing rather than every hour with any traffic.
+  const byHour = new Array(24).fill(0);
+  for (const c of cells) byHour[c.hour] += c.n;
+  const hourMax   = Math.max(1, ...byHour);
+  const busyHours = byHour.map((n,h)=>({h,n})).filter(x => x.n >= hourMax * 0.6).map(x=>x.h);
+  // If the band covers most of the clock there is no real stretch to name —
+  // say nothing rather than print "00:00–23:00" as if it were a finding.
+  const hasStretch = busyHours.length > 0 && busyHours.length <= 14;
+  const busyFrom  = hasStretch ? Math.min(...busyHours) : null;
+  const busyTo    = hasStretch ? Math.max(...busyHours) : null;
+
+  // Topics = the portal's own keyword categories, recomputed over content-ful
+  // rows only so the table's total matches the headline number.
+  const catBuckets = {};
+  for (const t of real) (catBuckets[t.category || 'Uncategorized'] ||= []).push(t);
+  const topics = Object.entries(catBuckets).map(([category, ts]) => ({
+    category, count: ts.length, rows: ts,
+    open: ts.filter(t=>t.isOpen).length,
+    highPri: ts.filter(t=>BRIEF_HIGH_PRIORITY.has(t.priority)).length,
+    sla: ts.filter(t=>t.slaBreached).length,
+    esc: ts.filter(t=>t.isEscalated).length,
+    neg: ts.filter(t=>t.sentiment==='negative').length,
+    avgClose: briefAvg(ts.map(t=>t.closeMins)),
+    topCompany: briefMode(ts.map(t=>t.company)),
+  })).sort((a,b) => b.count - a.count);
+  const uncategorized = catBuckets['Uncategorized'] || [];
+
+  // "Where to focus" ranks by unresolved pain, not raw volume — a big category
+  // that closes cleanly needs less attention than a smaller one that festers.
+  const focus = topics
+    .filter(t => t.category !== 'Uncategorized' && t.count > 0)
+    .map(t => ({ ...t, pain: t.open*3 + t.sla*4 + t.esc*3 + t.highPri*2 + t.neg }))
+    .sort((a,b) => b.pain - a.pain)[0] || null;
+  const focusExamples = focus ? [...focus.rows]
+    .sort((a,b) => (
+      (b.isOpen - a.isOpen) ||
+      (BRIEF_HIGH_PRIORITY.has(b.priority) - BRIEF_HIGH_PRIORITY.has(a.priority)) ||
+      (b.slaBreached - a.slaBreached) ||
+      (new Date(a.createdAt) - new Date(b.createdAt))
+    )).slice(0, 3) : [];
+
+  // Agents, recomputed on the same row set as everything else.
+  const agentMap = {};
+  for (const t of real) {
+    const a = (agentMap[t.agent] ||= { name:t.agent, handled:0, open:0, sla:0, closeVals:[] });
+    a.handled++;
+    if (t.isOpen) a.open++;
+    if (t.slaBreached) a.sla++;
+    if (t.closeMins !== null && t.closeMins !== undefined) a.closeVals.push(t.closeMins);
+  }
+  const agents = Object.values(agentMap)
+    .map(a => ({ ...a, avgClose: briefAvg(a.closeVals) }))
+    .sort((a,b) => b.handled - a.handled);
+  const namedAgents = agents.filter(a => a.name !== 'Unassigned');
+  const openCounts  = namedAgents.map(a=>a.open).sort((a,b)=>a-b);
+  const medianOpen   = openCounts.length ? openCounts[Math.floor(openCounts.length/2)] : 0;
+  const closers = namedAgents.filter(a => a.avgClose !== null && a.handled >= 5).sort((a,b) => a.avgClose - b.avgClose);
+  const fastest = closers[0] || null;
+  const slowest = closers.length > 1 ? closers[closers.length-1] : null;
+
+  // Accounts — with the open high-priority count, which is what turns "big
+  // account" into "account that needs a coordinated owner".
+  const companyMap = {};
+  for (const t of real) if (t.company) {
+    const c = (companyMap[t.company] ||= { name:t.company, count:0, openHigh:0, neg:0 });
+    c.count++;
+    if (t.isOpen && BRIEF_HIGH_PRIORITY.has(t.priority)) c.openHigh++;
+    if (t.sentiment === 'negative') c.neg++;
+  }
+  const accounts = Object.values(companyMap).sort((a,b) => b.count - a.count).slice(0, 6);
+  const topAccount = accounts[0] || null;
+
+  // Volume drift across the period — first half vs second half of the days seen.
+  const dayCounts = {};
+  for (const t of real) if (t.day && t.day !== 'unknown') dayCounts[t.day] = (dayCounts[t.day]||0) + 1;
+  const days = Object.keys(dayCounts).sort();
+  const half = Math.floor(days.length / 2);
+  const firstHalf  = days.slice(0, half).reduce((n,d)=>n+dayCounts[d], 0);
+  const secondHalf = days.slice(half).reduce((n,d)=>n+dayCounts[d], 0);
+  const driftPct = firstHalf ? Math.round(((secondHalf - firstHalf) / firstHalf) * 100) : 0;
+  const busiestDay = days.reduce((best,d) => (!best || dayCounts[d] > dayCounts[best]) ? d : best, null);
+
+  // ── Blocks (HTML + plain text kept in lockstep) ──────────
+  const blocks = [];
+  const add = (html, text) => blocks.push({ html, text });
+  const heading = (h2, sub) => add(
+    `<h2>${escHtml(h2)}</h2>${sub ? `<p class="memo-sub">${sub}</p>` : ''}`,
+    `\n${h2.toUpperCase()}\n${'─'.repeat(Math.min(h2.length, 52))}`
+  );
+
+  add(`<p class="memo-eyebrow">Support Team Briefing</p>
+    <h1>What Customers Told Us This Period</h1>
+    <p class="memo-meta">
+      <strong>Period covered:</strong> ${escHtml(periodLabel)} &nbsp;·&nbsp;
+      <strong>Based on:</strong> ${total.toLocaleString()} real customer conversations from Gleap<br>
+      A plain-language read of what came in, what needs attention, and where to point the team next.
+    </p>`,
+    `SUPPORT TEAM BRIEFING — What Customers Told Us This Period\nPeriod: ${periodLabel}\nBased on ${total.toLocaleString()} real customer conversations from Gleap.`);
+
+  heading('The Period at a Glance');
+  add(`<div class="memo-stats">
+      <div class="memo-stat"><span class="n">${total.toLocaleString()}</span><span class="l">Conversations</span><div class="s">${empties.length} empty session${empties.length===1?'':'s'} excluded</div></div>
+      <div class="memo-stat"><span class="n">${highPri.length}</span><span class="l">High priority</span><div class="s">${highPriOpen.length} still open</div></div>
+      <div class="memo-stat"><span class="n">${pct(resolved.length)}%</span><span class="l">Resolved</span><div class="s">${openRows.length} still open</div></div>
+      <div class="memo-stat"><span class="n">${pct(negative.length)}%</span><span class="l">Negative tone</span><div class="s">${negative.length} conversation${negative.length===1?'':'s'}</div></div>
+    </div>
+    <p class="memo-sub" style="margin-top:12px">${rows.length.toLocaleString()} conversations arrived in this window; ${empties.length} carried no title, summary or message at all (abandoned bot sessions) and are excluded from every figure below. Of the ${highPri.length} high-priority conversations, ${highPriOpen.length} ${highPriOpen.length===1?'is':'are'} still open.</p>`,
+    `At a glance: ${total.toLocaleString()} conversations · ${highPri.length} high priority (${highPriOpen.length} still open) · ${pct(resolved.length)}% resolved · ${pct(negative.length)}% negative tone.\n${rows.length.toLocaleString()} arrived in total; ${empties.length} empty bot sessions excluded.`);
+
+  heading('When Conversations Come In',
+    'Every conversation plotted by the day and hour it started (UTC). Darker means busier — this is the coverage question, not a volume chart.');
+  const hourLabels = Array.from({length:24}, (_,h) => `<div class="hm-hr">${h % 3 === 0 ? h : ''}</div>`).join('');
+  const gridHtml = BRIEF_DAYS.map(d => `<div class="hm-day">${d}</div>` + grid[d].map((n,h) => {
+    const label = `${d} ${String(h).padStart(2,'0')}:00–${String((h+1)%24).padStart(2,'0')}:00 UTC — ${n} conversation${n===1?'':'s'}`;
+    const style = n > 0 ? ` style="background:${briefHeatColor(n, gridMax)}"` : '';
+    return `<div class="hm-cell${peakKeys.has(`${d}-${h}`) ? ' peak' : ''}"${style} title="${escHtml(label)}" aria-label="${escHtml(label)}"></div>`;
+  }).join('')).join('');
+  const peakText = peaks.length
+    ? `Busiest single windows: ${peaks.map(p => `${p.day} ${String(p.hour).padStart(2,'0')}:00 UTC (${p.n})`).join(', ')}.`
+    : 'Volume is too thin in this range to call a peak window.';
+  const hourTable = briefTable(
+    [{label:'Day'}, ...Array.from({length:24},(_,h)=>({label:String(h), num:true}))],
+    BRIEF_DAYS.map(d => [{v:d}, ...grid[d].map(n => ({v:n}))])
+  );
+  add(`<div class="hm-wrap"><div class="hm-grid"><div class="hm-day corner"></div>${hourLabels}${gridHtml}</div></div>
+    <div class="hm-legend"><span>Fewer</span><span class="hm-bar"></span><span>More</span><span class="hm-hint">Unfilled cells = 0 conversations</span></div>
+    <p class="memo-note">${escHtml(peakText)}${busyFrom !== null ? ` The consistently busy stretch runs roughly ${String(busyFrom).padStart(2,'0')}:00–${String(busyTo).padStart(2,'0')}:00 UTC.` : ''} ${busiestDay ? `Busiest single day: <strong>${escHtml(busiestDay)}</strong> with ${dayCounts[busiestDay]} conversations.` : ''}</p>
+    <details class="memo-toggle"><summary>View exact numbers as a table</summary>${hourTable.html}</details>`,
+    `${peakText}${busyFrom !== null ? ` Busy stretch ${String(busyFrom).padStart(2,'0')}:00–${String(busyTo).padStart(2,'0')}:00 UTC.` : ''}`);
+
+  heading('What Customers Needed Help With Most',
+    `Grouped by the portal's own category rules. ${uncategorized.length ? `${uncategorized.length} conversation${uncategorized.length===1?'':'s'} (${pct(uncategorized.length)}%) matched no rule — the Uncategorized Intelligence panel on Overview breaks those into sub-themes.` : 'Every conversation matched a category.'}`);
+  const topicRows = topics.slice(0, 10).map(t => {
+    const bits = [];
+    if (t.open) bits.push(`${t.open} still open`);
+    if (t.sla)  bits.push(`${t.sla} past SLA`);
+    if (t.esc)  bits.push(`${t.esc} escalated`);
+    if (t.avgClose !== null) bits.push(`closes in ${fmtMinsShort(t.avgClose)}`);
+    if (t.topCompany) bits.push(`most from ${t.topCompany}`);
+    const signal = bits.slice(0,3).join(' · ') || 'no open items';
+    return [
+      { v: t.category, html: `<strong>${escHtml(t.category)}</strong>` },
+      { v: t.count },
+      { v: `${pct(t.count)}%` },
+      { v: signal },
+    ];
+  });
+  const topicTable = briefTable(
+    [{label:'Topic'}, {label:'Conversations', num:true}, {label:'Share', num:true}, {label:"What's going on"}],
+    topicRows
+  );
+  add(topicTable.html, topicTable.text);
+
+  if (focus) {
+    heading('Where the Team Should Focus First');
+    const exHtml = focusExamples.map(t => `<li>${t.gleapLink ? `<a href="${escHtml(t.gleapLink)}" target="_blank" rel="noopener">#${escHtml(String(t.bugId))}</a>` : `#${escHtml(String(t.bugId))}`} — ${escHtml((t.title||'').slice(0,110))}${t.company ? ` <span style="color:var(--muted)">(${escHtml(t.company)})</span>` : ''}${t.isOpen ? ' <span class="memo-pill high">open</span>' : ''}${t.slaBreached ? ' <span class="memo-pill mid">SLA</span>' : ''}</li>`).join('');
+    add(`<div class="memo-callout">
+        <p><strong>${escHtml(focus.category)}</strong> is the area carrying the most unresolved weight — ${focus.count} conversation${focus.count===1?'':'s'} this period, of which ${focus.open} ${focus.open===1?'is':'are'} still open${focus.sla ? `, ${focus.sla} past SLA` : ''}${focus.esc ? ` and ${focus.esc} escalated` : ''}. It ranks first on open + breached + escalated + high-priority load, not on raw volume, so it is where a focused push pays back fastest.</p>
+        ${focusExamples.length ? `<p style="margin-bottom:4px">Live examples from this period:</p><ul class="memo-ex">${exHtml}</ul>` : ''}
+      </div>`,
+      `FOCUS FIRST: ${focus.category} — ${focus.count} conversations, ${focus.open} still open, ${focus.sla} past SLA, ${focus.esc} escalated.\n${focusExamples.map(t=>`  • #${t.bugId} ${(t.title||'').slice(0,90)}${t.company?` (${t.company})`:''}`).join('\n')}`);
+  }
+
+  const gaps = [];
+  if (uncategorized.length) gaps.push([`${uncategorized.length} conversations match no category`, `That's ${pct(uncategorized.length)}% of the period with no label, so trend-spotting on them means reading raw text. Overview's Uncategorized Intelligence panel already clusters them into sub-themes — recurring ones belong in a real category.`]);
+  if (unassignedOpen.length) gaps.push([`${unassignedOpen.length} open conversations have no owner`, `${unassignedStale.length} of them have been waiting over 24 hours with nobody officially on them.`]);
+  if (noSummary.length) gaps.push([`${noSummary.length} conversations have no AI summary`, `About 1 in ${Math.max(2, Math.round(total / Math.max(1, noSummary.length)))} can't be reviewed at a glance — every scan of those costs a full read.`]);
+  if (noReply.length) gaps.push([`${noReply.length} conversations never got an agent reply`, `${noReply.filter(t=>t.isClosed||t.isArchived).length} of those are already closed — worth confirming the bot isn't closing live issues.`]);
+  if (slaRows.length) gaps.push([`${slaRows.length} conversations breached SLA`, `Concentrated in ${briefMode(slaRows.map(t=>t.category)) || 'no single category'}${briefMode(slaRows.map(t=>t.company)) ? ` and most often from ${briefMode(slaRows.map(t=>t.company))}` : ''}.`]);
+  if (empties.length) gaps.push([`${empties.length} sessions arrived completely empty`, `No title, summary or message — customers opening the widget and leaving, or bot hand-offs that capture nothing before they end.`]);
+  if (gaps.length) {
+    heading('Gaps We Noticed', 'Process problems rather than product problems — each one is costing the team time right now.');
+    const gapTable = briefTable([{label:'Gap'}, {label:'Why it matters'}],
+      gaps.map(([g,w]) => [{ v:g, html:`<strong>${escHtml(g)}</strong>` }, { v:w }]));
+    add(gapTable.html, gapTable.text);
+  }
+
+  heading('How the Team Is Doing', 'Workload and closing speed side by side — the two together say more than either alone.');
+  const agentTable = briefTable(
+    [{label:'Agent'}, {label:'Handled', num:true}, {label:'Avg time to close', num:true}, {label:'Still open', num:true}],
+    agents.map(a => {
+      const hot = a.name !== 'Unassigned' && a.open > 2 && a.open >= medianOpen * 2;
+      const openCell = a.name === 'Unassigned'
+        ? `<span class="memo-pill high">${a.open}</span>`
+        : (hot ? `<span class="memo-pill mid">${a.open}</span>` : String(a.open));
+      return [
+        { v: a.name, html: a.name === 'Unassigned' ? `<em>Unassigned</em>` : escHtml(a.name) },
+        { v: a.handled },
+        { v: a.avgClose !== null ? fmtMinsShort(a.avgClose) : '—' },
+        { v: a.open, html: openCell },
+      ];
+    })
+  );
+  let agentNote = '';
+  if (fastest && slowest && slowest.avgClose > fastest.avgClose * 1.5) {
+    agentNote = `<strong>${escHtml(slowest.name)}</strong> takes ${fmtMinsShort(slowest.avgClose)} to close on average against <strong>${escHtml(fastest.name)}</strong>'s ${fmtMinsShort(fastest.avgClose)} — a gap ticket difficulty alone is unlikely to explain. Worth understanding what's working and sharing it.`;
+  } else if (fastest) {
+    agentNote = `Closing speed is fairly even across the team; <strong>${escHtml(fastest.name)}</strong> leads at ${fmtMinsShort(fastest.avgClose)}.`;
+  }
+  const heaviest = namedAgents[0];
+  if (heaviest && namedAgents.length > 1 && heaviest.handled > namedAgents[1].handled * 1.4) {
+    agentNote += ` <strong>${escHtml(heaviest.name)}</strong> carries ${heaviest.handled} conversations — ${Math.round((heaviest.handled/namedAgents[1].handled - 1) * 100)}% more than the next-busiest.`;
+  }
+  add(agentTable.html + (agentNote ? `<p class="memo-note">${agentNote}</p>` : ''),
+    agentTable.text + (agentNote ? `\n${agentNote.replace(/<[^>]+>/g,'')}` : ''));
+
+  if (accounts.length) {
+    heading('A Few Accounts Are Driving a Lot of Volume');
+    const accTable = briefTable(
+      [{label:'Customer'}, {label:'Conversations', num:true}, {label:'Share', num:true}, {label:'Open high-priority', num:true}],
+      accounts.map(a => [
+        { v:a.name },
+        { v:a.count },
+        { v:`${pct(a.count)}%` },
+        { v:a.openHigh, html: a.openHigh > 0 ? `<span class="memo-pill high">${a.openHigh}</span>` : '0' },
+      ])
+    );
+    const accNote = topAccount
+      ? `<strong>${escHtml(topAccount.name)}</strong> alone accounts for ${topAccount.count} conversation${topAccount.count===1?'':'s'} (${pct(topAccount.count)}% of the period)${topAccount.openHigh ? ` and ${topAccount.openHigh} of the ${highPriOpen.length} still-open high-priority thread${highPriOpen.length===1?'':'s'}` : ''}. At that concentration it reads less like separate one-offs and more like one account needing a coordinated follow-up.`
+      : '';
+    add(accTable.html + (accNote ? `<p class="memo-note">${accNote}</p>` : ''),
+      accTable.text + (accNote ? `\n${accNote.replace(/<[^>]+>/g,'')}` : ''));
+  }
+
+  heading('Other Things Worth Knowing');
+  const otherBits = [];
+  otherBits.push(`Negative tone sits at ${pct(negative.length)}% of conversations this period — track it as a running number rather than a one-off snapshot.`);
+  if (days.length >= 4) {
+    otherBits.push(Math.abs(driftPct) >= 20
+      ? `Volume ${driftPct > 0 ? 'rose' : 'fell'} ${Math.abs(driftPct)}% between the first and second half of the period (${firstHalf} → ${secondHalf} conversations) — worth checking against release or billing dates.`
+      : `Volume held steady across the period (${firstHalf} → ${secondHalf} conversations between halves).`);
+  }
+  if (highPriOpen.length) {
+    const oldest = [...highPriOpen].sort((a,b) => new Date(a.createdAt) - new Date(b.createdAt))[0];
+    const ageDays = oldest?.createdAt ? Math.floor((Date.now() - new Date(oldest.createdAt).getTime()) / dayMs) : null;
+    if (ageDays !== null) otherBits.push(`The oldest still-open high-priority conversation (#${oldest.bugId}${oldest.company ? `, ${oldest.company}` : ''}) has been open ${ageDays} day${ageDays===1?'':'s'}.`);
+  }
+  if (s.callRequestCount) otherBits.push(`${s.callRequestCount} customer${s.callRequestCount===1?'':'s'} asked for a phone call back this period — those sit in the Call Requests queue.`);
+  add(`<p>${otherBits.map(escHtml).join(' ')}</p>`, otherBits.join(' '));
+
+  // Actions are generated from the thresholds above, so each one carries the
+  // number that triggered it — no generic advice.
+  const actions = [];
+  if (focus) actions.push(`Run one focused push on ${focus.category} — ${focus.count} conversations with ${focus.open} still open${focus.sla ? ` and ${focus.sla} past SLA` : ''}. Treat it as a single problem, not ${focus.count} tickets.`);
+  if (unassignedOpen.length) actions.push(`Assign the ${unassignedOpen.length} ownerless open conversation${unassignedOpen.length===1?'':'s'}${unassignedStale.length ? ` — ${unassignedStale.length} past 24 hours` : ''}, and set an auto-route or alert so the queue can't build again.`);
+  if (uncategorized.length && pct(uncategorized.length) >= 8) actions.push(`Fold the recurring Uncategorized sub-themes into real categories — ${uncategorized.length} conversations (${pct(uncategorized.length)}%) currently have no label to trend on.`);
+  if (topAccount && pct(topAccount.count) >= 4) actions.push(`Give ${topAccount.name} a single coordinated point of contact — ${topAccount.count} conversations (${pct(topAccount.count)}%)${topAccount.openHigh ? ` and ${topAccount.openHigh} open high-priority` : ''} is past ticket-by-ticket handling.`);
+  if (fastest && slowest && slowest.avgClose > fastest.avgClose * 1.5) actions.push(`Sit ${slowest.name} (${fmtMinsShort(slowest.avgClose)} to close) with ${fastest.name} (${fmtMinsShort(fastest.avgClose)}) and write down what's different.`);
+  if (heaviest && namedAgents.length > 1 && heaviest.handled > namedAgents[1].handled * 1.4) actions.push(`Rebalance load away from ${heaviest.name} (${heaviest.handled} handled, ${heaviest.open} still open) before the backlog compounds.`);
+  if (noReply.length) actions.push(`Review the ${noReply.length} conversation${noReply.length===1?'':'s'} that never got an agent reply — confirm the bot isn't closing live issues.`);
+  if (noSummary.length && pct(noSummary.length) >= 10) actions.push(`Fix summary coverage: ${noSummary.length} conversations (${pct(noSummary.length)}%) have no AI summary, so every review of them is a full read.`);
+  if (empties.length && pct(empties.length) >= 4) actions.push(`Review the widget/bot opening flow — ${empties.length} sessions ended with no content captured at all.`);
+  if (peaks.length) actions.push(`Guarantee coverage at the ${peaks[0].day} ${String(peaks[0].hour).padStart(2,'0')}:00 UTC peak (${peaks[0].n} conversations, the busiest hour of the period).`);
+  if (pct(negative.length) >= 20) actions.push(`Negative tone is at ${pct(negative.length)}% — pick the worst-tone open threads and follow up personally rather than waiting for the ticket to close.`);
+  const shownActions = actions.slice(0, 8);
+  add(`<div class="memo-actions"><h2>Suggested Actionable Items</h2><ol>${shownActions.map(a=>`<li>${escHtml(a)}</li>`).join('')}</ol></div>`,
+    `\nSUGGESTED ACTIONABLE ITEMS\n${shownActions.map((a,i)=>`${i+1}. ${a}`).join('\n')}`);
+
+  add(`<p class="memo-foot">Prepared from Gleap conversation data, ${escHtml(periodLabel)}. Figures exclude ${empties.length} empty/no-content session${empties.length===1?'':'s'}. Priority, sentiment and category are the same fields the rest of this portal uses — every number here can be drilled into from Inbox or Overview.</p>`,
+    `\nPrepared from Gleap conversation data, ${periodLabel}. Excludes ${empties.length} empty sessions.`);
+
+  el.innerHTML = `<div class="memo">${blocks.map(b=>b.html).join('')}</div>`;
+  briefingPlainText = blocks.map(b=>b.text).filter(Boolean).join('\n');
+}
+
+async function copyBriefing() {
+  const btn = document.getElementById('briefingCopyBtn');
+  if (!briefingPlainText) { btn.textContent = 'Nothing to copy'; setTimeout(()=>renderBriefingCopyLabel(btn), 1600); return; }
+  try {
+    await navigator.clipboard.writeText(briefingPlainText);
+    btn.textContent = '✓ Copied';
+  } catch {
+    btn.textContent = 'Copy failed';
+  }
+  setTimeout(() => renderBriefingCopyLabel(btn), 1600);
+}
+
+function renderBriefingCopyLabel(btn) {
+  btn.innerHTML = `<svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" style="vertical-align:middle;margin-right:4px"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 01-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 011.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 00-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 01-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 00-3.375-3.375h-1.5a1.125 1.125 0 01-1.125-1.125v-1.5a3.375 3.375 0 00-3.375-3.375H9.75"/></svg>Copy as text`;
+}
 
 // ── Charts section ────────────────────────────────────────
 function renderCharts(s) {

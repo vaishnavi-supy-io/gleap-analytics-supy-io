@@ -22,3 +22,9 @@ compatibility_flags = ["nodejs_compat"]
 # npx wrangler pages secret put OPENROUTER_KEY      --project-name gleap-analytics-supy-io
 # npx wrangler pages secret put SLACK_WEBHOOK_URL   --project-name gleap-analytics-supy-io
 # npx wrangler pages secret put AI_MODEL            --project-name gleap-analytics-supy-io
+# npx wrangler pages secret put HUBSPOT_TOKEN       --project-name gleap-analytics-supy-io
+#
+# HUBSPOT_TOKEN — HubSpot private-app access token. Required scopes:
+#   tickets (read) · crm.objects.owners.read (for owner names)
+# HUBSPOT_PORTAL_ID is optional; when unset it is resolved from the token at
+# runtime and used only to build clickable app.hubspot.com ticket links.

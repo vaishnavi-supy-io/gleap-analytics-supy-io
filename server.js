@@ -1069,6 +1069,7 @@ app.get('/api/health', (req,res) => res.json({
   projectId: PROJECT_ID,
   hasGleapKey: !!GLEAP_API_KEY,
   hasOpenRouterKey: !!OPENROUTER_KEY,
+  hasHubspotToken: !!process.env.HUBSPOT_TOKEN,
   cachedLastSkip,
 }));
 
@@ -1819,6 +1820,58 @@ app.all('/api/hubspot', async (req, res) => {
     return res.status(400).json({ error: 'Unknown action' });
   } catch (err) {
     return res.status(500).json({ error: err.message });
+  }
+});
+
+// ── GET /api/hubspot-pipelines ────────────────────────────────
+// Onboarding + Operations ticket metrics from HubSpot.
+// Deliberately a different route from the /api/hubspot proxy above: that one
+// forwards Team Hub's queries, this one aggregates. Shares its implementation
+// with the Cloudflare Pages function via dynamic import — the shared module is
+// ESM, this file is CommonJS, so the two runtimes can never drift apart.
+const hubspotCache = new Map();
+const HUBSPOT_CACHE_TTL_MS = 10 * 60 * 1000;
+let hubspotModule = null;
+
+async function loadHubspot() {
+  if (!hubspotModule) hubspotModule = await import('./functions/_shared/hubspot.js');
+  return hubspotModule;
+}
+
+app.get('/api/hubspot-pipelines', async (req, res) => {
+  try {
+    if (!process.env.HUBSPOT_TOKEN) {
+      return res.status(500).json({
+        ok: false,
+        error: 'HUBSPOT_TOKEN not configured. Add a HubSpot private-app token to .env',
+      });
+    }
+
+    const now   = new Date();
+    const start = req.query.start || new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    const end   = req.query.end   || now.toISOString();
+    const force = req.query.force === 'true';
+
+    const cacheKey = `${start.slice(0,10)}::${end.slice(0,10)}`;
+    const cached   = hubspotCache.get(cacheKey);
+
+    if (cached && !force && (Date.now() - cached.cachedAt) < HUBSPOT_CACHE_TTL_MS) {
+      console.log(`⚡ HubSpot cache hit [${cacheKey}]`);
+      return res.json({ ...cached.data, ok: true, fromCache: true });
+    }
+
+    console.log(`🔃 HubSpot cache miss [${cacheKey}] — querying HubSpot`);
+    const { runHubspotPipeline } = await loadHubspot();
+    const result = await runHubspotPipeline(start, end, process.env);
+    hubspotCache.set(cacheKey, { data: result, cachedAt: Date.now() });
+
+    const o = result.pipelines.onboarding, p = result.pipelines.operations;
+    console.log(`📊 HubSpot [${cacheKey}] — Onboarding: ${o.created} created / ${o.closed} closed / ${o.pending} pending / ${o.slaBreached} breached · Operations: ${p.created} / ${p.closed} / ${p.pending} / ${p.slaBreached} breached`);
+
+    res.json({ ...result, ok: true, fromCache: false });
+  } catch (e) {
+    console.error('HubSpot pipelines error:', e.message);
+    res.status(500).json({ ok: false, error: e.message });
   }
 });
 

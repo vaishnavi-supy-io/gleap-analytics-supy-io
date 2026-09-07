@@ -6,3 +6,5 @@ node_modules/
 .git-hidden
 .playwright-mcp/
 .skip-cache.json
+.DS_Store
+.analytics-cache.json

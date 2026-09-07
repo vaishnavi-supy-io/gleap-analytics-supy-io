@@ -24,6 +24,7 @@ export async function onRequestGet({ env }) {
     projectId: env.PROJECT_ID,
     hasGleapKey: !!env.GLEAP_API_KEY,
     hasOpenRouterKey: !!env.OPENROUTER_KEY,
+    hasHubspotToken: !!env.HUBSPOT_TOKEN,
     cachedLastSkip: await getCachedJson('lastskip'),
     gleapProbe,
   });

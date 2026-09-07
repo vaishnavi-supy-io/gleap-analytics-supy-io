@@ -54,6 +54,8 @@ The dashboard connects to the Gleap REST API, fetches all `INQUIRY` type tickets
 | 🔗 **Direct Gleap Links** | Every ticket opens directly in Gleap (`/bugs/:id`) |
 | 🗂 **Ticket Detail Modal** | Click any ticket to see full details in an overlay without leaving the dashboard |
 | ⚠️ **SLA Breach Alerts** | Badges and alert banners for breached SLA tickets |
+| 🚀 **HubSpot Onboarding** | Created / closed / pending / SLA-breached counts for the Onboarding pipeline, with stage funnel and drill-down queues |
+| ⚙️ **HubSpot Operations** | Created / closed / pending counts for the Operations pipeline, plus SLA breach tracking |
 
 ---
 
@@ -95,9 +97,22 @@ gleap-analytics-supy-io/
 ├── Procfile           # Heroku process definition
 ├── .env               # Environment variables (NOT committed)
 ├── .env.example       # Template for required variables
+├── functions/
+│   ├── _shared/
+│   │   ├── gleap.js       # Gleap helpers (Cloudflare Pages)
+│   │   └── hubspot.js     # HubSpot helpers — shared by Pages AND server.js
+│   └── api/
+│       ├── analytics.js   # Gleap analytics endpoint (Pages)
+│       ├── hubspot.js     # Team Hub HubSpot proxy (Pages, pre-existing)
+│       └── hubspot-pipelines.js  # Onboarding/Operations metrics (Pages)
 └── public/
     └── index.html     # Entire frontend (single-file SPA, vanilla JS)
 ```
+
+`functions/_shared/hubspot.js` is the single implementation of the HubSpot
+logic. The Cloudflare Pages function imports it directly; `server.js`
+(CommonJS) reaches it through a dynamic `import()`, so the two runtimes can
+never drift apart.
 
 ---
 
@@ -119,6 +134,10 @@ SLACK_WEBHOOK_URL=https://hooks.slack.com/services/YOUR/WEBHOOK/URL
 
 # Optional — Server port (default: 3000)
 PORT=3000
+
+# Optional — HubSpot Onboarding & Operations dashboards
+HUBSPOT_TOKEN=your_hubspot_private_app_token_here
+HUBSPOT_PORTAL_ID=                    # optional, auto-resolved from the token
 ```
 
 ### Where to get each value
@@ -129,6 +148,8 @@ PORT=3000
 | `PROJECT_ID` | Gleap Dashboard → Settings → General (Project ID field) |
 | `OPENROUTER_KEY` | [openrouter.ai](https://openrouter.ai) → Keys |
 | `SLACK_WEBHOOK_URL` | Slack workspace → Apps → Incoming Webhooks → Add to channel |
+| `HUBSPOT_TOKEN` | HubSpot → Settings → Integrations → Private Apps → create an app with the `tickets` (read) and `crm.objects.owners.read` scopes, then copy its access token |
+| `HUBSPOT_PORTAL_ID` | Optional. Resolved from the token at runtime; only used to build clickable ticket links |
 
 ---
 
@@ -288,9 +309,51 @@ Paginated ticket list with filtering.
 
 ---
 
+### `GET /api/hubspot-pipelines`
+
+HubSpot Onboarding + Operations ticket metrics for a date range.
+
+**Query parameters**
+
+| Param | Default | Description |
+|---|---|---|
+| `start` | 1st of current month | ISO date — start of range (matched against `createdate`) |
+| `end` | now | ISO date — end of range |
+| `force` | `false` | `true` bypasses the 10-minute cache |
+
+**Response**
+
+```json
+{
+  "ok": true,
+  "generatedAt": "2026-09-04T12:00:00.000Z",
+  "range": { "start": "...", "end": "..." },
+  "fromCache": false,
+  "pipelines": {
+    "onboarding": {
+      "label": "Onboarding",
+      "created": 42, "closed": 30, "pending": 12, "invalid": 0,
+      "slaBreached": 7, "slaAtRisk": 3,
+      "openBacklog": 61, "closeRate": 71, "breachRate": 17,
+      "avgCloseFmt": "2.4 days", "avgPendingAgeFmt": "18.2 hrs",
+      "stageBreakdown": [], "daily": [], "closedDaily": [],
+      "ownerBreakdown": [], "slaBreakdown": [], "priorityBreakdown": [],
+      "pendingTickets": [], "breachedTickets": [], "tickets": []
+    },
+    "operations": { "...": "same shape" }
+  }
+}
+```
+
+`created` always equals `closed + pending + invalid`. Returns HTTP 500 with a
+descriptive `error` when `HUBSPOT_TOKEN` is missing or HubSpot rejects the call.
+
+---
+
 ### `GET /api/health`
 
-Returns server status, project ID, and whether API keys are configured.
+Returns server status, project ID, and whether API keys are configured
+(`hasGleapKey`, `hasOpenRouterKey`, `hasHubspotToken`).
 
 ---
 
@@ -377,6 +440,48 @@ Four Chart.js charts:
 2. **Day of Week** — which weekday gets most tickets
 3. **Hour of Day (UTC)** — peak hours for ticket creation
 4. **Top Companies** — horizontal bar chart (up to 15 companies)
+
+---
+
+### 🚀 Onboarding / ⚙️ Operations (HubSpot)
+
+Two sections backed by HubSpot rather than Gleap, one per ticket pipeline:
+
+| Pipeline | HubSpot ID |
+|---|---|
+| Onboarding | `824860808` |
+| Operations | `45360784` |
+
+Both use the **cohort basis**: every figure describes the set of tickets whose
+*create date* falls inside the selected range, scored against each ticket's
+*current* stage. That makes the headline counts reconcile exactly —
+
+```
+Created = Closed + Pending (+ Invalid, Operations only)
+```
+
+— so the three numbers can never disagree with each other. A separate
+**Open Backlog** card shows every ticket currently in a non-terminal stage
+regardless of create date, so a growing queue can't hide behind a good month.
+
+Each section shows:
+
+1. **Tickets Created** — created in range
+2. **Tickets Closed** — of those, now in the pipeline's `Closed` stage
+3. **Tickets Pending** — of those, still in a non-terminal stage (avg age)
+4. **SLA Breached** — `sla_status = Breached`, plus the at-risk count and breach rate
+5. **Open Backlog** — all-time open tickets in the pipeline
+6. **Avg Time to Close** — create date → close date, across the closed cohort
+
+Plus a created-vs-closed daily bar chart, an SLA-status donut, a stage
+breakdown in HubSpot board order, an owner table, and drill-down queues for
+pending and breached tickets (oldest first, each linking to the HubSpot record).
+
+SLA comes from the portal's custom `sla_status` property (`On Track` /
+`At Risk` / `Breached`), not HubSpot's built-in time-to-close SLA fields.
+
+Requires `HUBSPOT_TOKEN` in `.env`. Results are cached for 10 minutes;
+"↻ Refresh HubSpot" bypasses the cache.
 
 ---
 

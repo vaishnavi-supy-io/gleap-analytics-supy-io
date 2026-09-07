@@ -1,0 +1,4 @@
+{
+  "//": "Marks functions/_shared as ESM so Node (CommonJS root package) can import these modules without a reparse warning. Cloudflare Pages already treats Functions as ESM.",
+  "type": "module"
+}

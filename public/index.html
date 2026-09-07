@@ -586,6 +586,16 @@
     <button class="nav-item" onclick="showSection('ai')">
       <span class="ni-icon"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z"/></svg></span> AI Report
     </button>
+    <div class="nav-section">HubSpot</div>
+    <button class="nav-item" onclick="showSection('hsOnboarding')">
+      <span class="ni-icon">🚀</span> Onboarding
+      <span class="nav-badge" id="badgeHsOnboarding">—</span>
+    </button>
+    <button class="nav-item" onclick="showSection('hsOperations')">
+      <span class="ni-icon">⚙️</span> Operations
+      <span class="nav-badge" id="badgeHsOperations">—</span>
+    </button>
+
     <div class="nav-section">Team</div>
     <button class="nav-item" onclick="showSection('teamhub')">
       <span class="ni-icon"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></span> Team Hub
@@ -743,6 +753,28 @@
     <div id="unassignedContent"><div class="loader"><div class="spinner"></div></div></div>
   </div>
 
+  <!-- ── SECTION: HubSpot — Onboarding ────────────────────── -->
+  <div id="section-hsOnboarding" class="section">
+    <div class="section-header">
+      <div class="section-title">🚀 Onboarding <span class="stag" id="hsOnboardingCount">—</span></div>
+      <button class="btn btn-outline" onclick="loadHubspotData(true)" title="Bypass the 10-minute cache and re-query HubSpot">↻ Refresh HubSpot</button>
+    </div>
+    <div id="hsOnboardingContent">
+      <div class="loader"><div class="spinner"></div><div class="loader-text">Loading HubSpot…</div></div>
+    </div>
+  </div>
+
+  <!-- ── SECTION: HubSpot — Operations ────────────────────── -->
+  <div id="section-hsOperations" class="section">
+    <div class="section-header">
+      <div class="section-title">⚙️ Operations <span class="stag" id="hsOperationsCount">—</span></div>
+      <button class="btn btn-outline" onclick="loadHubspotData(true)" title="Bypass the 10-minute cache and re-query HubSpot">↻ Refresh HubSpot</button>
+    </div>
+    <div id="hsOperationsContent">
+      <div class="loader"><div class="spinner"></div><div class="loader-text">Loading HubSpot…</div></div>
+    </div>
+  </div>
+
   <div id="section-charts" class="section">
     <div class="section-title">
       <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/></svg>
@@ -862,6 +894,12 @@ let currentFilter = 'all';
 let currentPage   = 1;
 const PAGE_SIZE   = 30;
 const charts = {};
+let hubspotData    = null;    // { pipelines: { onboarding, operations } }
+let hubspotLoading = false;
+
+// Sections backed by HubSpot rather than Gleap. Declared here, above init(),
+// because init()'s synchronous loadData() call reads it on first load.
+const HUBSPOT_SECTIONS = new Set(['hsOnboarding', 'hsOperations']);
 
 // ── Init ──────────────────────────────────────────────────
 (function init() {
@@ -883,6 +921,8 @@ const titles = {
   briefing:   ['Monthly Briefing', 'A plain-language read of the period — what came in, what needs attention'],
   ai:         ['AI Team Lead Report', 'AI-powered analysis and recommendations'],
   teamhub:    ['Team Hub', 'Attendance, scheduling, and shift management'],
+  hsOnboarding: ['Onboarding — HubSpot', 'Tickets created, closed, pending, and SLA breached'],
+  hsOperations: ['Operations — HubSpot', 'Tickets created, closed, and pending'],
 };
 
 function showSection(id) {
@@ -895,6 +935,15 @@ function showSection(id) {
   const [title, sub] = titles[id] || ['', ''];
   document.getElementById('pageTitle').textContent = title;
   document.getElementById('pageSub').textContent   = sub;
+
+  // The Slack digest summarises Gleap tickets, so it doesn't apply here.
+  const isHubspot = HUBSPOT_SECTIONS.has(id);
+  const digest = document.getElementById('digestBtn');
+  if (digest) digest.style.display = isHubspot ? 'none' : '';
+
+  // HubSpot data loads lazily on first visit so the Gleap dashboard is never
+  // held up waiting on a second API.
+  if (isHubspot && !hubspotData && !hubspotLoading) loadHubspotData();
 }
 
 // ── Metric Info ───────────────────────────────────────────
@@ -1303,6 +1352,12 @@ async function loadData() {
   currentOverviewCategory = '';
   document.getElementById('overviewContent').innerHTML = overviewSkeleton();
   document.getElementById('pageSub').textContent = 'Fetching data…';
+
+  // The date range is shared, so HubSpot has to follow it. Drop the cached
+  // result and refetch if a HubSpot section is on screen right now.
+  hubspotData = null;
+  const hsVisible = [...HUBSPOT_SECTIONS].some(s => document.getElementById('section-' + s)?.classList.contains('active'));
+  if (hsVisible) loadHubspotData();
 
   try {
     // Previous period = same number of days immediately preceding the selected range —
@@ -2822,6 +2877,274 @@ function renderBriefingCopyLabel(btn) {
 }
 
 // ── Charts section ────────────────────────────────────────
+// ══════════════════════════════════════════════════════════
+// HubSpot — Onboarding & Operations
+// ══════════════════════════════════════════════════════════
+const HS_VIEWS = {
+  onboarding: { section: 'hsOnboarding', prefix: 'HsOnb', label: 'Onboarding' },
+  operations: { section: 'hsOperations', prefix: 'HsOps', label: 'Operations' },
+};
+
+async function loadHubspotData(force = false) {
+  if (hubspotLoading) return;
+  hubspotLoading = true;
+
+  const from = document.getElementById('dateFrom').value;
+  const to   = document.getElementById('dateTo').value;
+
+  for (const v of Object.values(HS_VIEWS)) {
+    document.getElementById(v.section + 'Content').innerHTML =
+      `<div class="loader"><div class="spinner"></div><div class="loader-text">Querying HubSpot…</div><div class="loader-sub">${v.label} pipeline · ${from} → ${to}</div></div>`;
+  }
+
+  try {
+    const qs = `start=${from}T00:00:00.000Z&end=${to}T23:59:59.999Z${force ? '&force=true' : ''}`;
+    const resp = await fetch(`/api/hubspot-pipelines?${qs}`);
+    const data = await resp.json();
+    if (!data.ok) throw new Error(data.error);
+
+    hubspotData = data;
+    for (const [key, v] of Object.entries(HS_VIEWS)) {
+      renderHubspotPipeline(key, data.pipelines[key]);
+    }
+
+    document.getElementById('badgeHsOnboarding').textContent = data.pipelines.onboarding.pending;
+    document.getElementById('badgeHsOperations').textContent = data.pipelines.operations.pending;
+  } catch (e) {
+    for (const v of Object.values(HS_VIEWS)) {
+      document.getElementById(v.section + 'Content').innerHTML =
+        `<div class="error-box">❌ Failed to load HubSpot data: ${escHtml(e.message)}<br><small>Confirm HUBSPOT_TOKEN is set and the private app has the <code>tickets</code> read scope.</small></div>`;
+    }
+  } finally {
+    hubspotLoading = false;
+  }
+}
+
+function fmtAge(hrs) {
+  if (hrs === null || hrs === undefined || isNaN(hrs)) return 'N/A';
+  if (hrs < 1)  return `${Math.round(hrs * 60)}m`;
+  if (hrs < 48) return `${hrs.toFixed(1)}h`;
+  return `${(hrs / 24).toFixed(1)}d`;
+}
+
+function hsAgeBadge(hrs) {
+  const color = hrs > 168 ? 'var(--red)' : hrs > 72 ? 'var(--amber)' : 'var(--muted)';
+  return `<span style="background:${color}1f;color:${color};font-weight:700;font-size:10px;padding:2px 7px;border-radius:99px">${fmtAge(hrs)}</span>`;
+}
+
+function hsSlaBadge(status) {
+  if (!status) return `<span style="color:var(--faint);font-size:11px">—</span>`;
+  const c = { 'Breached': 'var(--red)', 'At Risk': 'var(--amber)', 'On Track': 'var(--green)' }[status] || 'var(--muted)';
+  return `<span style="background:${c}1f;color:${c};font-weight:700;font-size:10px;padding:2px 8px;border-radius:99px">${escHtml(status)}</span>`;
+}
+
+function hsQueueTable(title, tickets, opts = {}) {
+  const { showSla = true, limit = 25 } = opts;
+  if (!tickets.length) {
+    return `<div class="table-card"><div class="table-head"><div class="table-title">${title}</div></div>
+      <div style="padding:20px;text-align:center;font-size:12px;color:var(--muted)">Nothing here — clear queue ✅</div></div>`;
+  }
+  const rows = tickets.slice(0, limit).map(t => `
+    <tr>
+      <td style="font-weight:600;max-width:320px">${escHtml(t.subject)}</td>
+      <td>${escHtml(t.stage)}</td>
+      <td>${escHtml(t.owner)}</td>
+      ${showSla ? `<td>${hsSlaBadge(t.slaStatus)}</td>` : ''}
+      <td>${hsAgeBadge(t.ageHrs)}</td>
+      <td>${t.createdAt ? new Date(t.createdAt).toLocaleDateString() : '—'}</td>
+      <td>${t.link ? `<a href="${t.link}" target="_blank" rel="noopener" style="color:var(--p600);font-weight:700;text-decoration:none">Open ↗</a>` : '—'}</td>
+    </tr>`).join('');
+
+  return `<div class="table-card">
+    <div class="table-head">
+      <div class="table-title">${title}</div>
+      <div style="font-size:11px;color:var(--muted)">${tickets.length} ticket${tickets.length === 1 ? '' : 's'}${tickets.length > limit ? ` · showing oldest ${limit}` : ''}</div>
+    </div>
+    <div style="overflow-x:auto">
+      <table>
+        <thead><tr>
+          <th>Subject</th><th>Stage</th><th>Owner</th>${showSla ? '<th>SLA</th>' : ''}<th>Age</th><th>Created</th><th></th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+function renderHubspotPipeline(key, p) {
+  const view = HS_VIEWS[key];
+  if (!p) return;
+  const pre = view.prefix;
+
+  document.getElementById(view.section + 'Count').textContent = `${p.created} created`;
+
+  let alerts = '';
+  if (p.slaBreached > 0) alerts += `<div class="alert-bar danger">⚠ ${p.slaBreached} of ${p.created} ticket${p.created === 1 ? '' : 's'} created in this range have breached SLA (${p.breachRate}%)</div>`;
+  if (p.slaAtRisk > 0)   alerts += `<div class="alert-bar warning">⏳ ${p.slaAtRisk} ticket${p.slaAtRisk === 1 ? '' : 's'} at risk of breaching — act before the deadline</div>`;
+  if (p.pending === 0 && p.created > 0) alerts += `<div class="alert-bar success">✅ Every ticket created in this range is resolved</div>`;
+  if (p.truncated) alerts += `<div class="alert-bar warning">⚠ HubSpot capped this query at 10,000 tickets — narrow the date range for exact figures</div>`;
+  if (p.suspectTimestamps > 0) alerts += `<div class="alert-bar warning">🕓 ${p.suspectTimestamps} closed ticket${p.suspectTimestamps === 1 ? ' has a close date' : 's have close dates'} earlier than its create date in HubSpot — still counted as closed, but excluded from the time-to-close average</div>`;
+
+  // The three headline counts reconcile by construction: every ticket created
+  // in the range is currently closed, pending, or invalid.
+  const reconcile = `${p.created} created = ${p.closed} closed + ${p.pending} pending${p.invalid ? ` + ${p.invalid} invalid` : ''}`;
+
+  document.getElementById(view.section + 'Content').innerHTML = `
+    ${alerts ? `<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px">${alerts}</div>` : ''}
+
+    <div class="kpi-grid">
+      <div class="kpi-card blue">
+        <div class="kpi-icon">📨</div>
+        <div class="kpi-value">${p.created}</div>
+        <div class="kpi-label">Tickets Created</div>
+        <div class="kpi-sub">Created in selected range</div>
+      </div>
+      <div class="kpi-card green">
+        <div class="kpi-icon">✅</div>
+        <div class="kpi-value">${p.closed}</div>
+        <div class="kpi-label">Tickets Closed</div>
+        <div class="kpi-sub">${p.closeRate}% of the range's tickets</div>
+      </div>
+      <div class="kpi-card ${p.pending > 0 ? 'amber' : 'green'}">
+        <div class="kpi-icon">⏳</div>
+        <div class="kpi-value">${p.pending}</div>
+        <div class="kpi-label">Tickets Pending</div>
+        <div class="kpi-sub">Avg age ${p.avgPendingAgeFmt}</div>
+      </div>
+      <div class="kpi-card ${p.slaBreached > 0 ? 'red' : 'green'}">
+        <div class="kpi-icon">⏱</div>
+        <div class="kpi-value">${p.slaBreached}</div>
+        <div class="kpi-label">SLA Breached</div>
+        <div class="kpi-sub">${p.slaAtRisk} at risk · ${p.breachRate}% breach rate</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon">📦</div>
+        <div class="kpi-value">${p.openBacklog ?? '—'}</div>
+        <div class="kpi-label">Open Backlog</div>
+        <div class="kpi-sub">All time, any create date</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon">⚡</div>
+        <div class="kpi-value" style="font-size:20px">${p.avgCloseFmt}</div>
+        <div class="kpi-label">Avg Time to Close</div>
+        <div class="kpi-sub">Across ${p.closed - p.suspectTimestamps} closed ticket${p.closed - p.suspectTimestamps === 1 ? '' : 's'}${p.suspectTimestamps ? ` · ${p.suspectTimestamps} excluded` : ''}</div>
+      </div>
+    </div>
+
+    <div style="font-size:11px;color:var(--muted);text-align:right;margin-top:-6px">${reconcile}</div>
+
+    <div class="charts-grid">
+      <div class="chart-card">
+        <div class="chart-title">📈 Created vs Closed by Day</div>
+        <div class="chart-wrap tall"><canvas id="chart${pre}Daily"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">🎯 SLA Status</div>
+        <div class="chart-wrap tall"><canvas id="chart${pre}Sla"></canvas></div>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-title">🪜 Pipeline Stage Breakdown</div>
+      <div class="chart-wrap" style="height:${Math.max(200, p.stageBreakdown.length * 26)}px"><canvas id="chart${pre}Stage"></canvas></div>
+    </div>
+
+    <div class="table-card">
+      <div class="table-head">
+        <div class="table-title">Owner Breakdown</div>
+        <div style="font-size:11px;color:var(--muted)">${p.ownerBreakdown.length} owner${p.ownerBreakdown.length === 1 ? '' : 's'}</div>
+      </div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr><th>Owner</th><th>Created</th><th>Closed</th><th>Pending</th><th>SLA Breached</th><th>Close Rate</th></tr></thead>
+          <tbody>${p.ownerBreakdown.map(o => `
+            <tr class="agent-row">
+              <td>${escHtml(o.name)}</td>
+              <td>${o.total}</td>
+              <td>${o.closed}</td>
+              <td>${o.pending}</td>
+              <td style="${o.breached > 0 ? 'color:var(--red);font-weight:700' : ''}">${o.breached}</td>
+              <td>${o.total ? Math.round((o.closed / o.total) * 100) : 0}%</td>
+            </tr>`).join('')}</tbody>
+        </table>
+      </div>
+    </div>
+
+    ${hsQueueTable('⏳ Pending Queue — oldest first', p.pendingTickets)}
+
+    ${p.slaBreached > 0 ? hsQueueTable('🚨 SLA Breached', p.breachedTickets) : ''}
+  `;
+
+  setTimeout(() => renderHubspotCharts(pre, p), 60);
+}
+
+function renderHubspotCharts(pre, p) {
+  const font = { family: 'Montserrat', size: 10 };
+  // Matches the key destroyChart() derives from a canvas id: chartFooBar → fooBar
+  const ckey = name => name.charAt(0).toLowerCase() + name.slice(1);
+
+  destroyChart(`chart${pre}Daily`);
+  destroyChart(`chart${pre}Sla`);
+  destroyChart(`chart${pre}Stage`);
+
+  // Created and closed share one axis of days so a widening gap between the
+  // two lines reads as a growing backlog at a glance.
+  const dailyEl = document.getElementById(`chart${pre}Daily`);
+  if (dailyEl) {
+    const days = [...new Set([...(p.daily || []).map(d => d.day), ...(p.closedDaily || []).map(d => d.day)])].sort();
+    const createdMap = Object.fromEntries((p.daily || []).map(d => [d.day, d.count]));
+    const closedMap  = Object.fromEntries((p.closedDaily || []).map(d => [d.day, d.count]));
+    charts[ckey(`${pre}Daily`)] = new Chart(dailyEl, {
+      type: 'bar',
+      data: {
+        labels: days,
+        datasets: [
+          { label: 'Created', data: days.map(d => createdMap[d] || 0), backgroundColor: 'rgba(147,51,234,0.72)', borderRadius: 4 },
+          { label: 'Closed',  data: days.map(d => closedMap[d]  || 0), backgroundColor: 'rgba(16,185,129,0.72)', borderRadius: 4 },
+        ],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'bottom', labels: { font, boxWidth: 10 } } },
+        scales: { x: { ticks: { font: { ...font, size: 9 }, maxRotation: 45 } }, y: { beginAtZero: true, ticks: { font, precision: 0 } } },
+      },
+    });
+  }
+
+  const slaEl = document.getElementById(`chart${pre}Sla`);
+  if (slaEl) {
+    const sla = (p.slaBreakdown || []).filter(s => s.count > 0);
+    const colors = { 'On Track': 'rgba(16,185,129,0.85)', 'At Risk': 'rgba(245,158,11,0.85)', 'Breached': 'rgba(239,68,68,0.85)', 'Not set': 'rgba(148,163,184,0.6)' };
+    charts[ckey(`${pre}Sla`)] = new Chart(slaEl, {
+      type: 'doughnut',
+      data: { labels: sla.map(s => s.status), datasets: [{ data: sla.map(s => s.count), backgroundColor: sla.map(s => colors[s.status] || 'rgba(148,163,184,0.6)'), borderWidth: 0 }] },
+      options: { responsive: true, maintainAspectRatio: false, cutout: '58%', plugins: { legend: { position: 'bottom', labels: { font, boxWidth: 10 } } } },
+    });
+  }
+
+  const stageEl = document.getElementById(`chart${pre}Stage`);
+  if (stageEl) {
+    const st = p.stageBreakdown || [];
+    charts[ckey(`${pre}Stage`)] = new Chart(stageEl, {
+      type: 'bar',
+      data: {
+        labels: st.map(s => s.stage),
+        datasets: [{
+          label: 'Tickets',
+          data: st.map(s => s.count),
+          backgroundColor: st.map(s => s.terminal === 'closed' ? 'rgba(16,185,129,0.75)' : s.terminal === 'invalid' ? 'rgba(148,163,184,0.6)' : 'rgba(99,102,241,0.75)'),
+          borderRadius: 4,
+        }],
+      },
+      options: {
+        indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { x: { beginAtZero: true, ticks: { font, precision: 0 } }, y: { ticks: { font: { ...font, size: 9 } } } },
+      },
+    });
+  }
+}
+
 function renderCharts(s) {
   setTimeout(() => {
     destroyChart('chartDaily'); destroyChart('chartDow'); destroyChart('chartHourly'); destroyChart('chartCompanies');

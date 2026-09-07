@@ -895,6 +895,7 @@ let currentPage   = 1;
 const PAGE_SIZE   = 30;
 const charts = {};
 let hubspotData    = null;    // { pipelines: { onboarding, operations } }
+let hubspotInsights = {};     // { [pipelineKey]: markdown } — cleared with hubspotData
 let hubspotLoading = false;
 
 // Sections backed by HubSpot rather than Gleap. Declared here, above init(),
@@ -1356,6 +1357,7 @@ async function loadData() {
   // The date range is shared, so HubSpot has to follow it. Drop the cached
   // result and refetch if a HubSpot section is on screen right now.
   hubspotData = null;
+  hubspotInsights = {};
   const hsVisible = [...HUBSPOT_SECTIONS].some(s => document.getElementById('section-' + s)?.classList.contains('active'));
   if (hsVisible) loadHubspotData();
 
@@ -2904,6 +2906,7 @@ async function loadHubspotData(force = false) {
     if (!data.ok) throw new Error(data.error);
 
     hubspotData = data;
+    hubspotInsights = {};
     for (const [key, v] of Object.entries(HS_VIEWS)) {
       renderHubspotPipeline(key, data.pipelines[key]);
     }
@@ -3033,6 +3036,14 @@ function renderHubspotPipeline(key, p) {
 
     <div style="font-size:11px;color:var(--muted);text-align:right;margin-top:-6px">${reconcile}</div>
 
+    <div class="chart-card">
+      <div class="section-header" style="margin:0 0 14px">
+        <div class="chart-title" style="margin:0">🤖 AI Analysis</div>
+        <button class="btn btn-outline" onclick="loadHubspotInsight('${key}', true)" title="Re-run the analysis on these numbers">↻ Re-analyse</button>
+      </div>
+      <div id="${pre}AiContent"></div>
+    </div>
+
     <div class="charts-grid">
       <div class="chart-card">
         <div class="chart-title">📈 Created vs Closed by Day</div>
@@ -3076,6 +3087,71 @@ function renderHubspotPipeline(key, p) {
   `;
 
   setTimeout(() => renderHubspotCharts(pre, p), 60);
+  renderHubspotInsight(key);
+  if (!hubspotInsights[key]) loadHubspotInsight(key);
+}
+
+// The model reads the same numbers already on screen, so the write-up can never
+// disagree with the cards above it. Ticket arrays are trimmed first — the full
+// set would be a needlessly large payload.
+function slimPipelineForAI(p) {
+  const q = t => ({
+    subject: t.subject, stage: t.stage, owner: t.owner,
+    ageHrs: t.ageHrs === null ? null : Math.round(t.ageHrs),
+    slaStatus: t.slaStatus, priority: t.priority,
+  });
+  return {
+    ...p,
+    tickets: undefined,
+    pendingTickets:  (p.pendingTickets  || []).slice(0, 8).map(q),
+    breachedTickets: (p.breachedTickets || []).slice(0, 8).map(q),
+  };
+}
+
+function renderHubspotInsight(key) {
+  const view = HS_VIEWS[key];
+  const el = document.getElementById(view.prefix + 'AiContent');
+  if (!el) return;
+  const md = hubspotInsights[key];
+  el.innerHTML = md
+    ? `<div class="ai-report-rendered"><p>${mdToHtml(md)}</p></div>`
+    : `<div class="loader" style="padding:24px"><div class="spinner"></div><div class="loader-text">Reading the numbers…</div><div class="loader-sub">${view.label} pipeline</div></div>`;
+}
+
+async function loadHubspotInsight(key, force = false) {
+  if (!hubspotData) return;
+  if (hubspotInsights[key] && !force) return renderHubspotInsight(key);
+
+  hubspotInsights[key] = null;
+  renderHubspotInsight(key);
+
+  const p = hubspotData.pipelines[key];
+  const otherKey = Object.keys(HS_VIEWS).find(k => k !== key);
+  const o = otherKey ? hubspotData.pipelines[otherKey] : null;
+
+  try {
+    const resp = await fetch('/api/hubspot-insights', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        pipeline: slimPipelineForAI(p),
+        // Headline numbers only — enough for the model to compare the two boards.
+        other: o ? {
+          label: o.label, created: o.created, closed: o.closed, pending: o.pending,
+          slaBreached: o.slaBreached, breachRate: o.breachRate,
+          openBacklog: o.openBacklog, avgCloseFmt: o.avgCloseFmt,
+        } : null,
+        range: hubspotData.range,
+      }),
+    });
+    const data = await resp.json();
+    if (!data.ok) throw new Error(data.error);
+    hubspotInsights[key] = data.analysis;
+    renderHubspotInsight(key);
+  } catch (e) {
+    const el = document.getElementById(HS_VIEWS[key].prefix + 'AiContent');
+    if (el) el.innerHTML = `<div class="error-box">❌ Could not analyse: ${escHtml(e.message)}<br><small>Confirm OPENROUTER_KEY is set.</small></div>`;
+  }
 }
 
 function renderHubspotCharts(pre, p) {

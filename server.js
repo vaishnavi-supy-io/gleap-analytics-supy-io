@@ -1875,6 +1875,41 @@ app.get('/api/hubspot-pipelines', async (req, res) => {
   }
 });
 
+// ── POST /api/hubspot-insights ────────────────────────────────
+// AI read of one pipeline's numbers. Analyses the stats the dashboard already
+// has rather than re-querying, so the write-up can't disagree with the cards.
+app.post('/api/hubspot-insights', async (req, res) => {
+  try {
+    if (!OPENROUTER_KEY) return res.status(500).json({ ok:false, error:'OPENROUTER_KEY not configured. Add to .env' });
+    const { pipeline, other, range } = req.body;
+    if (!pipeline) return res.status(400).json({ ok:false, error:'pipeline stats required' });
+
+    const { buildHubspotInsightPrompt } = await loadHubspot();
+    const prompt = buildHubspotInsightPrompt(pipeline, other, range || { start:'', end:'' });
+
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('API timeout after 30s')), 30000)
+    );
+    const fetchPromise = fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method:'POST',
+      headers:{'Authorization':`Bearer ${OPENROUTER_KEY}`,'Content-Type':'application/json','HTTP-Referer':'https://gleap-analytics.app','X-Title':'Gleap Analytics'},
+      body:JSON.stringify({ model:AI_MODEL, messages:[{role:'user',content:prompt}], max_tokens:2000, temperature:0.2 }),
+    });
+
+    const aiResp = await Promise.race([fetchPromise, timeoutPromise]);
+    if (!aiResp.ok) {
+      const t = await aiResp.text();
+      console.error(`AI API Error ${aiResp.status}:`, t.slice(0,200));
+      return res.status(502).json({ ok:false, error:`AI API returned ${aiResp.status}. Check key or network.` });
+    }
+    const data = await aiResp.json();
+    res.json({ ok:true, analysis:data.choices?.[0]?.message?.content || 'No analysis generated.', model:AI_MODEL });
+  } catch (e) {
+    console.error('HubSpot insights error:', e.message);
+    res.status(500).json({ ok:false, error:e.message || 'Server error' });
+  }
+});
+
 app.get('*', fileRouteLimiter, (req,res)=>res.sendFile(path.join(__dirname,'public','index.html')));
 app.listen(PORT, () => {
   console.log(`✅ Gleap Analytics v2 → http://localhost:${PORT}`);

@@ -387,3 +387,107 @@ export async function runHubspotPipeline(start, end, env) {
     pipelines: byKey,
   };
 }
+
+// ── AI analysis ─────────────────────────────────────────────────────────────
+/**
+ * Compact, numbers-only view of a pipeline for the model. Deliberately drops
+ * the full ticket array — only the worst pending/breached tickets earn a place,
+ * because the model's job is to read the aggregates, not re-derive them.
+ */
+export function slimForAI(p, limit = 8) {
+  const q = t => ({
+    subject: t.subject, stage: t.stage, owner: t.owner,
+    ageHrs: t.ageHrs === null ? null : Math.round(t.ageHrs),
+    sla: t.slaStatus, priority: t.priority,
+  });
+  return {
+    label: p.label,
+    created: p.created, closed: p.closed, pending: p.pending, invalid: p.invalid,
+    closeRate: p.closeRate, breachRate: p.breachRate,
+    slaBreached: p.slaBreached, slaAtRisk: p.slaAtRisk,
+    openBacklog: p.openBacklog,
+    avgCloseFmt: p.avgCloseFmt, avgPendingAgeFmt: p.avgPendingAgeFmt,
+    suspectTimestamps: p.suspectTimestamps, truncated: p.truncated,
+    stageBreakdown: p.stageBreakdown.filter(s => s.count),
+    slaBreakdown: p.slaBreakdown.filter(s => s.count),
+    priorityBreakdown: p.priorityBreakdown,
+    ownerBreakdown: p.ownerBreakdown.slice(0, 12),
+    oldestPending: p.pendingTickets.slice(0, limit).map(q),
+    worstBreached: p.breachedTickets.slice(0, limit).map(q),
+  };
+}
+
+export function buildHubspotInsightPrompt(p, other, range) {
+  const s = slimForAI(p);
+  const stages  = s.stageBreakdown.map(x => `${x.stage}: ${x.count}${x.terminal ? ` [${x.terminal}]` : ''}`).join('\n');
+  const owners  = s.ownerBreakdown.map(o => `${o.name}: ${o.total} created, ${o.closed} closed, ${o.pending} pending, ${o.breached} breached`).join('\n');
+  const pending = s.oldestPending.map(t => `• ${t.subject} — ${t.stage}, ${t.owner}, ${t.ageHrs}h old, SLA ${t.sla || 'not set'}, ${t.priority}`).join('\n');
+  const breach  = s.worstBreached.map(t => `• ${t.subject} — ${t.stage}, ${t.owner}, ${t.ageHrs}h old, ${t.priority}`).join('\n');
+
+  // Caveats the model must not mistake for signal.
+  const caveats = [
+    s.suspectTimestamps
+      ? `${s.suspectTimestamps} closed ticket(s) have a close date BEFORE their create date (HubSpot data entry artifact). They are excluded from "avg time to close", so that average is based on ${s.closed - s.suspectTimestamps} tickets, not ${s.closed}. Do not treat this as a performance signal.`
+      : null,
+    s.truncated ? 'This query hit HubSpot\'s 10,000-record cap, so counts are a floor, not exact.' : null,
+    s.slaBreakdown.some(x => x.status === 'Not set' && x.count)
+      ? `${s.slaBreakdown.find(x => x.status === 'Not set').count} ticket(s) have no SLA status set at all — they are neither on track nor breached, so the breach rate is calculated over everything, including them.`
+      : null,
+  ].filter(Boolean);
+
+  return `You are an operations lead at a hospitality-tech company, reviewing the ${s.label} ticket pipeline in HubSpot.
+
+PERIOD: ${range.start.slice(0,10)} → ${range.end.slice(0,10)}
+
+HEADLINE NUMBERS
+- Created in period: ${s.created}  (= ${s.closed} closed + ${s.pending} pending${s.invalid ? ` + ${s.invalid} invalid` : ''})
+- Close rate: ${s.closeRate}%
+- SLA breached: ${s.slaBreached} (${s.breachRate}% of the period) · at risk: ${s.slaAtRisk}
+- Avg time to close: ${s.avgCloseFmt}
+- Avg age of still-pending tickets: ${s.avgPendingAgeFmt}
+- OPEN BACKLOG (all time, any create date): ${s.openBacklog ?? 'unknown'}
+
+STAGE DISTRIBUTION
+${stages || 'none'}
+
+SLA STATUS
+${s.slaBreakdown.map(x => `${x.status}: ${x.count}`).join(' · ')}
+
+PRIORITY
+${s.priorityBreakdown.map(x => `${x.priority}: ${x.count}`).join(' · ')}
+
+PER OWNER
+${owners || 'none'}
+
+OLDEST PENDING TICKETS
+${pending || 'none'}
+
+WORST SLA BREACHES
+${breach || 'none'}
+
+${other ? `FOR COMPARISON — the ${other.label} pipeline over the same period: ${other.created} created, ${other.closed} closed, ${other.pending} pending, ${other.slaBreached} breached (${other.breachRate}%), backlog ${other.openBacklog ?? '?'}, avg close ${other.avgCloseFmt}.` : ''}
+
+${caveats.length ? `DATA CAVEATS — read these before drawing conclusions:\n${caveats.map(c => `- ${c}`).join('\n')}` : ''}
+
+Write your analysis in exactly this structure, in markdown:
+
+**SUMMARY**
+Three sentences maximum. The single most important thing about these numbers, stated plainly enough for someone who has not seen the dashboard. Lead with the number that matters most.
+
+**1. WHAT THE NUMBERS ACTUALLY SAY**
+The real read on volume, throughput and the backlog. Call out where the period-scoped counts and the all-time backlog tell different stories.
+
+**2. WHERE THE PIPELINE IS STUCK**
+Which stages are accumulating tickets and what that specific stage means operationally. Name stages and counts.
+
+**3. SLA RISK**
+What is driving the breaches. Is it concentrated in a stage, an owner, or a priority band? Be specific.
+
+**4. WORKLOAD DISTRIBUTION**
+Who is carrying what, and whether it is unbalanced. Name people and numbers. If a person has many breached tickets, say so, but attribute it to load or stage rather than assuming fault.
+
+**5. DO THIS WEEK**
+Three to five concrete actions, each tied to a number or a named ticket above. No generic advice.
+
+Rules: use the real numbers; never invent a figure that is not above; if the data is too thin to support a claim, say so instead of guessing; be direct and brief; no preamble before SUMMARY.`;
+}

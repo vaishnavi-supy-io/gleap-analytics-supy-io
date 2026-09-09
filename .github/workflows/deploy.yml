@@ -19,6 +19,19 @@ jobs:
       - name: Install Wrangler
         run: npm install -g wrangler
 
+      # Rewrite the build markers so the running build is identifiable from the
+      # login page (the only unauthenticated route) and from the sidebar.
+      - name: Stamp build
+        run: |
+          set -euo pipefail
+          SHA_SHORT="$(git rev-parse --short=8 HEAD)"
+          BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          for f in public/login.html public/index.html; do
+            sed -i "s|__BUILD_SHA__|${SHA_SHORT}|g; s|__BUILD_TIME__|${BUILD_TIME}|g" "$f"
+          done
+          echo "Stamped ${SHA_SHORT} @ ${BUILD_TIME}"
+          grep -o 'build-sha" content="[^"]*"' public/login.html || true
+
       - name: Deploy to gleap-dashboard (live site)
         run: wrangler pages deploy public --project-name gleap-dashboard --commit-dirty=true
         env:
@@ -27,6 +40,27 @@ jobs:
 
       - name: Deploy to gleap-analytics-supy-io (mirror)
         run: wrangler pages deploy public --project-name gleap-analytics-supy-io --commit-dirty=true
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      # Diagnostic: a deploy only lands on <project>.pages.dev when the branch
+      # it is attributed to matches the project's configured production branch.
+      # Print both so a silent preview-only deploy is visible in the log.
+      - name: Report deployment target
+        if: always()
+        run: |
+          echo "::group::Checked-out branch"
+          git rev-parse --abbrev-ref HEAD
+          echo "::endgroup::"
+          for proj in gleap-dashboard gleap-analytics-supy-io; do
+            echo "::group::${proj} — project config"
+            wrangler pages project list 2>&1 | grep -E "^\s*(│|\|)?\s*${proj}\b" || true
+            echo "::endgroup::"
+            echo "::group::${proj} — latest deployments"
+            wrangler pages deployment list --project-name "${proj}" 2>&1 | head -12 || true
+            echo "::endgroup::"
+          done
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

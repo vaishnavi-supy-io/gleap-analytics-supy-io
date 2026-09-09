@@ -92,6 +92,73 @@ function dayKey(ms) {
   return ms === null ? 'unknown' : new Date(ms).toISOString().slice(0, 10);
 }
 
+// Heatmap axes. Monday-first because that is how the team reads a work week,
+// and UTC throughout so the grid never shifts under a viewer in another zone —
+// the dashboard labels it as UTC rather than silently localising.
+export const HEATMAP_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+function dowIndex(ms) {
+  return (new Date(ms).getUTCDay() + 6) % 7; // JS weeks start Sunday; ours start Monday
+}
+
+/**
+ * Day-of-week x hour-of-day grid over a list of epoch-ms timestamps, plus the
+ * summary numbers the dashboard and the AI prompt both need. Answers the
+ * coverage question ("when do these tickets land, and are we staffed then?")
+ * that a daily volume line cannot.
+ */
+function buildHeatmap(timestamps) {
+  const grid = HEATMAP_DAYS.map(() => new Array(24).fill(0));
+  let total = 0;
+
+  for (const ms of timestamps) {
+    if (ms === null || ms === undefined) continue;
+    grid[dowIndex(ms)][new Date(ms).getUTCHours()]++;
+    total++;
+  }
+
+  const cells = [];
+  grid.forEach((row, d) => row.forEach((count, h) => {
+    cells.push({ day: HEATMAP_DAYS[d], dayIndex: d, hour: h, count });
+  }));
+
+  const max   = Math.max(0, ...cells.map(c => c.count));
+  const peaks = cells.filter(c => c.count > 0).sort((a, b) => b.count - a.count).slice(0, 3);
+
+  const byHour = new Array(24).fill(0);
+  const byDay  = new Array(7).fill(0);
+  for (const c of cells) { byHour[c.hour] += c.count; byDay[c.dayIndex] += c.count; }
+
+  // "Busy stretch" = the hours carrying at least 60% of the busiest hour's
+  // volume. That is the band worth staffing, not every hour with any traffic.
+  // If it spans most of the clock there is no real stretch to name, so we
+  // report none rather than printing "00:00-23:00" as though it were a finding.
+  const hourMax    = Math.max(1, ...byHour);
+  const busyHours  = byHour.map((n, h) => ({ n, h })).filter(x => x.n >= hourMax * 0.6).map(x => x.h);
+  const hasStretch = busyHours.length > 0 && busyHours.length <= 14;
+
+  const weekend = byDay[5] + byDay[6];
+  const inBand  = hasStretch ? busyHours.reduce((n, h) => n + byHour[h], 0) : total;
+
+  return {
+    days: HEATMAP_DAYS,
+    grid,
+    total, max, peaks,
+    byHour, byDay,
+    busyFrom: hasStretch ? Math.min(...busyHours) : null,
+    busyTo:   hasStretch ? Math.max(...busyHours) : null,
+    busyHours: hasStretch ? busyHours : [],
+    busiestDay:  total ? HEATMAP_DAYS[byDay.indexOf(Math.max(...byDay))] : null,
+    busiestHour: total ? byHour.indexOf(Math.max(...byHour)) : null,
+    weekendCount: weekend,
+    weekendPct:   total ? Math.round((weekend / total) * 100) : 0,
+    // Share landing outside the busy band — the tickets most likely to sit
+    // untouched until the next working morning.
+    offBandCount: total - inBand,
+    offBandPct:   total ? Math.round(((total - inBand) / total) * 100) : 0,
+  };
+}
+
 export function fmtHours(h) {
   if (h === null || h === undefined || isNaN(h)) return 'N/A';
   if (h < 1)  return `${Math.round(h * 60)} min`;
@@ -213,8 +280,18 @@ export async function resolvePortalId(env, headers) {
   return '';
 }
 
+// HubSpot's own canonical record URL, confirmed against this portal:
+// /record/0-5/{id}, where 0-5 is the tickets object-type id. The older
+// /ticket/{id} form only survives as a redirect, so link the real one.
+const HS_TICKET_OBJECT_TYPE = '0-5';
+
 function ticketLink(portalId, id) {
-  return portalId ? `https://app.hubspot.com/contacts/${portalId}/ticket/${id}` : '';
+  return portalId ? `https://app.hubspot.com/contacts/${portalId}/record/${HS_TICKET_OBJECT_TYPE}/${id}` : '';
+}
+
+/** The tickets index for a portal — where a "see them all" link lands. */
+function ticketIndexLink(portalId) {
+  return portalId ? `https://app.hubspot.com/contacts/${portalId}/objects/${HS_TICKET_OBJECT_TYPE}/views/all/list` : '';
 }
 
 // ── Aggregation ─────────────────────────────────────────────────────────────
@@ -258,6 +335,7 @@ export function computePipelineStats(pipeline, rawTickets, opts = {}) {
       slaAtRisk:   sla === 'At Risk',
       slaType:     p.sla_type || '',
       slaDeadline: p.sla_deadline || '',
+      ownerId:     String(p.hubspot_owner_id || ''),
       owner:       owners[String(p.hubspot_owner_id || '')] || 'Unassigned',
       createdAt:   p.createdate || '',
       closedAt:    p.closed_date || '',
@@ -268,6 +346,9 @@ export function computePipelineStats(pipeline, rawTickets, opts = {}) {
       closeHrs:    suspectTimestamps ? null : closeHrs,
       suspectTimestamps,
       day:         dayKey(createdMs),
+      // UTC weekday/hour of arrival, for the day x hour heatmap.
+      dayOfWeek:   createdMs === null ? null : HEATMAP_DAYS[dowIndex(createdMs)],
+      hour:        createdMs === null ? null : new Date(createdMs).getUTCHours(),
       link:        ticketLink(portalId, id),
     };
   });
@@ -303,14 +384,66 @@ export function computePipelineStats(pipeline, rawTickets, opts = {}) {
     return Object.entries(m).sort((a, b) => a[0].localeCompare(b[0])).map(([day, count]) => ({ day, count }));
   })();
 
-  const ownerBreakdown = Object.entries(countBy(rows, r => r.owner))
-    .map(([name, total]) => ({
-      name,
-      total,
-      closed:   closed.filter(r => r.owner === name).length,
-      pending:  pending.filter(r => r.owner === name).length,
-      breached: breached.filter(r => r.owner === name).length,
-    }))
+  // Two grids, same axes: when tickets arrive vs when they actually get
+  // closed. Read together they show whether the team's working hours line up
+  // with the hours the work lands in — which a daily count cannot show.
+  const heatmapCreated = buildHeatmap(rows.map(r => toMs(r.createdAt)));
+  const heatmapClosed  = buildHeatmap(closed.map(r => toMs(r.closedAt)));
+
+  // Assignee scorecard. Grouped once rather than re-filtering `rows` per owner
+  // per metric, because the owner count is unbounded and the ticket list can
+  // run into the thousands.
+  const byOwner = new Map();
+  for (const r of rows) {
+    if (!byOwner.has(r.owner)) byOwner.set(r.owner, []);
+    byOwner.get(r.owner).push(r);
+  }
+
+  const ownerBreakdown = [...byOwner.entries()]
+    .map(([name, list]) => {
+      const oClosed   = list.filter(r => r.isClosed);
+      const oPending  = list.filter(r => r.isPending);
+      const oBreached = list.filter(r => r.slaBreached);
+      const oAvgClose   = avg(oClosed.map(r => r.closeHrs).filter(v => v !== null));
+      const oAvgPending = avg(oPending.map(r => r.ageHrs).filter(v => v !== null));
+      const oldestPendingHrs = oPending.length
+        ? Math.max(...oPending.map(r => r.ageHrs ?? 0))
+        : null;
+      // Where this person's open work is actually sitting — the single most
+      // useful thing to know before reassigning any of it.
+      const stageTally = {};
+      for (const r of oPending) stageTally[r.stage] = (stageTally[r.stage] || 0) + 1;
+      const topPendingStage = Object.entries(stageTally).sort((a, b) => b[1] - a[1])[0] || null;
+
+      return {
+        name,
+        // Every ticket in a group shares an owner, so the first row's id is
+        // the group's id. Empty string for the Unassigned bucket.
+        ownerId:  list[0]?.ownerId || '',
+        total:    list.length,
+        closed:   oClosed.length,
+        pending:  oPending.length,
+        invalid:  list.filter(r => r.isInvalid).length,
+        breached: oBreached.length,
+        // Breaches still sitting open. Distinct from `breached`, which also
+        // counts tickets that breached and were closed anyway — only the open
+        // ones are still actionable.
+        pendingBreached: oPending.filter(r => r.slaBreached).length,
+        atRisk:   list.filter(r => r.slaAtRisk).length,
+        unassigned: name === 'Unassigned',
+        closeRate:  list.length ? Math.round((oClosed.length / list.length) * 100) : 0,
+        breachRate: list.length ? Math.round((oBreached.length / list.length) * 100) : 0,
+        sharePct:   rows.length ? Math.round((list.length / rows.length) * 100) : 0,
+        avgCloseHrs: oAvgClose,   avgCloseFmt: fmtHours(oAvgClose),
+        avgPendingAgeHrs: oAvgPending, avgPendingAgeFmt: fmtHours(oAvgPending),
+        oldestPendingHrs, oldestPendingFmt: fmtHours(oldestPendingHrs),
+        topPendingStage:      topPendingStage ? topPendingStage[0] : null,
+        topPendingStageCount: topPendingStage ? topPendingStage[1] : 0,
+        // Sample size behind avgCloseFmt — closed tickets minus the ones with
+        // inconsistent HubSpot timestamps, same exclusion as the headline card.
+        closedTimed: oClosed.filter(r => r.closeHrs !== null).length,
+      };
+    })
     .sort((a, b) => b.total - a.total);
 
   const slaBreakdown = ['On Track', 'At Risk', 'Breached'].map(status => ({
@@ -327,6 +460,8 @@ export function computePipelineStats(pipeline, rawTickets, opts = {}) {
     label:      pipeline.label,
     icon:       pipeline.icon,
     pipelineId: pipeline.id,
+    portalId,
+    ticketIndexUrl: ticketIndexLink(portalId),
     truncated,
 
     // Headline cards — created reconciles against the rest by construction.
@@ -349,6 +484,7 @@ export function computePipelineStats(pipeline, rawTickets, opts = {}) {
     avgPendingAgeHrs, avgPendingAgeFmt: fmtHours(avgPendingAgeHrs),
 
     stageBreakdown, daily, closedDaily, ownerBreakdown, slaBreakdown,
+    heatmap: { created: heatmapCreated, closed: heatmapClosed },
     priorityBreakdown: Object.entries(countBy(rows, r => r.priority))
       .map(([priority, count]) => ({ priority, count }))
       .sort((a, b) => b.count - a.count),
@@ -412,15 +548,59 @@ export function slimForAI(p, limit = 8) {
     slaBreakdown: p.slaBreakdown.filter(s => s.count),
     priorityBreakdown: p.priorityBreakdown,
     ownerBreakdown: p.ownerBreakdown.slice(0, 12),
+    // The grid itself is 168 numbers of no use to a language model; the peaks
+    // and bands are the part worth reasoning over.
+    arrivals: heatmapSummary(p.heatmap?.created),
+    closures: heatmapSummary(p.heatmap?.closed),
     oldestPending: p.pendingTickets.slice(0, limit).map(q),
     worstBreached: p.breachedTickets.slice(0, limit).map(q),
+  };
+}
+
+const hh = h => `${String(h).padStart(2, '0')}:00`;
+
+/** Prose-ready digest of one heatmap. Null when the grid is absent or empty. */
+function heatmapSummary(hm) {
+  if (!hm || !hm.total) return null;
+  return {
+    total: hm.total,
+    busiestDay: hm.busiestDay,
+    busiestHour: hm.busiestHour,
+    // Full phrase, so a one-hour band doesn't render as "09:00-09:00".
+    band: hm.busyFrom === null ? null
+      : hm.busyFrom === hm.busyTo ? `the ${hh(hm.busyFrom)} UTC hour`
+      : `the ${hh(hm.busyFrom)}-${hh(hm.busyTo)} UTC band`,
+    peaks: (hm.peaks || []).map(c => `${c.day} ${hh(c.hour)} UTC (${c.count})`),
+    weekendCount: hm.weekendCount, weekendPct: hm.weekendPct,
+    offBandCount: hm.offBandCount, offBandPct: hm.offBandPct,
+    byDay: (hm.days || []).map((d, i) => `${d}: ${hm.byDay[i]}`).join(' · '),
   };
 }
 
 export function buildHubspotInsightPrompt(p, other, range) {
   const s = slimForAI(p);
   const stages  = s.stageBreakdown.map(x => `${x.stage}: ${x.count}${x.terminal ? ` [${x.terminal}]` : ''}`).join('\n');
-  const owners  = s.ownerBreakdown.map(o => `${o.name}: ${o.total} created, ${o.closed} closed, ${o.pending} pending, ${o.breached} breached`).join('\n');
+  const owners  = s.ownerBreakdown.map(o => [
+    `${o.name}: ${o.total} assigned (${o.sharePct}% of the period)`,
+    `${o.closed} closed (${o.closeRate}%)`,
+    `${o.pending} pending`,
+    `${o.breached} breached${o.atRisk ? `, ${o.atRisk} at risk` : ''}`,
+    o.closedTimed ? `avg close ${o.avgCloseFmt}` : 'avg close n/a',
+    o.pending ? `oldest pending ${o.oldestPendingFmt}` : null,
+    o.topPendingStage ? `most open work in "${o.topPendingStage}" (${o.topPendingStageCount})` : null,
+  ].filter(Boolean).join(', ')).join('\n');
+
+  const arrivals = s.arrivals;
+  const closures = s.closures;
+  const patternBlock = arrivals ? [
+    `Busiest day: ${arrivals.busiestDay}. Busiest hour: ${hh(arrivals.busiestHour)} UTC.`,
+    arrivals.band ? `Most volume lands in ${arrivals.band}.` : 'Volume is spread too evenly across the clock to name a band.',
+    `Per weekday — ${arrivals.byDay}`,
+    `Peak single windows: ${arrivals.peaks.join(', ') || 'none'}.`,
+    `${arrivals.weekendCount} ticket(s) (${arrivals.weekendPct}%) arrive Sat/Sun.`,
+    `${arrivals.offBandCount} ticket(s) (${arrivals.offBandPct}%) arrive outside the busy band.`,
+    closures ? `Closures peak ${closures.busiestDay} ${hh(closures.busiestHour)} UTC${closures.band ? `, mostly in ${closures.band}` : ''} — compare against the arrival band to spot a coverage gap.` : 'Too few closed tickets to read a closing pattern.',
+  ].join('\n') : 'No dated tickets in this range — no arrival pattern to read.';
   const pending = s.oldestPending.map(t => `• ${t.subject} — ${t.stage}, ${t.owner}, ${t.ageHrs}h old, SLA ${t.sla || 'not set'}, ${t.priority}`).join('\n');
   const breach  = s.worstBreached.map(t => `• ${t.subject} — ${t.stage}, ${t.owner}, ${t.ageHrs}h old, ${t.priority}`).join('\n');
 
@@ -449,6 +629,9 @@ HEADLINE NUMBERS
 
 STAGE DISTRIBUTION
 ${stages || 'none'}
+
+WHEN TICKETS ARRIVE (day x hour, UTC)
+${patternBlock}
 
 SLA STATUS
 ${s.slaBreakdown.map(x => `${x.status}: ${x.count}`).join(' · ')}
@@ -484,9 +667,12 @@ Which stages are accumulating tickets and what that specific stage means operati
 What is driving the breaches. Is it concentrated in a stage, an owner, or a priority band? Be specific.
 
 **4. WORKLOAD DISTRIBUTION**
-Who is carrying what, and whether it is unbalanced. Name people and numbers. If a person has many breached tickets, say so, but attribute it to load or stage rather than assuming fault.
+Who is carrying what, and whether it is unbalanced. Name people and numbers, including close rate and average close time where the sample supports it. Call out anything sitting under "Unassigned". If a person has many breached tickets, say so, but attribute it to load or stage rather than assuming fault.
 
-**5. DO THIS WEEK**
+**5. COVERAGE VS ARRIVAL PATTERN**
+Read the day x hour arrival pattern against the closing pattern. Name the specific windows that are busy and say whether closures happen in the same windows. If a meaningful share arrives at the weekend or outside the busy band, say what that implies for staffing. If the volume is too thin to support a pattern, say so plainly instead of naming a window.
+
+**6. DO THIS WEEK**
 Three to five concrete actions, each tied to a number or a named ticket above. No generic advice.
 
 Rules: use the real numbers; never invent a figure that is not above; if the data is too thin to support a claim, say so instead of guessing; be direct and brief; no preamble before SUMMARY.`;

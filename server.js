@@ -1893,7 +1893,7 @@ app.post('/api/hubspot-insights', async (req, res) => {
     const fetchPromise = fetch('https://openrouter.ai/api/v1/chat/completions', {
       method:'POST',
       headers:{'Authorization':`Bearer ${OPENROUTER_KEY}`,'Content-Type':'application/json','HTTP-Referer':'https://gleap-analytics.app','X-Title':'Gleap Analytics'},
-      body:JSON.stringify({ model:AI_MODEL, messages:[{role:'user',content:prompt}], max_tokens:2000, temperature:0.2 }),
+      body:JSON.stringify({ model:AI_MODEL, messages:[{role:'user',content:prompt}], max_tokens:2600, temperature:0.2 }),
     });
 
     const aiResp = await Promise.race([fetchPromise, timeoutPromise]);

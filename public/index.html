@@ -529,6 +529,49 @@
     .hm-legend { display: flex; align-items: center; gap: 7px; margin-top: 10px; font-size: 11px; color: var(--muted); }
     .hm-bar { width: 110px; height: 9px; border-radius: 5px; border: 1px solid var(--border); background: linear-gradient(to right, var(--p100), var(--p700)); }
     .hm-legend .hm-hint { margin-left: auto; font-style: italic; color: var(--faint); }
+    /* HubSpot pipeline heatmap — same grid, plus a row-total column and a
+       created/closed toggle, so the card answers "when" and "how many". */
+    .hshm-grid { grid-template-columns: 34px repeat(24, minmax(18px, 1fr)) 30px; min-width: 640px; }
+    .hshm-tot { display: flex; align-items: center; justify-content: flex-end; font-size: 9.5px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .hshm-tot.corner { visibility: hidden; }
+    .hshm-toggle { display: inline-flex; border: 1px solid var(--border2); border-radius: 8px; overflow: hidden; }
+    .hshm-toggle button { border: none; background: var(--surface); color: var(--muted); font: 700 10.5px/1 var(--font); padding: 6px 12px; cursor: pointer; }
+    .hshm-toggle button + button { border-left: 1px solid var(--border2); }
+    .hshm-toggle button.on { background: var(--p600); color: #fff; }
+    .hshm-empty { padding: 22px; text-align: center; font-size: 12px; color: var(--muted); }
+    /* Both HubSpot sections build their entire body inside one container, so
+       .section's own flex gap never reaches the cards and they render flush.
+       Re-apply the same gap on the container itself. */
+    #hsOnboardingContent, #hsOperationsContent { display: flex; flex-direction: column; gap: 20px; }
+    /* Drill-down affordances. Anything that narrows the view to a slice of
+       tickets looks and behaves the same, wherever it appears. */
+    .hs-drill { font: inherit; color: var(--p600); background: none; border: none; padding: 0; cursor: pointer;
+      font-weight: 700; text-align: left; border-bottom: 1px dotted var(--border2); }
+    .hs-drill:hover { color: var(--p800); border-bottom-color: var(--p600); }
+    .hs-drill:focus-visible { outline: 2px solid var(--p600); outline-offset: 2px; border-radius: 2px; }
+    .hs-drill.on { color: var(--p800); background: var(--p100); border-bottom-color: transparent; border-radius: 4px; padding: 1px 5px; margin: -1px -5px; }
+    .kpi-card.clickable { cursor: pointer; }
+    .kpi-card.clickable:hover { box-shadow: var(--sh2); transform: translateY(-1px); }
+    .kpi-card.clickable::after { content: 'View tickets →'; position: absolute; bottom: 8px; right: 12px;
+      font-size: 9px; font-weight: 700; color: var(--p600); opacity: 0; transition: opacity 0.15s; }
+    .kpi-card.clickable:hover::after { opacity: 1; }
+    .hm-cell.clickable { cursor: pointer; }
+    .hm-cell.clickable:hover { box-shadow: 0 0 0 1.5px var(--surface), 0 0 0 3px var(--p600); }
+    /* Active-filter bar. States the slice in words and offers one way out. */
+    .hs-filterbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+      background: var(--p50); border: 1px solid var(--border2); border-radius: var(--r12); padding: 11px 14px; }
+    .hs-filterbar .lbl { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--p600); }
+    .hs-filterbar .val { font-size: 13px; font-weight: 700; color: var(--ink); }
+    .hs-filterbar .cnt { font-size: 12px; color: var(--muted); }
+    .hs-filterbar .spacer { margin-left: auto; }
+    .hs-chipbtn { font: inherit; font-size: 11px; font-weight: 700; cursor: pointer; border-radius: 99px;
+      border: 1.5px solid var(--border2); background: var(--surface); color: var(--ink); padding: 4px 11px; }
+    .hs-chipbtn:hover { border-color: var(--p600); color: var(--p600); }
+    .hs-openlink { font-size: 11px; font-weight: 700; color: var(--p600); text-decoration: none; }
+    .hs-openlink:hover { text-decoration: underline; }
+    td .hs-ticketlink { color: var(--ink); font-weight: 600; text-decoration: none; }
+    td .hs-ticketlink:hover { color: var(--p600); text-decoration: underline; }
+    td .hs-ticketlink::after { content: ' ↗'; color: var(--faint); font-weight: 400; }
     /* Print: the memo is the page — drop all app chrome */
     @media print {
       .sidebar, .topbar, .memo-noprint { display: none !important; }
@@ -896,6 +939,10 @@ const PAGE_SIZE   = 30;
 const charts = {};
 let hubspotData    = null;    // { pipelines: { onboarding, operations } }
 let hubspotInsights = {};     // { [pipelineKey]: markdown } — cleared with hubspotData
+// Pipelines whose analysis request is in flight. renderHubspotPipeline() runs
+// again on every drill-down click, and without this a click landing while the
+// analysis is still loading would fire a second identical request.
+const hubspotInsightPending = new Set();
 let hubspotLoading = false;
 
 // Sections backed by HubSpot rather than Gleap. Declared here, above init(),
@@ -2907,6 +2954,8 @@ async function loadHubspotData(force = false) {
 
     hubspotData = data;
     hubspotInsights = {};
+    // The old slice referred to the previous range's tickets — drop it.
+    for (const k of Object.keys(hsFilter)) hsFilter[k] = null;
     for (const [key, v] of Object.entries(HS_VIEWS)) {
       renderHubspotPipeline(key, data.pipelines[key]);
     }
@@ -2949,29 +2998,351 @@ function hsQueueTable(title, tickets, opts = {}) {
   }
   const rows = tickets.slice(0, limit).map(t => `
     <tr>
-      <td style="font-weight:600;max-width:320px">${escHtml(t.subject)}</td>
+      <td style="max-width:320px">${t.link
+        ? `<a class="hs-ticketlink" href="${t.link}" target="_blank" rel="noopener">${escHtml(t.subject)}</a>`
+        : `<span style="font-weight:600">${escHtml(t.subject)}</span>`}</td>
       <td>${escHtml(t.stage)}</td>
       <td>${escHtml(t.owner)}</td>
       ${showSla ? `<td>${hsSlaBadge(t.slaStatus)}</td>` : ''}
       <td>${hsAgeBadge(t.ageHrs)}</td>
       <td>${t.createdAt ? new Date(t.createdAt).toLocaleDateString() : '—'}</td>
-      <td>${t.link ? `<a href="${t.link}" target="_blank" rel="noopener" style="color:var(--p600);font-weight:700;text-decoration:none">Open ↗</a>` : '—'}</td>
     </tr>`).join('');
 
   return `<div class="table-card">
     <div class="table-head">
       <div class="table-title">${title}</div>
-      <div style="font-size:11px;color:var(--muted)">${tickets.length} ticket${tickets.length === 1 ? '' : 's'}${tickets.length > limit ? ` · showing oldest ${limit}` : ''}</div>
+      <div style="font-size:11px;color:var(--muted)">${tickets.length} ticket${tickets.length === 1 ? '' : 's'}${tickets.length > limit ? ` · showing oldest ${limit}` : ''} · subjects link to HubSpot</div>
     </div>
     <div style="overflow-x:auto">
       <table>
         <thead><tr>
-          <th>Subject</th><th>Stage</th><th>Owner</th>${showSla ? '<th>SLA</th>' : ''}<th>Age</th><th>Created</th><th></th>
+          <th>Subject</th><th>Stage</th><th>Owner</th>${showSla ? '<th>SLA</th>' : ''}<th>Age</th><th>Created</th>
         </tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>
   </div>`;
+}
+
+// ── Drill-down filters ────────────────────────────────────
+// One mechanism, many entry points: an assignee name, a stage, a KPI card and
+// a heatmap cell all narrow the section to the same kind of slice, so the
+// ticket table below always explains which tickets it is showing.
+//
+// Filters are addressed by INDEX into the arrays already on screen, never by
+// pasting an owner or stage name into an onclick — those strings come from
+// HubSpot and would be an injection vector in an attribute.
+const hsFilter = { onboarding: null, operations: null };
+
+// Definitions of every slice type: how to label it and how to test a ticket.
+const HS_FILTERS = {
+  owner: {
+    label: (p, v) => `Assignee · ${(p.ownerBreakdown[v] || {}).name || 'Unknown'}`,
+    match: (p, v) => { const o = p.ownerBreakdown[v]; return t => !!o && t.owner === o.name; },
+  },
+  stage: {
+    label: (p, v) => `Stage · ${(p.stageBreakdown[v] || {}).stage || 'Unknown'}`,
+    match: (p, v) => { const st = p.stageBreakdown[v]; return t => !!st && t.stage === st.stage; },
+  },
+  status: {
+    label: (p, v) => ({ pending: 'Still open', closed: 'Closed', breached: 'SLA breached', atRisk: 'SLA at risk' })[v] || v,
+    match: (p, v) => ({
+      pending:  t => t.isPending,
+      closed:   t => t.isClosed,
+      breached: t => t.slaBreached,
+      atRisk:   t => t.slaAtRisk,
+    }[v] || (() => true)),
+  },
+  cell: {
+    // v is "dayIndex-hour" from the heatmap grid.
+    label: (p, v) => { const [d, h] = v.split('-'); return `Arrived ${HS_HM_DAYS[+d]} ${hsHourLabel(+h)}–${hsHourLabel((+h + 1) % 24)} UTC`; },
+    match: (p, v) => { const [d, h] = v.split('-'); return t => t.dayOfWeek === HS_HM_DAYS[+d] && t.hour === +h; },
+  },
+};
+
+const HS_HM_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+function setHsFilter(key, type, value) {
+  const cur = hsFilter[key];
+  // Clicking the active filter again clears it — the same control both ways.
+  if (cur && cur.type === type && String(cur.value) === String(value)) return clearHsFilter(key);
+  hsFilter[key] = { type, value };
+  renderHubspotPipeline(key, hubspotData?.pipelines?.[key]);
+  document.getElementById(HS_VIEWS[key].prefix + 'Drill')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function clearHsFilter(key) {
+  hsFilter[key] = null;
+  renderHubspotPipeline(key, hubspotData?.pipelines?.[key]);
+}
+
+/** Tickets in the current slice, plus a human label. Null filter = everything. */
+function hsSlice(key, p) {
+  const f = hsFilter[key];
+  if (!f) return { tickets: p.tickets || [], label: null, filter: null };
+  const def = HS_FILTERS[f.type];
+  if (!def) return { tickets: p.tickets || [], label: null, filter: null };
+  return {
+    tickets: (p.tickets || []).filter(def.match(p, f.value)),
+    label:   def.label(p, f.value),
+    filter:  f,
+  };
+}
+
+function hsFilterBar(key, p) {
+  const s = hsSlice(key, p);
+  if (!s.filter) return '';
+  const idx = p.ticketIndexUrl
+    ? `<a class="hs-openlink" href="${p.ticketIndexUrl}" target="_blank" rel="noopener">All ${escHtml(p.label)} tickets in HubSpot ↗</a>`
+    : '';
+  return `<div class="hs-filterbar">
+      <span class="lbl">Filtered</span>
+      <span class="val">${escHtml(s.label)}</span>
+      <span class="cnt">${s.tickets.length} ticket${s.tickets.length === 1 ? '' : 's'} of ${p.created} in this range</span>
+      <span class="spacer"></span>
+      ${idx}
+      <button class="hs-chipbtn" onclick="clearHsFilter('${key}')">✕ Clear filter</button>
+    </div>`;
+}
+
+// ── The drill-down table ──────────────────────────────────
+// Every row's subject is the link into HubSpot, so the ticket you just found
+// in a chart is one click from the record itself.
+function hsDrillTable(key, p) {
+  const s = hsSlice(key, p);
+  const pre = HS_VIEWS[key].prefix;
+
+  if (!s.filter) {
+    return `<div id="${pre}Drill" class="table-card">
+      <div class="table-head">
+        <div class="table-title">Ticket Explorer</div>
+        <div style="font-size:11px;color:var(--muted)">${p.created} ticket${p.created === 1 ? '' : 's'} in range</div>
+      </div>
+      <div class="hshm-empty">Click an assignee, a stage, a KPI card or a heatmap cell to list those tickets here — each one links straight into HubSpot.</div>
+    </div>`;
+  }
+
+  const LIMIT = 200;
+  // Worst first: breached, then oldest.
+  const rows = s.tickets.slice().sort((a, b) =>
+    (b.slaBreached - a.slaBreached) || ((b.ageHrs || 0) - (a.ageHrs || 0)));
+
+  const body = rows.slice(0, LIMIT).map(t => `
+    <tr>
+      <td style="max-width:340px">${t.link
+        ? `<a class="hs-ticketlink" href="${t.link}" target="_blank" rel="noopener">${escHtml(t.subject)}</a>`
+        : `<span style="font-weight:600">${escHtml(t.subject)}</span>`}</td>
+      <td>${escHtml(t.stage)}</td>
+      <td>${escHtml(t.owner)}</td>
+      <td>${t.isClosed ? '<span style="color:var(--green);font-weight:700">Closed</span>'
+            : t.isInvalid ? '<span style="color:var(--faint)">Invalid</span>'
+            : '<span style="color:var(--amber);font-weight:700">Open</span>'}</td>
+      <td>${hsSlaBadge(t.slaStatus)}</td>
+      <td>${hsAgeBadge(t.ageHrs)}</td>
+      <td>${t.createdAt ? new Date(t.createdAt).toLocaleDateString() : '—'}</td>
+    </tr>`).join('');
+
+  return `<div id="${pre}Drill" class="table-card">
+    <div class="table-head">
+      <div class="table-title">${escHtml(s.label)}</div>
+      <div style="font-size:11px;color:var(--muted)">${s.tickets.length} ticket${s.tickets.length === 1 ? '' : 's'}${s.tickets.length > LIMIT ? ` · showing first ${LIMIT}` : ''} · subjects link to HubSpot</div>
+    </div>
+    ${rows.length ? `<div style="overflow-x:auto"><table>
+      <thead><tr><th>Subject</th><th>Stage</th><th>Assignee</th><th>State</th><th>SLA</th><th>Age</th><th>Created</th></tr></thead>
+      <tbody>${body}</tbody>
+    </table></div>` : `<div class="hshm-empty">No tickets match this slice.</div>`}
+  </div>`;
+}
+
+// ── Day x hour heatmap ────────────────────────────────────
+// The pipeline's arrival (and closing) pattern, which the daily bar chart
+// cannot show: two tickets a day every day and ten every Monday look
+// identical on a per-day count.
+
+// Which grid each pipeline's heatmap is currently showing.
+const hsHeatmapMode = { onboarding: 'created', operations: 'created' };
+
+// Same eased ramp as the briefing heatmap, so a cell of a given darkness means
+// the same thing in both places.
+function hsHeatColor(v, max) {
+  const t = Math.pow(v / max, 0.6);
+  const from = [243, 232, 255], to = [76, 29, 149];
+  return `rgb(${from.map((c, i) => Math.round(c + (to[i] - c) * t)).join(',')})`;
+}
+
+function hsHourLabel(h) {
+  return `${String(h).padStart(2, '0')}:00`;
+}
+
+function hsHeatmapGrid(hm, noun, key, mode) {
+  const days = hm.days || [];
+  const peakKeys = new Set((hm.peaks || []).map(c => `${c.dayIndex}-${c.hour}`));
+  const hourHeads = Array.from({ length: 24 }, (_, h) =>
+    `<div class="hm-hr">${h % 3 === 0 ? h : ''}</div>`).join('');
+
+  const body = days.map((day, d) => {
+    const row = hm.grid[d] || [];
+    const cells = row.map((n, h) => {
+      const label = `${day} ${hsHourLabel(h)}–${hsHourLabel((h + 1) % 24)} UTC — ${n} ${noun}${n === 1 ? '' : 's'}`;
+      const style = n > 0 ? ` style="background:${hsHeatColor(n, Math.max(1, hm.max))}"` : '';
+      // Only the created grid can drill down — the filter matches on arrival
+      // time, so a cell from the closed grid would list the wrong tickets.
+      const drill = (n > 0 && mode === 'created')
+        ? ` class="hm-cell clickable${peakKeys.has(`${d}-${h}`) ? ' peak' : ''}" role="button" tabindex="0"`
+          + ` onclick="setHsFilter('${key}','cell','${d}-${h}')"`
+          + ` onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();setHsFilter('${key}','cell','${d}-${h}')}"`
+        : ` class="hm-cell${peakKeys.has(`${d}-${h}`) ? ' peak' : ''}"`;
+      return `<div${drill}${style} title="${escHtml(label)}${n > 0 && mode === 'created' ? ' — click to list them' : ''}" aria-label="${escHtml(label)}"></div>`;
+    }).join('');
+    return `<div class="hm-day">${escHtml(day)}</div>${cells}<div class="hshm-tot" title="${escHtml(`${day} total`)}">${hm.byDay[d]}</div>`;
+  }).join('');
+
+  return `<div class="hm-wrap"><div class="hm-grid hshm-grid">
+      <div class="hm-day corner"></div>${hourHeads}<div class="hshm-tot corner"></div>${body}
+    </div></div>`;
+}
+
+function hsHeatmapNote(hm, noun) {
+  const bits = [];
+  if (hm.busiestDay !== null) {
+    bits.push(`Busiest window: <strong>${escHtml(hm.busiestDay)} ${hsHourLabel(hm.busiestHour)} UTC</strong>.`);
+  }
+  if ((hm.peaks || []).length) {
+    bits.push(`Top cells: ${hm.peaks.map(c => `${escHtml(c.day)} ${hsHourLabel(c.hour)} (${c.count})`).join(', ')}.`);
+  }
+  // Only worth naming when it is actually a band — buildHeatmap returns null
+  // for busyFrom when the volume is spread across most of the clock.
+  if (hm.busyFrom !== null) {
+    bits.push(hm.busyFrom === hm.busyTo
+      ? `Volume concentrates in the ${hsHourLabel(hm.busyFrom)} UTC hour.`
+      : `The busy stretch runs roughly ${hsHourLabel(hm.busyFrom)}–${hsHourLabel(hm.busyTo)} UTC.`);
+    if (hm.offBandCount) bits.push(`${hm.offBandCount} ${noun}${hm.offBandCount === 1 ? '' : 's'} (${hm.offBandPct}%) fall outside it.`);
+  } else {
+    bits.push('Volume is spread too evenly across the clock to name a busy stretch.');
+  }
+  if (hm.weekendCount) bits.push(`${hm.weekendCount} (${hm.weekendPct}%) land on Sat/Sun.`);
+  return bits.join(' ');
+}
+
+function renderHubspotHeatmap(key) {
+  const p  = hubspotData?.pipelines?.[key];
+  const el = document.getElementById(HS_VIEWS[key].prefix + 'Heatmap');
+  if (!p || !el) return;
+
+  const mode = hsHeatmapMode[key];
+  const hm   = p.heatmap?.[mode];
+  const noun = mode === 'created' ? 'ticket created' : 'ticket closed';
+
+  if (!hm || !hm.total) {
+    el.innerHTML = `<div class="hshm-empty">${mode === 'created'
+      ? 'No tickets with a usable create date in this range.'
+      : 'No tickets from this range have been closed yet — nothing to plot.'}</div>`;
+    return;
+  }
+
+  el.innerHTML = `
+    ${hsHeatmapGrid(hm, noun, key, mode)}
+    <div class="hm-legend">
+      <span>Fewer</span><span class="hm-bar"></span><span>More</span>
+      <span class="hm-hint">Unfilled = 0 · right column = day total · outlined = peak${mode === 'created' ? ' · click a cell to list its tickets' : ''}</span>
+    </div>
+    <p style="margin:10px 0 0;font-size:11.5px;line-height:1.6;color:var(--muted)">${hsHeatmapNote(hm, noun.split(' ')[0])}</p>`;
+}
+
+function setHsHeatmapMode(key, mode) {
+  hsHeatmapMode[key] = mode;
+  const pre = HS_VIEWS[key].prefix;
+  for (const m of ['created', 'closed']) {
+    document.getElementById(`${pre}Hm_${m}`)?.classList.toggle('on', m === mode);
+  }
+  renderHubspotHeatmap(key);
+}
+
+function hsHeatmapCard(key, p) {
+  const pre = HS_VIEWS[key].prefix;
+  return `<div class="chart-card">
+    <div class="section-header" style="margin:0 0 4px">
+      <div>
+        <div class="chart-title" style="margin:0">🗓 Ticket Heatmap — day × hour (UTC)</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:3px">Every ticket plotted by the weekday and hour it arrived. Darker means busier — this is the coverage question, not a volume chart.</div>
+      </div>
+      <div class="hshm-toggle">
+        <button id="${pre}Hm_created" class="${hsHeatmapMode[key] === 'created' ? 'on' : ''}" onclick="setHsHeatmapMode('${key}','created')">Created</button>
+        <button id="${pre}Hm_closed" class="${hsHeatmapMode[key] === 'closed' ? 'on' : ''}" onclick="setHsHeatmapMode('${key}','closed')">Closed</button>
+      </div>
+    </div>
+    <div id="${pre}Heatmap"></div>
+  </div>`;
+}
+
+// ── Assignee breakdown ────────────────────────────────────
+// Counts alone ("12 tickets") say nothing about whether a queue is healthy, so
+// each assignee is shown with their close rate, throughput and where their
+// open work is stuck.
+function hsAssigneeCard(key, p) {
+  const pre   = HS_VIEWS[key].prefix;
+  const rows  = p.ownerBreakdown || [];
+  const named = rows.filter(o => !o.unassigned);
+  const unassigned = rows.find(o => o.unassigned) || null;
+
+  if (!rows.length) {
+    return `<div class="table-card"><div class="table-head"><div class="table-title">Assignee Breakdown</div></div>
+      <div class="hshm-empty">No tickets in this range.</div></div>`;
+  }
+
+  const busiest = named[0] || null;
+  // A single owner holding most of the pending queue is the thing worth seeing
+  // first, so it is stated above the table rather than left to be spotted.
+  const topPending = [...rows].sort((a, b) => b.pending - a.pending)[0];
+  const summary = [
+    `${named.length} assignee${named.length === 1 ? '' : 's'}`,
+    busiest ? `busiest ${escHtml(busiest.name)} (${busiest.total}, ${busiest.sharePct}%)` : null,
+    topPending && topPending.pending ? `largest open queue ${escHtml(topPending.name)} (${topPending.pending})` : null,
+    unassigned && unassigned.total ? `<span style="color:var(--red);font-weight:700">${unassigned.total} unassigned</span>` : 'nothing unassigned',
+  ].filter(Boolean).join(' · ');
+
+  const active = hsFilter[key];
+  const body = rows.map((o, i) => `
+    <tr class="agent-row">
+      <td><button class="hs-drill${active && active.type === 'owner' && active.value === i ? ' on' : ''}"
+            onclick="setHsFilter('${key}','owner',${i})"
+            title="List ${escHtml(o.name)}'s tickets, with links into HubSpot">${escHtml(o.name)}</button>${o.unassigned ? ' <span style="color:var(--red);font-size:10px;font-weight:700">⚠ no owner</span>' : ''}</td>
+      <td>${o.total} <span style="color:var(--faint);font-size:10px">${o.sharePct}%</span></td>
+      <td>${o.closed} <span style="color:var(--faint);font-size:10px">${o.closeRate}%</span></td>
+      <td>${o.pending}</td>
+      <td>${o.pending ? hsAgeBadge(o.oldestPendingHrs) : '<span style="color:var(--faint)">—</span>'}</td>
+      <td>${o.closedTimed ? escHtml(o.avgCloseFmt) : '<span style="color:var(--faint)">—</span>'}</td>
+      <td style="${o.breached > 0 ? 'color:var(--red);font-weight:700' : ''}">${o.breached}</td>
+      <td style="${o.atRisk > 0 ? 'color:var(--amber);font-weight:700' : ''}">${o.atRisk}</td>
+      <td style="font-size:11px;color:var(--muted)">${o.topPendingStage
+        ? `${escHtml(o.topPendingStage)} <span style="color:var(--faint)">×${o.topPendingStageCount}</span>`
+        : '<span style="color:var(--faint)">—</span>'}</td>
+    </tr>`).join('');
+
+  return `<div class="chart-card">
+      <div class="chart-title">👥 Workload by Assignee</div>
+      <div style="font-size:11px;color:var(--muted);margin:-6px 0 10px">Each bar is one person's share of the range, split by where those tickets stand today.</div>
+      <div class="chart-wrap" style="height:${Math.max(180, rows.length * 30 + 60)}px"><canvas id="chart${pre}Owner"></canvas></div>
+    </div>
+
+    <div class="table-card">
+      <div class="table-head">
+        <div class="table-title">Assignee Breakdown</div>
+        <div style="font-size:11px;color:var(--muted)">${summary} · <span style="color:var(--p600);font-weight:700">click a name to list their tickets</span></div>
+      </div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr>
+            <th>Assignee</th><th>Assigned</th><th>Closed</th><th>Pending</th>
+            <th title="Age of that assignee's oldest still-open ticket">Oldest open</th>
+            <th title="Average create-to-close time, excluding tickets with inconsistent HubSpot timestamps">Avg close</th>
+            <th>Breached</th><th>At risk</th>
+            <th title="The stage holding most of that assignee's open tickets">Open work sits in</th>
+          </tr></thead>
+          <tbody>${body}</tbody>
+        </table>
+      </div>
+    </div>`;
 }
 
 function renderHubspotPipeline(key, p) {
@@ -2993,7 +3364,9 @@ function renderHubspotPipeline(key, p) {
   const reconcile = `${p.created} created = ${p.closed} closed + ${p.pending} pending${p.invalid ? ` + ${p.invalid} invalid` : ''}`;
 
   document.getElementById(view.section + 'Content').innerHTML = `
-    ${alerts ? `<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px">${alerts}</div>` : ''}
+    ${alerts ? `<div style="display:flex;flex-direction:column;gap:6px">${alerts}</div>` : ''}
+
+    ${hsFilterBar(key, p)}
 
     <div class="kpi-grid">
       <div class="kpi-card blue">
@@ -3002,19 +3375,19 @@ function renderHubspotPipeline(key, p) {
         <div class="kpi-label">Tickets Created</div>
         <div class="kpi-sub">Created in selected range</div>
       </div>
-      <div class="kpi-card green">
+      <div class="kpi-card green clickable" onclick="setHsFilter('${key}','status','closed')" title="List the closed tickets">
         <div class="kpi-icon">✅</div>
         <div class="kpi-value">${p.closed}</div>
         <div class="kpi-label">Tickets Closed</div>
         <div class="kpi-sub">${p.closeRate}% of the range's tickets</div>
       </div>
-      <div class="kpi-card ${p.pending > 0 ? 'amber' : 'green'}">
+      <div class="kpi-card ${p.pending > 0 ? 'amber' : 'green'}${p.pending ? ' clickable' : ''}"${p.pending ? ` onclick="setHsFilter('${key}','status','pending')" title="List the tickets still open"` : ''}>
         <div class="kpi-icon">⏳</div>
         <div class="kpi-value">${p.pending}</div>
         <div class="kpi-label">Tickets Pending</div>
         <div class="kpi-sub">Avg age ${p.avgPendingAgeFmt}</div>
       </div>
-      <div class="kpi-card ${p.slaBreached > 0 ? 'red' : 'green'}">
+      <div class="kpi-card ${p.slaBreached > 0 ? 'red' : 'green'}${p.slaBreached ? ' clickable' : ''}"${p.slaBreached ? ` onclick="setHsFilter('${key}','status','breached')" title="List the breached tickets"` : ''}>
         <div class="kpi-icon">⏱</div>
         <div class="kpi-value">${p.slaBreached}</div>
         <div class="kpi-label">SLA Breached</div>
@@ -3060,35 +3433,21 @@ function renderHubspotPipeline(key, p) {
       <div class="chart-wrap" style="height:${Math.max(200, p.stageBreakdown.length * 26)}px"><canvas id="chart${pre}Stage"></canvas></div>
     </div>
 
-    <div class="table-card">
-      <div class="table-head">
-        <div class="table-title">Owner Breakdown</div>
-        <div style="font-size:11px;color:var(--muted)">${p.ownerBreakdown.length} owner${p.ownerBreakdown.length === 1 ? '' : 's'}</div>
-      </div>
-      <div style="overflow-x:auto">
-        <table>
-          <thead><tr><th>Owner</th><th>Created</th><th>Closed</th><th>Pending</th><th>SLA Breached</th><th>Close Rate</th></tr></thead>
-          <tbody>${p.ownerBreakdown.map(o => `
-            <tr class="agent-row">
-              <td>${escHtml(o.name)}</td>
-              <td>${o.total}</td>
-              <td>${o.closed}</td>
-              <td>${o.pending}</td>
-              <td style="${o.breached > 0 ? 'color:var(--red);font-weight:700' : ''}">${o.breached}</td>
-              <td>${o.total ? Math.round((o.closed / o.total) * 100) : 0}%</td>
-            </tr>`).join('')}</tbody>
-        </table>
-      </div>
-    </div>
+    ${hsHeatmapCard(key, p)}
+
+    ${hsAssigneeCard(key, p)}
+
+    ${hsDrillTable(key, p)}
 
     ${hsQueueTable('⏳ Pending Queue — oldest first', p.pendingTickets)}
 
     ${p.slaBreached > 0 ? hsQueueTable('🚨 SLA Breached', p.breachedTickets) : ''}
   `;
 
-  setTimeout(() => renderHubspotCharts(pre, p), 60);
+  renderHubspotHeatmap(key);
+  setTimeout(() => renderHubspotCharts(pre, p, key), 60);
   renderHubspotInsight(key);
-  if (!hubspotInsights[key]) loadHubspotInsight(key);
+  if (!hubspotInsights[key] && !hubspotInsightPending.has(key)) loadHubspotInsight(key);
 }
 
 // The model reads the same numbers already on screen, so the write-up can never
@@ -3123,6 +3482,7 @@ async function loadHubspotInsight(key, force = false) {
   if (hubspotInsights[key] && !force) return renderHubspotInsight(key);
 
   hubspotInsights[key] = null;
+  hubspotInsightPending.add(key);
   renderHubspotInsight(key);
 
   const p = hubspotData.pipelines[key];
@@ -3151,10 +3511,12 @@ async function loadHubspotInsight(key, force = false) {
   } catch (e) {
     const el = document.getElementById(HS_VIEWS[key].prefix + 'AiContent');
     if (el) el.innerHTML = `<div class="error-box">❌ Could not analyse: ${escHtml(e.message)}<br><small>Confirm OPENROUTER_KEY is set.</small></div>`;
+  } finally {
+    hubspotInsightPending.delete(key);
   }
 }
 
-function renderHubspotCharts(pre, p) {
+function renderHubspotCharts(pre, p, pkey) {
   const font = { family: 'Montserrat', size: 10 };
   // Matches the key destroyChart() derives from a canvas id: chartFooBar → fooBar
   const ckey = name => name.charAt(0).toLowerCase() + name.slice(1);
@@ -3162,6 +3524,7 @@ function renderHubspotCharts(pre, p) {
   destroyChart(`chart${pre}Daily`);
   destroyChart(`chart${pre}Sla`);
   destroyChart(`chart${pre}Stage`);
+  destroyChart(`chart${pre}Owner`);
 
   // Created and closed share one axis of days so a widening gap between the
   // two lines reads as a growing backlog at a glance.
@@ -3214,8 +3577,57 @@ function renderHubspotCharts(pre, p) {
       },
       options: {
         indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
+        onClick: (_e, els) => { if (els.length) setHsFilter(pkey, 'stage', els[0].index); },
+        onHover: (e, els) => { e.native.target.style.cursor = els.length ? 'pointer' : 'default'; },
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { afterBody: () => ['click to list these tickets'] } },
+        },
         scales: { x: { beginAtZero: true, ticks: { font, precision: 0 } }, y: { ticks: { font: { ...font, size: 9 } } } },
+      },
+    });
+  }
+
+  // One stacked bar per assignee: total length is their load, the segments say
+  // how much of it is done. Sorted by load, so the longest bar is the top row.
+  const ownerEl = document.getElementById(`chart${pre}Owner`);
+  if (ownerEl) {
+    const ow = (p.ownerBreakdown || []);
+    const names = ow.map(o => o.name.length > 20 ? o.name.slice(0, 19) + '…' : o.name);
+    charts[ckey(`${pre}Owner`)] = new Chart(ownerEl, {
+      type: 'bar',
+      data: {
+        labels: names,
+        datasets: [
+          { label: 'Closed',   data: ow.map(o => o.closed),   backgroundColor: 'rgba(16,185,129,0.78)' },
+          // Pending is split so a queue full of breaches reads differently
+          // from a queue that is merely long.
+          { label: 'Pending — SLA breached', data: ow.map(o => o.pendingBreached || 0), backgroundColor: 'rgba(239,68,68,0.8)' },
+          { label: 'Pending — within SLA',    data: ow.map(o => o.pending - (o.pendingBreached || 0)), backgroundColor: 'rgba(245,158,11,0.72)' },
+          { label: 'Invalid',  data: ow.map(o => o.invalid),  backgroundColor: 'rgba(148,163,184,0.55)' },
+        ],
+      },
+      options: {
+        indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+        onClick: (_e, els) => { if (els.length) setHsFilter(pkey, 'owner', els[0].index); },
+        onHover: (e, els) => { e.native.target.style.cursor = els.length ? 'pointer' : 'default'; },
+        scales: {
+          x: { stacked: true, beginAtZero: true, ticks: { font, precision: 0 } },
+          y: { stacked: true, ticks: { font: { ...font, size: 9 } } },
+        },
+        plugins: {
+          legend: { position: 'bottom', labels: { font, boxWidth: 10 } },
+          tooltip: {
+            callbacks: {
+              // The table carries the full detail; the tooltip carries the one
+              // number that makes a bar interpretable on its own.
+              afterBody: items => {
+                const o = ow[items[0].dataIndex];
+                return o ? [`${o.total} assigned · ${o.closeRate}% closed`, 'click to list their tickets'] : [];
+              },
+            },
+          },
+        },
       },
     });
   }

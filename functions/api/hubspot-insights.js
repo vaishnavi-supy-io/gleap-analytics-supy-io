@@ -39,7 +39,7 @@ export async function onRequestPost({ request, env }) {
         body: JSON.stringify({
           model: aiModel,
           messages: [{ role: 'user', content: prompt }],
-          max_tokens: 2000,
+          max_tokens: 2600,
           temperature: 0.2,
         }),
         signal: controller.signal,

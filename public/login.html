@@ -4,6 +4,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Supy Inbox Intelligence — Sign In</title>
+  <!-- Build marker. CI rewrites __BUILD_SHA__/__BUILD_TIME__ on deploy; the
+       login page is the only unauthenticated route, so this is what makes
+       "did the deploy actually reach production?" answerable with curl. -->
+  <meta name="build-sha" content="__BUILD_SHA__" />
+  <meta name="build-time" content="__BUILD_TIME__" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 

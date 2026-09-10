@@ -3056,7 +3056,7 @@ const HS_FILTERS = {
   },
   cell: {
     // v is "dayIndex-hour" from the heatmap grid.
-    label: (p, v) => { const [d, h] = v.split('-'); return `Arrived ${HS_HM_DAYS[+d]} ${hsHourLabel(+h)}–${hsHourLabel((+h + 1) % 24)} UTC`; },
+    label: (p, v) => { const [d, h] = v.split('-'); return `Arrived ${HS_HM_DAYS[+d]} ${hsHourLabel(+h)}–${hsHourLabel((+h + 1) % 24)} Dubai`; },
     match: (p, v) => { const [d, h] = v.split('-'); return t => t.dayOfWeek === HS_HM_DAYS[+d] && t.hour === +h; },
   },
 };
@@ -3184,7 +3184,7 @@ function hsHeatmapGrid(hm, noun, key, mode) {
   const body = days.map((day, d) => {
     const row = hm.grid[d] || [];
     const cells = row.map((n, h) => {
-      const label = `${day} ${hsHourLabel(h)}–${hsHourLabel((h + 1) % 24)} UTC — ${n} ${noun}${n === 1 ? '' : 's'}`;
+      const label = `${day} ${hsHourLabel(h)}–${hsHourLabel((h + 1) % 24)} Dubai — ${n} ${noun}${n === 1 ? '' : 's'}`;
       const style = n > 0 ? ` style="background:${hsHeatColor(n, Math.max(1, hm.max))}"` : '';
       // Only the created grid can drill down — the filter matches on arrival
       // time, so a cell from the closed grid would list the wrong tickets.
@@ -3206,7 +3206,7 @@ function hsHeatmapGrid(hm, noun, key, mode) {
 function hsHeatmapNote(hm, noun) {
   const bits = [];
   if (hm.busiestDay !== null) {
-    bits.push(`Busiest window: <strong>${escHtml(hm.busiestDay)} ${hsHourLabel(hm.busiestHour)} UTC</strong>.`);
+    bits.push(`Busiest window: <strong>${escHtml(hm.busiestDay)} ${hsHourLabel(hm.busiestHour)} Dubai</strong>.`);
   }
   if ((hm.peaks || []).length) {
     bits.push(`Top cells: ${hm.peaks.map(c => `${escHtml(c.day)} ${hsHourLabel(c.hour)} (${c.count})`).join(', ')}.`);
@@ -3215,8 +3215,8 @@ function hsHeatmapNote(hm, noun) {
   // for busyFrom when the volume is spread across most of the clock.
   if (hm.busyFrom !== null) {
     bits.push(hm.busyFrom === hm.busyTo
-      ? `Volume concentrates in the ${hsHourLabel(hm.busyFrom)} UTC hour.`
-      : `The busy stretch runs roughly ${hsHourLabel(hm.busyFrom)}–${hsHourLabel(hm.busyTo)} UTC.`);
+      ? `Volume concentrates in the ${hsHourLabel(hm.busyFrom)} Dubai hour.`
+      : `The busy stretch runs roughly ${hsHourLabel(hm.busyFrom)}–${hsHourLabel(hm.busyTo)} Dubai.`);
     if (hm.offBandCount) bits.push(`${hm.offBandCount} ${noun}${hm.offBandCount === 1 ? '' : 's'} (${hm.offBandPct}%) fall outside it.`);
   } else {
     bits.push('Volume is spread too evenly across the clock to name a busy stretch.');
@@ -3264,7 +3264,7 @@ function hsHeatmapCard(key, p) {
   return `<div class="chart-card">
     <div class="section-header" style="margin:0 0 4px">
       <div>
-        <div class="chart-title" style="margin:0">🗓 Ticket Heatmap — day × hour (UTC)</div>
+        <div class="chart-title" style="margin:0">🗓 Ticket Heatmap — day × hour (Dubai)</div>
         <div style="font-size:11px;color:var(--muted);margin-top:3px">Every ticket plotted by the weekday and hour it arrived. Darker means busier — this is the coverage question, not a volume chart.</div>
       </div>
       <div class="hshm-toggle">

@@ -1452,52 +1452,44 @@ app.get('/api/export', async (req, res) => {
   }
 });
 
-function buildAISystemContext(stats) {
-  const slim = {
-    ...stats,
-    openTickets: (stats.openTickets||[]).slice(0,15).map(t=>({bugId:t.bugId,title:t.title,contact:t.contact,company:t.company,agent:t.agent,slaBreached:t.slaBreached,isEscalated:t.isEscalated})),
-    tickets:undefined, escalatedTickets:undefined, callTickets:undefined, daily:undefined, hourly:undefined, dow:undefined, statusBreakdown:undefined,
-  };
-  const agentTable=(slim.agents||[]).map(a=>`  ${a.name}: ${a.handled} handled, ${a.open} open, reply rate ${a.replyRate}%, avg first resp ${a.avgFirstRespFmt}, avg close ${a.avgCloseFmt}, escalated ${a.escalated||0}`).join('\n');
-  const openList=(slim.openTickets||[]).map(t=>`  #${t.bugId} | ${t.contact}@${t.company||'?'} | ${t.agent} | SLA:${t.slaBreached?'BREACHED':'OK'} | esc:${t.isEscalated}`).join('\n');
-  return `You are an AI analyst for a B2B SaaS customer success team. Answer questions about the inbox analytics data below. Be concise and specific — use real numbers, name agents by name. If asked to write a formal report, use the section structure: HEALTH SCORE, URGENT ACTIONS, RESPONSE SPEED, ESCALATION PATTERNS, AGENT COACHING, ACTION PLAN.
-
-PERIOD OVERVIEW:
-- Total INQUIRY tickets: ${slim.total} | Open: ${slim.openCount} | Closed: ${slim.closedCount} | Archived: ${slim.archivedCount}
-- Escalated: ${slim.escalatedCount} | Unassigned: ${slim.unassignedCount} | SLA breached: ${slim.slaBreached} | Call requests: ${slim.callRequestCount}
-
-TIMING (benchmarks: assign <15min, first resp <30min, close <4h):
-- Avg assign: ${slim.avgAssignFmt} | Avg first resp: ${slim.avgFirstRespFmt} | Avg close: ${slim.avgCloseFmt}
-
-AGENT PERFORMANCE:
-${agentTable||'  (no agent data)'}
-
-OPEN TICKETS (sample):
-${openList||'  None'}
-
-TOP COMPANIES: ${(slim.topCompanies||[]).slice(0,5).map(c=>`${c.name}(${c.count})`).join(', ')||'N/A'}`;
+let chatModule = null;
+async function loadChat() {
+  if (!chatModule) chatModule = await import('./functions/_shared/chat.js');
+  return chatModule;
 }
 
 app.post('/api/ai-chat', async (req, res) => {
   try {
     if (!OPENROUTER_KEY) return res.status(500).json({ok:false,error:'OPENROUTER_KEY not configured. Add to .env'});
-    const { messages, stats, makeReport } = req.body;
+    const { messages, stats, hubspot, range, makeReport, stream } = req.body;
     if (!Array.isArray(messages) || messages.length === 0) return res.status(400).json({ok:false,error:'messages array required'});
 
-    const systemContent = stats ? buildAISystemContext(stats) : 'You are a customer success analyst. Answer questions about inbox performance data.';
+    const { buildChatSystemPrompt, REPORT_INSTRUCTION } = await loadChat();
+    const systemContent = buildChatSystemPrompt({ stats, hubspot, range });
     const history = messages.slice(-20); // cap context at 20 turns
-    if (makeReport) {
-      history.push({ role:'user', content:'Based on our conversation, write a formal team lead report with: **1. INBOX HEALTH SCORE: X/10** (one sentence why) **2. TOP 3 URGENT ACTIONS** (critical tickets to handle now) **3. RESPONSE SPEED ANALYSIS** (vs benchmarks, fastest/slowest agents) **4. ESCALATION PATTERNS** (what do the escalations signal) **5. AGENT COACHING NOTES** (specific feedback per agent) **6. THIS WEEK\'S 5-POINT ACTION PLAN** (exact steps). Be direct, use real numbers, name names.' });
-    }
+    if (makeReport) history.push({ role:'user', content: REPORT_INSTRUCTION });
 
     const timeoutPromise = new Promise((_,reject) => setTimeout(()=>reject(new Error('AI API timeout after 30s')), 30000));
     const fetchPromise = fetch('https://openrouter.ai/api/v1/chat/completions', {
       method:'POST',
       headers:{'Authorization':`Bearer ${OPENROUTER_KEY}`,'Content-Type':'application/json','HTTP-Referer':'https://gleap-analytics.app','X-Title':'Gleap Analytics'},
-      body: JSON.stringify({ model:AI_MODEL, messages:[{role:'system',content:systemContent},...history], max_tokens: makeReport?3000:800, temperature:0.3 }),
+      body: JSON.stringify({ model:AI_MODEL, messages:[{role:'system',content:systemContent},...history], max_tokens: makeReport?8000:3000, reasoning:{effort:'low'}, ...(stream?{stream:true}:{}) }),
     });
     const aiResp = await Promise.race([fetchPromise, timeoutPromise]);
     if (!aiResp.ok) { const t=await aiResp.text(); console.error(`AI chat error ${aiResp.status}:`,t.slice(0,200)); return res.status(502).json({ok:false,error:`AI API returned ${aiResp.status}`}); }
+    if (stream) {
+      // Same SSE passthrough as the Pages function, so local dev exercises the
+      // streaming path the deployed UI actually uses.
+      res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-cache, no-transform');
+      res.setHeader('X-Accel-Buffering', 'no');
+      // node-fetch hands back a Node stream; the platform fetch hands back a
+      // web ReadableStream. Accept whichever this runtime produced.
+      const body = aiResp.body;
+      if (typeof body?.pipe === 'function') return body.pipe(res);
+      const { Readable } = await import('node:stream');
+      return Readable.fromWeb(body).pipe(res);
+    }
     const data = await aiResp.json();
     res.json({ ok:true, reply: data.choices?.[0]?.message?.content || 'No response generated.' });
   } catch(e) {

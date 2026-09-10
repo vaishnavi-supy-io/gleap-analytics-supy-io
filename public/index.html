@@ -3511,10 +3511,20 @@ async function loadHubspotInsight(key, force = false) {
     renderHubspotInsight(key);
   } catch (e) {
     const el = document.getElementById(HS_VIEWS[key].prefix + 'AiContent');
-    if (el) el.innerHTML = `<div class="error-box">❌ Could not analyse: ${escHtml(e.message)}<br><small>Confirm OPENROUTER_KEY is set.</small></div>`;
+    if (el) el.innerHTML = `<div class="error-box">❌ Could not analyse: ${escHtml(e.message)}<br><small>${escHtml(aiErrorHint(e.message))}</small></div>`;
   } finally {
     hubspotInsightPending.delete(key);
   }
+}
+
+function aiErrorHint(msg) {
+  const m = String(msg || '');
+  if (m.includes('not configured')) return 'OPENROUTER_KEY is not bound on this deployment. Set it, then redeploy \u2014 Pages secrets only apply to new deployments.';
+  if (m.includes('401'))            return 'The key is bound but OpenRouter rejected it. Rotate OPENROUTER_KEY, then redeploy \u2014 an existing build keeps the old value.';
+  if (m.includes('402'))            return 'OpenRouter accepted the key but the account is out of credits.';
+  if (m.includes('429'))            return 'Rate-limited by OpenRouter. Wait a moment and re-analyse.';
+  if (m.includes('400'))            return 'OpenRouter rejected the request \u2014 usually an unknown AI_MODEL slug.';
+  return 'Check the Pages function logs for the upstream response.';
 }
 
 function renderHubspotCharts(pre, p, pkey) {

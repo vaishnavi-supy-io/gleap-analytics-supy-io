@@ -22,7 +22,7 @@ export async function onRequestPost({ request, env }) {
     if (!pipeline) return Response.json({ ok: false, error: 'pipeline stats required' }, { status: 400 });
 
     const prompt   = buildHubspotInsightPrompt(pipeline, other, range || { start: '', end: '' });
-    const aiModel  = env.AI_MODEL || 'anthropic/claude-sonnet-4-6';
+    const aiModel  = env.AI_MODEL || 'openai/gpt-5.6-luna';
     const controller = new AbortController();
     const timeout  = setTimeout(() => controller.abort(), 30000);
 
@@ -39,8 +39,11 @@ export async function onRequestPost({ request, env }) {
         body: JSON.stringify({
           model: aiModel,
           messages: [{ role: 'user', content: prompt }],
-          max_tokens: 2600,
-          temperature: 0.2,
+          // Reasoning models bill thinking against this same budget, so the old
+          // 2600 could be spent before any prose was emitted. Low effort keeps
+          // the round trip inside the 30s abort below.
+          max_tokens: 8000,
+          reasoning: { effort: 'low' },
         }),
         signal: controller.signal,
       });
@@ -55,11 +58,24 @@ export async function onRequestPost({ request, env }) {
     }
 
     const data = await aiResp.json();
-    return Response.json({
-      ok: true,
-      analysis: data.choices?.[0]?.message?.content || 'No analysis generated.',
-      model: aiModel,
-    });
+    const choice   = data.choices?.[0];
+    const analysis = choice?.message?.content?.trim();
+
+    // An empty body with finish_reason 'length' means the token budget went to
+    // reasoning. Surfacing that beats the old silent 'No analysis generated.',
+    // which read like a content problem rather than a budget one.
+    if (!analysis) {
+      const reason = choice?.finish_reason || 'unknown';
+      console.error('AI returned no content; finish_reason:', reason);
+      return Response.json({
+        ok: false,
+        error: reason === 'length'
+          ? `AI hit the token budget before answering (finish_reason: length) on ${aiModel}`
+          : `AI returned no content (finish_reason: ${reason}) on ${aiModel}`,
+      }, { status: 502 });
+    }
+
+    return Response.json({ ok: true, analysis, model: aiModel });
   } catch (e) {
     console.error('HubSpot insights error:', e.message);
     return Response.json({ ok: false, error: e.message || 'Server error' }, { status: 500 });

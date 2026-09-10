@@ -88,17 +88,26 @@ function toMs(v) {
   return Number.isFinite(t) ? t : null;
 }
 
+// The portal runs Asia/Dubai, and the team reads these numbers as their own
+// working hours. Dubai has observed no DST since 1978, so a fixed offset is
+// exact year-round — shifting the instant and then reading the UTC getters
+// yields Dubai wall-clock without an Intl call per ticket.
+export const PORTAL_TZ_LABEL = 'Dubai';
+const PORTAL_OFFSET_MS = 4 * 60 * 60 * 1000;
+const portalDate = ms => new Date(ms + PORTAL_OFFSET_MS);
+
 function dayKey(ms) {
-  return ms === null ? 'unknown' : new Date(ms).toISOString().slice(0, 10);
+  return ms === null ? 'unknown' : portalDate(ms).toISOString().slice(0, 10);
 }
 
 // Heatmap axes. Monday-first because that is how the team reads a work week,
-// and UTC throughout so the grid never shifts under a viewer in another zone —
-// the dashboard labels it as UTC rather than silently localising.
+// and Dubai wall-clock throughout: a grid in UTC told the team to staff 06:00
+// when the tickets actually land at 10:00 their time. Every viewer sees the
+// same portal-local grid, and the dashboard labels it Dubai.
 export const HEATMAP_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 function dowIndex(ms) {
-  return (new Date(ms).getUTCDay() + 6) % 7; // JS weeks start Sunday; ours start Monday
+  return (portalDate(ms).getUTCDay() + 6) % 7; // JS weeks start Sunday; ours start Monday
 }
 
 /**
@@ -113,7 +122,7 @@ function buildHeatmap(timestamps) {
 
   for (const ms of timestamps) {
     if (ms === null || ms === undefined) continue;
-    grid[dowIndex(ms)][new Date(ms).getUTCHours()]++;
+    grid[dowIndex(ms)][portalDate(ms).getUTCHours()]++;
     total++;
   }
 
@@ -346,9 +355,9 @@ export function computePipelineStats(pipeline, rawTickets, opts = {}) {
       closeHrs:    suspectTimestamps ? null : closeHrs,
       suspectTimestamps,
       day:         dayKey(createdMs),
-      // UTC weekday/hour of arrival, for the day x hour heatmap.
+      // Portal-local (Dubai) weekday/hour of arrival, for the day x hour heatmap.
       dayOfWeek:   createdMs === null ? null : HEATMAP_DAYS[dowIndex(createdMs)],
-      hour:        createdMs === null ? null : new Date(createdMs).getUTCHours(),
+      hour:        createdMs === null ? null : portalDate(createdMs).getUTCHours(),
       link:        ticketLink(portalId, id),
     };
   });
@@ -568,9 +577,9 @@ function heatmapSummary(hm) {
     busiestHour: hm.busiestHour,
     // Full phrase, so a one-hour band doesn't render as "09:00-09:00".
     band: hm.busyFrom === null ? null
-      : hm.busyFrom === hm.busyTo ? `the ${hh(hm.busyFrom)} UTC hour`
-      : `the ${hh(hm.busyFrom)}-${hh(hm.busyTo)} UTC band`,
-    peaks: (hm.peaks || []).map(c => `${c.day} ${hh(c.hour)} UTC (${c.count})`),
+      : hm.busyFrom === hm.busyTo ? `the ${hh(hm.busyFrom)} ${PORTAL_TZ_LABEL} hour`
+      : `the ${hh(hm.busyFrom)}-${hh(hm.busyTo)} ${PORTAL_TZ_LABEL} band`,
+    peaks: (hm.peaks || []).map(c => `${c.day} ${hh(c.hour)} ${PORTAL_TZ_LABEL} (${c.count})`),
     weekendCount: hm.weekendCount, weekendPct: hm.weekendPct,
     offBandCount: hm.offBandCount, offBandPct: hm.offBandPct,
     byDay: (hm.days || []).map((d, i) => `${d}: ${hm.byDay[i]}`).join(' · '),
@@ -593,13 +602,13 @@ export function buildHubspotInsightPrompt(p, other, range) {
   const arrivals = s.arrivals;
   const closures = s.closures;
   const patternBlock = arrivals ? [
-    `Busiest day: ${arrivals.busiestDay}. Busiest hour: ${hh(arrivals.busiestHour)} UTC.`,
+    `Busiest day: ${arrivals.busiestDay}. Busiest hour: ${hh(arrivals.busiestHour)} ${PORTAL_TZ_LABEL}.`,
     arrivals.band ? `Most volume lands in ${arrivals.band}.` : 'Volume is spread too evenly across the clock to name a band.',
     `Per weekday — ${arrivals.byDay}`,
     `Peak single windows: ${arrivals.peaks.join(', ') || 'none'}.`,
     `${arrivals.weekendCount} ticket(s) (${arrivals.weekendPct}%) arrive Sat/Sun.`,
     `${arrivals.offBandCount} ticket(s) (${arrivals.offBandPct}%) arrive outside the busy band.`,
-    closures ? `Closures peak ${closures.busiestDay} ${hh(closures.busiestHour)} UTC${closures.band ? `, mostly in ${closures.band}` : ''} — compare against the arrival band to spot a coverage gap.` : 'Too few closed tickets to read a closing pattern.',
+    closures ? `Closures peak ${closures.busiestDay} ${hh(closures.busiestHour)} ${PORTAL_TZ_LABEL}${closures.band ? `, mostly in ${closures.band}` : ''} — compare against the arrival band to spot a coverage gap.` : 'Too few closed tickets to read a closing pattern.',
   ].join('\n') : 'No dated tickets in this range — no arrival pattern to read.';
   const pending = s.oldestPending.map(t => `• ${t.subject} — ${t.stage}, ${t.owner}, ${t.ageHrs}h old, SLA ${t.sla || 'not set'}, ${t.priority}`).join('\n');
   const breach  = s.worstBreached.map(t => `• ${t.subject} — ${t.stage}, ${t.owner}, ${t.ageHrs}h old, ${t.priority}`).join('\n');
@@ -630,7 +639,7 @@ HEADLINE NUMBERS
 STAGE DISTRIBUTION
 ${stages || 'none'}
 
-WHEN TICKETS ARRIVE (day x hour, UTC)
+WHEN TICKETS ARRIVE (day x hour, ${PORTAL_TZ_LABEL} local time \u2014 the portal timezone, Asia/Dubai)
 ${patternBlock}
 
 SLA STATUS

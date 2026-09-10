@@ -24,4 +24,4 @@ GOOGLE_CLIENT_SECRET=
 SESSION_SECRET=
 
 # Optional: override the AI model used for reports
-# AI_MODEL=anthropic/claude-3-haiku
+# AI_MODEL=openai/gpt-5.6-luna

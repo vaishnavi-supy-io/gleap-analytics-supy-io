@@ -20,6 +20,16 @@ export async function onRequest(context) {
   const email = token ? await verifySession(token, env.SESSION_SECRET) : null;
 
   if (!email) {
+    // A redirect is right for a page navigation but wrong for an API call:
+    // fetch() follows the 302, gets the login page's HTML, and the caller's
+    // .json() then dies on '<' — which reads as corrupt data rather than an
+    // expired session. Give API callers a status they can actually branch on.
+    if (url.pathname.startsWith('/api/')) {
+      return Response.json(
+        { ok: false, error: 'Session expired \u2014 sign in again' },
+        { status: 401, headers: { 'Cache-Control': 'no-store' } },
+      );
+    }
     // Preserve the original destination for redirect after login
     const loginUrl = new URL('/login', url.origin);
     loginUrl.searchParams.set('next', url.pathname + url.search);

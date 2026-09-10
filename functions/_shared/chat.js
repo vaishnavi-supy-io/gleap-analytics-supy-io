@@ -41,9 +41,9 @@ function pipelineSection(p) {
     .join('\n');
   const oldest = (p.pendingTickets || [])
     .slice(0, 6)
-    .map(t => `    • ${t.subject} — ${t.stage}, ${t.owner}, ${t.ageHrs}h old, ${t.priority}`)
+    .map(t => `    • ${t.subject} — ${t.stage}, ${t.assignee}, ${t.ageHrs}h old, ${t.priority}`)
     .join('\n');
-  const owners = (p.ownerBreakdown || [])
+  const assignees = (p.assigneeBreakdown || [])
     .slice(0, 10)
     .map(o => `    ${o.name}: ${o.total} assigned, ${o.closed} closed, ${o.pending} pending, ${o.breached} breached (${o.breachRate}%), close rate ${o.closeRate}%, avg close ${o.avgCloseFmt}, oldest pending ${o.oldestPendingFmt || 'n/a'}${o.topPendingStage ? `, mostly in ${o.topPendingStage}` : ''}`)
     .join('\n');
@@ -61,8 +61,8 @@ function pipelineSection(p) {
 ${stages || '    (none)'}
     Oldest pending:
 ${oldest || '    (none)'}
-    Owners:
-${owners || '    (none)'}
+    Assignees:
+${assignees || '    (none)'}
     Arrival pattern:
 ${pattern}`;
 }

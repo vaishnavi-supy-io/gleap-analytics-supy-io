@@ -3006,7 +3006,7 @@ function hsQueueTable(title, tickets, opts = {}) {
         ? `<a class="hs-ticketlink" href="${t.link}" target="_blank" rel="noopener">${escHtml(t.subject)}</a>`
         : `<span style="font-weight:600">${escHtml(t.subject)}</span>`}</td>
       <td>${escHtml(t.stage)}</td>
-      <td>${escHtml(t.owner)}</td>
+      <td>${escHtml(t.assignees || t.assignee)}</td>
       ${showSla ? `<td>${hsSlaBadge(t.slaStatus)}</td>` : ''}
       <td>${hsAgeBadge(t.ageHrs)}</td>
       <td>${t.createdAt ? new Date(t.createdAt).toLocaleDateString() : '—'}</td>
@@ -3041,8 +3041,8 @@ const hsFilter = { onboarding: null, operations: null };
 // Definitions of every slice type: how to label it and how to test a ticket.
 const HS_FILTERS = {
   owner: {
-    label: (p, v) => `Assignee · ${(p.ownerBreakdown[v] || {}).name || 'Unknown'}`,
-    match: (p, v) => { const o = p.ownerBreakdown[v]; return t => !!o && t.owner === o.name; },
+    label: (p, v) => `Assignee · ${(p.assigneeBreakdown[v] || {}).name || 'Unknown'}`,
+    match: (p, v) => { const a = p.assigneeBreakdown[v]; return t => !!a && t.assignee === a.name; },
   },
   stage: {
     label: (p, v) => `Stage · ${(p.stageBreakdown[v] || {}).stage || 'Unknown'}`,
@@ -3137,7 +3137,7 @@ function hsDrillTable(key, p) {
         ? `<a class="hs-ticketlink" href="${t.link}" target="_blank" rel="noopener">${escHtml(t.subject)}</a>`
         : `<span style="font-weight:600">${escHtml(t.subject)}</span>`}</td>
       <td>${escHtml(t.stage)}</td>
-      <td>${escHtml(t.owner)}</td>
+      <td>${escHtml(t.assignees || t.assignee)}</td>
       <td>${t.isClosed ? '<span style="color:var(--green);font-weight:700">Closed</span>'
             : t.isInvalid ? '<span style="color:var(--faint)">Invalid</span>'
             : '<span style="color:var(--amber);font-weight:700">Open</span>'}</td>
@@ -3285,7 +3285,7 @@ function hsHeatmapCard(key, p) {
 // open work is stuck.
 function hsAssigneeCard(key, p) {
   const pre   = HS_VIEWS[key].prefix;
-  const rows  = p.ownerBreakdown || [];
+  const rows  = p.assigneeBreakdown || [];
   const named = rows.filter(o => !o.unassigned);
   const unassigned = rows.find(o => o.unassigned) || null;
 
@@ -3459,7 +3459,7 @@ function renderHubspotPipeline(key, p) {
 // set would be a needlessly large payload.
 function slimPipelineForAI(p) {
   const q = t => ({
-    subject: t.subject, stage: t.stage, owner: t.owner,
+    subject: t.subject, stage: t.stage, assignee: t.assignee,
     ageHrs: t.ageHrs === null ? null : Math.round(t.ageHrs),
     slaStatus: t.slaStatus, priority: t.priority,
   });
@@ -3606,7 +3606,7 @@ function renderHubspotCharts(pre, p, pkey) {
   // how much of it is done. Sorted by load, so the longest bar is the top row.
   const ownerEl = document.getElementById(`chart${pre}Owner`);
   if (ownerEl) {
-    const ow = (p.ownerBreakdown || []);
+    const ow = (p.assigneeBreakdown || []);
     const names = ow.map(o => o.name.length > 20 ? o.name.slice(0, 19) + '…' : o.name);
     charts[ckey(`${pre}Owner`)] = new Chart(ownerEl, {
       type: 'bar',

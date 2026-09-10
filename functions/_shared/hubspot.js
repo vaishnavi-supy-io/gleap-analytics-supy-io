@@ -60,6 +60,11 @@ const TICKET_PROPERTIES = [
   'hs_pipeline', 'hs_pipeline_stage', 'hs_ticket_priority',
   'sla_status', 'sla_deadline', 'sla_type',
   'hubspot_owner_id', 'hs_lastmodifieddate',
+  // Custom property whose HubSpot *label* is "Ticket assignee". The internal
+  // name reads like a creator field but is not one — this is who the ticket is
+  // assigned to, which is what the team works from. `hubspot_owner_id`
+  // ("Ticket owner") is kept alongside it because the two genuinely differ.
+  'ticket_creation_by',
 ];
 
 // HubSpot's search endpoint refuses to page past 10 000 results.
@@ -329,6 +334,16 @@ export function computePipelineStats(pipeline, rawTickets, opts = {}) {
     // rather than dragging avgCloseHrs down by ~10%.
     const suspectTimestamps = closeHrs !== null && closeHrs < 0;
 
+    // "Ticket assignee" is a checkbox-type enumeration, so HubSpot serialises
+    // multiple selections as a ';'-separated string. Ids resolve against the
+    // same owners map as the ticket owner; an id with no match keeps its
+    // number rather than silently vanishing from the scorecard.
+    const assigneeIds = String(p.ticket_creation_by || '')
+      .split(';')
+      .map(x => x.trim())
+      .filter(Boolean);
+    const assigneeNames = assigneeIds.map(aid => owners[aid] || `Unknown (${aid})`);
+
     return {
       id,
       subject:     p.subject || '(No subject)',
@@ -346,6 +361,12 @@ export function computePipelineStats(pipeline, rawTickets, opts = {}) {
       slaDeadline: p.sla_deadline || '',
       ownerId:     String(p.hubspot_owner_id || ''),
       owner:       owners[String(p.hubspot_owner_id || '')] || 'Unassigned',
+      assigneeIds,
+      // Multi-assignee tickets exist, so the scorecard groups by the first
+      // (primary) id to keep its totals reconcilable with the ticket count,
+      // while `assignees` carries the full list for display.
+      assignee:    assigneeNames[0] || 'Unassigned',
+      assignees:   assigneeNames.length ? assigneeNames.join(', ') : 'Unassigned',
       createdAt:   p.createdate || '',
       closedAt:    p.closed_date || '',
       updatedAt:   p.hs_lastmodifieddate || '',
@@ -399,16 +420,16 @@ export function computePipelineStats(pipeline, rawTickets, opts = {}) {
   const heatmapCreated = buildHeatmap(rows.map(r => toMs(r.createdAt)));
   const heatmapClosed  = buildHeatmap(closed.map(r => toMs(r.closedAt)));
 
-  // Assignee scorecard. Grouped once rather than re-filtering `rows` per owner
-  // per metric, because the owner count is unbounded and the ticket list can
+  // Assignee scorecard. Grouped once rather than re-filtering `rows` per person
+  // per metric, because the assignee count is unbounded and the ticket list can
   // run into the thousands.
-  const byOwner = new Map();
+  const byAssignee = new Map();
   for (const r of rows) {
-    if (!byOwner.has(r.owner)) byOwner.set(r.owner, []);
-    byOwner.get(r.owner).push(r);
+    if (!byAssignee.has(r.assignee)) byAssignee.set(r.assignee, []);
+    byAssignee.get(r.assignee).push(r);
   }
 
-  const ownerBreakdown = [...byOwner.entries()]
+  const assigneeBreakdown = [...byAssignee.entries()]
     .map(([name, list]) => {
       const oClosed   = list.filter(r => r.isClosed);
       const oPending  = list.filter(r => r.isPending);
@@ -426,9 +447,9 @@ export function computePipelineStats(pipeline, rawTickets, opts = {}) {
 
       return {
         name,
-        // Every ticket in a group shares an owner, so the first row's id is
-        // the group's id. Empty string for the Unassigned bucket.
-        ownerId:  list[0]?.ownerId || '',
+        // Every ticket in a group shares an assignee, so the first row's id
+        // is the group's id. Empty string for the Unassigned bucket.
+        assigneeId: list[0]?.assigneeIds?.[0] || '',
         total:    list.length,
         closed:   oClosed.length,
         pending:  oPending.length,
@@ -492,7 +513,7 @@ export function computePipelineStats(pipeline, rawTickets, opts = {}) {
     avgCloseHrs, avgCloseFmt: fmtHours(avgCloseHrs),
     avgPendingAgeHrs, avgPendingAgeFmt: fmtHours(avgPendingAgeHrs),
 
-    stageBreakdown, daily, closedDaily, ownerBreakdown, slaBreakdown,
+    stageBreakdown, daily, closedDaily, assigneeBreakdown, slaBreakdown,
     heatmap: { created: heatmapCreated, closed: heatmapClosed },
     priorityBreakdown: Object.entries(countBy(rows, r => r.priority))
       .map(([priority, count]) => ({ priority, count }))
@@ -541,7 +562,7 @@ export async function runHubspotPipeline(start, end, env) {
  */
 export function slimForAI(p, limit = 8) {
   const q = t => ({
-    subject: t.subject, stage: t.stage, owner: t.owner,
+    subject: t.subject, stage: t.stage, assignee: t.assignee,
     ageHrs: t.ageHrs === null ? null : Math.round(t.ageHrs),
     sla: t.slaStatus, priority: t.priority,
   });
@@ -556,7 +577,7 @@ export function slimForAI(p, limit = 8) {
     stageBreakdown: p.stageBreakdown.filter(s => s.count),
     slaBreakdown: p.slaBreakdown.filter(s => s.count),
     priorityBreakdown: p.priorityBreakdown,
-    ownerBreakdown: p.ownerBreakdown.slice(0, 12),
+    assigneeBreakdown: p.assigneeBreakdown.slice(0, 12),
     // The grid itself is 168 numbers of no use to a language model; the peaks
     // and bands are the part worth reasoning over.
     arrivals: heatmapSummary(p.heatmap?.created),
@@ -589,7 +610,7 @@ function heatmapSummary(hm) {
 export function buildHubspotInsightPrompt(p, other, range) {
   const s = slimForAI(p);
   const stages  = s.stageBreakdown.map(x => `${x.stage}: ${x.count}${x.terminal ? ` [${x.terminal}]` : ''}`).join('\n');
-  const owners  = s.ownerBreakdown.map(o => [
+  const assignees = s.assigneeBreakdown.map(o => [
     `${o.name}: ${o.total} assigned (${o.sharePct}% of the period)`,
     `${o.closed} closed (${o.closeRate}%)`,
     `${o.pending} pending`,
@@ -610,8 +631,8 @@ export function buildHubspotInsightPrompt(p, other, range) {
     `${arrivals.offBandCount} ticket(s) (${arrivals.offBandPct}%) arrive outside the busy band.`,
     closures ? `Closures peak ${closures.busiestDay} ${hh(closures.busiestHour)} ${PORTAL_TZ_LABEL}${closures.band ? `, mostly in ${closures.band}` : ''} — compare against the arrival band to spot a coverage gap.` : 'Too few closed tickets to read a closing pattern.',
   ].join('\n') : 'No dated tickets in this range — no arrival pattern to read.';
-  const pending = s.oldestPending.map(t => `• ${t.subject} — ${t.stage}, ${t.owner}, ${t.ageHrs}h old, SLA ${t.sla || 'not set'}, ${t.priority}`).join('\n');
-  const breach  = s.worstBreached.map(t => `• ${t.subject} — ${t.stage}, ${t.owner}, ${t.ageHrs}h old, ${t.priority}`).join('\n');
+  const pending = s.oldestPending.map(t => `• ${t.subject} — ${t.stage}, ${t.assignee}, ${t.ageHrs}h old, SLA ${t.sla || 'not set'}, ${t.priority}`).join('\n');
+  const breach  = s.worstBreached.map(t => `• ${t.subject} — ${t.stage}, ${t.assignee}, ${t.ageHrs}h old, ${t.priority}`).join('\n');
 
   // Caveats the model must not mistake for signal.
   const caveats = [
@@ -649,7 +670,7 @@ PRIORITY
 ${s.priorityBreakdown.map(x => `${x.priority}: ${x.count}`).join(' · ')}
 
 PER OWNER
-${owners || 'none'}
+${assignees || 'none'}
 
 OLDEST PENDING TICKETS
 ${pending || 'none'}
@@ -673,7 +694,7 @@ The real read on volume, throughput and the backlog. Call out where the period-s
 Which stages are accumulating tickets and what that specific stage means operationally. Name stages and counts.
 
 **3. SLA RISK**
-What is driving the breaches. Is it concentrated in a stage, an owner, or a priority band? Be specific.
+What is driving the breaches. Is it concentrated in a stage, an assignee, or a priority band? Be specific.
 
 **4. WORKLOAD DISTRIBUTION**
 Who is carrying what, and whether it is unbalanced. Name people and numbers, including close rate and average close time where the sample supports it. Call out anything sitting under "Unassigned". If a person has many breached tickets, say so, but attribute it to load or stage rather than assuming fault.

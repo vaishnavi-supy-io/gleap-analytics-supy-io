@@ -398,41 +398,44 @@ export function getAgentResponseTime(t) {
 }
 
 // ── Detect bot-to-human handover time ───────────────────────
-// Reads the messages array chronologically and returns the timestamp of the
-// last bot/automated message (= when the bot finished and human queue started).
-// Falls back to createdAt if no bot messages are found.
+// Priority:
+//  1. bot.forwardedToSupportAt — exact moment Gleap routed ticket from bot to human queue (enriched ticket only)
+//  2. humanHandoff.at — fallback when forwardedToSupportAt is missing
+//  3. last bot message in messages/comments array (chronological)
+//  4. null — if none available we return null so timing excludes bot infl ation
+//     instead of falling back to createdAt (bulk list has no bot fields).
 export function getBotHandoverTime(t) {
+  if (t.bot?.forwardedToSupportAt) return t.bot.forwardedToSupportAt;
+  if (t.humanHandoff?.at) return t.humanHandoff.at;
+
   const messages = t.messages || t.comments || [];
-  if (!messages.length) return t.createdAt || t.createdDate;
-
-  const sorted = [...messages].sort((a, b) => {
-    const ta = parseDt(a.createdAt || a.date || a.timestamp);
-    const tb = parseDt(b.createdAt || b.date || b.timestamp);
-    if (ta && tb) return ta - tb;
-    return 0;
-  });
-
-  let lastBotTime = null;
-
-  for (const msg of sorted) {
-    const isBotMsg =
-      msg.isBot === true ||
-      msg.type === 'BOT' || msg.type === 'bot' ||
-      msg.source === 'bot' || msg.source === 'BOT' ||
-      String(msg.author?.type || '').toLowerCase() === 'bot' ||
-      String(msg.authorType || '').toLowerCase() === 'bot' ||
-      (!msg.author && !msg.authorName) ||
-      /^(bot|gleap bot|automated|assistant|system)$/i.test(
-        String(msg.author?.name || msg.authorName || msg.author || '').trim()
-      );
-
-    if (isBotMsg) {
-      const ts = msg.createdAt || msg.date || msg.timestamp;
-      if (ts) lastBotTime = ts;
+  if (messages.length) {
+    const sorted = [...messages].sort((a, b) => {
+      const ta = parseDt(a.createdAt || a.date || a.timestamp);
+      const tb = parseDt(b.createdAt || b.date || b.timestamp);
+      if (ta && tb) return ta - tb;
+      return 0;
+    });
+    let lastBotTime = null;
+    for (const msg of sorted) {
+      const isBotMsg =
+        msg.isBot === true ||
+        msg.type === 'BOT' || msg.type === 'bot' ||
+        msg.source === 'bot' || msg.source === 'BOT' ||
+        String(msg.author?.type || '').toLowerCase() === 'bot' ||
+        String(msg.authorType || '').toLowerCase() === 'bot' ||
+        (!msg.author && !msg.authorName) ||
+        /^(bot|gleap bot|automated|assistant|system)$/i.test(
+          String(msg.author?.name || msg.authorName || msg.author || '').trim()
+        );
+      if (isBotMsg) {
+        const ts = msg.createdAt || msg.date || msg.timestamp;
+        if (ts) lastBotTime = ts;
+      }
     }
+    if (lastBotTime) return lastBotTime;
   }
-
-  return lastBotTime || t.createdAt || t.createdDate;
+  return null;
 }
 
 export function countAgentResponses(t, agentName) {
@@ -1046,13 +1049,19 @@ export async function runFullPipeline(start, end, gleapHeaders, projectId) {
   if (tickets.length <= 150) {
     tickets = await enrichTickets(tickets, gleapHeaders);
   } else {
-    const callOnes = tickets.filter(t => isCallRequest(t));
-    if (callOnes.length > 0 && callOnes.length <= 150) {
-      console.log(`📞 Enriching ${callOnes.length} call tickets...`);
-      const enriched = await enrichTickets(callOnes, gleapHeaders);
-      const enrichedMap = new Map(enriched.map(t => [t._id||t.id||'', t]));
-      tickets = tickets.map(t => enrichedMap.get(t._id||t.id||'') || t);
-    }
+    // For accurate median timing we need bot.forwardedToSupportAt which is only
+    // in the enriched ticket. Bulk list has no bot fields, so handover would be
+    // null and median sample would be empty. Enrich a sample of 150 tickets
+    // (newest first) plus any call tickets outside the sample so timing is
+    // measured from the true bot→human handover, not creation.
+    const sample = tickets.slice(0, 150);
+    const callOnes = tickets.filter(t => isCallRequest(t) && !sample.some(s => (s._id||s.id)===(t._id||t.id)));
+    const toEnrich = callOnes.length ? [...sample, ...callOnes.slice(0, Math.max(0, 150 - sample.length))] : sample;
+    const uniq = [...new Map(toEnrich.map(t=>[t._id||t.id,t])).values()].slice(0,150);
+    console.log(`📊 Enriching ${uniq.length} tickets for handover-accurate timing (sample of ${tickets.length})...`);
+    const enriched = await enrichTickets(uniq, gleapHeaders);
+    const enrichedMap = new Map(enriched.map(t => [t._id||t.id||'', t]));
+    tickets = tickets.map(t => enrichedMap.get(t._id||t.id||'') || t);
   }
 
   const rows  = processTickets(tickets, projectId);

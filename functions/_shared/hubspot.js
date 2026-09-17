@@ -60,6 +60,8 @@ const TICKET_PROPERTIES = [
   'hs_pipeline', 'hs_pipeline_stage', 'hs_ticket_priority',
   'sla_status', 'sla_deadline', 'sla_type',
   'hubspot_owner_id', 'hs_lastmodifieddate',
+  // Audit source — used to exclude workflow-created tickets (AUTOMATION_PLATFORM)
+  'hs_object_source',
   // Custom property whose HubSpot *label* is "Ticket assignee". The internal
   // name reads like a creator field but is not one — this is who the ticket is
   // assigned to, which is what the team works from. `hubspot_owner_id`
@@ -217,6 +219,7 @@ export async function fetchPipelineTickets(pipeline, start, end, headers) {
         filters: [
           { propertyName: 'hs_pipeline', operator: 'EQ', value: pipeline.id },
           { propertyName: 'createdate', operator: 'BETWEEN', value: startMs, highValue: endMs },
+          { propertyName: 'hs_object_source', operator: 'NEQ', value: 'AUTOMATION_PLATFORM' },
         ],
       }],
       properties: TICKET_PROPERTIES,
@@ -248,6 +251,7 @@ export async function fetchOpenBacklog(pipeline, headers) {
       filters: [
         { propertyName: 'hs_pipeline', operator: 'EQ', value: pipeline.id },
         { propertyName: 'hs_pipeline_stage', operator: 'IN', values: openStages },
+        { propertyName: 'hs_object_source', operator: 'NEQ', value: 'AUTOMATION_PLATFORM' },
       ],
     }],
     properties: ['hs_object_id'],
@@ -314,7 +318,10 @@ export function computePipelineStats(pipeline, rawTickets, opts = {}) {
   const stages  = stageIndex(pipeline);
   const nowMs   = Date.now();
 
-  const rows = rawTickets.map(t => {
+  // Defensive: drop any workflow-created tickets that slipped through (e.g. cached data before the filter was added)
+  const filteredTickets = rawTickets.filter(t => (t.properties?.hs_object_source) !== 'AUTOMATION_PLATFORM');
+
+  const rows = filteredTickets.map(t => {
     const p        = t.properties || {};
     const stageId  = String(p.hs_pipeline_stage || '');
     const stage    = stages.get(stageId);

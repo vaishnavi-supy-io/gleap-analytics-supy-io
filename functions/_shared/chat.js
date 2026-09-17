@@ -12,7 +12,7 @@ const BENCHMARKS = 'assign <15min, first resp <30min, close <4h';
 
 function gleapSection(s) {
   const agents = (s.agents || [])
-    .map(a => `  ${a.name}: ${a.handled} handled, ${a.open} open, reply rate ${a.replyRate}%, avg first resp ${a.avgFirstRespFmt}, avg close ${a.avgCloseFmt}, escalated ${a.escalated || 0}`)
+    .map(a => `  ${a.name}: ${a.handled} handled, ${a.open} open, reply rate ${a.replyRate}%, median first resp ${a.medianFirstRespFmt||a.avgFirstRespFmt}, median close ${a.medianCloseFmt||a.avgCloseFmt}, escalated ${a.escalated || 0}`)
     .join('\n');
   const open = (s.openTickets || [])
     .map(t => `  #${t.bugId} | ${t.contact}@${t.company || '?'} | ${t.agent} | SLA:${t.slaBreached ? 'BREACHED' : 'OK'} | esc:${t.isEscalated}`)
@@ -22,8 +22,8 @@ function gleapSection(s) {
 - Total: ${s.total} | Open: ${s.openCount} | Closed: ${s.closedCount} | Archived: ${s.archivedCount}
 - Escalated: ${s.escalatedCount} | Unassigned: ${s.unassignedCount} | SLA breached: ${s.slaBreached} | Call requests: ${s.callRequestCount}
 
-TIMING (benchmarks: ${BENCHMARKS})
-- Avg assign: ${s.avgAssignFmt} | Avg first resp: ${s.avgFirstRespFmt} | Avg close: ${s.avgCloseFmt}
+TIMING (benchmarks: ${BENCHMARKS} — medians, human time only: measured from bot handover, not ticket creation)
+- Median assign: ${s.medianAssignFmt||s.avgAssignFmt} | Median first resp: ${s.medianFirstRespFmt||s.avgFirstRespFmt} | Median close: ${s.medianCloseFmt||s.avgCloseFmt}
 
 AGENT PERFORMANCE
 ${agents || '  (no agent data)'}

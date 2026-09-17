@@ -52,6 +52,12 @@ export function fmtMins(m) {
 }
 
 export function avg(arr) { return arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : null; }
+export function median(arr) {
+  if (!arr.length) return null;
+  const s = [...arr].sort((a,b)=>a-b);
+  const mid = Math.floor(s.length/2);
+  return s.length % 2 ? s[mid] : (s[mid-1]+s[mid])/2;
+}
 
 export function getAgent(t) {
   for (const f of ['processingUser','assignedTo','assignedAgent','handledBy','agent']) {
@@ -313,7 +319,8 @@ export function clusterUncategorized(rows) {
       slaCount,
       resolveSum: resolveVals.reduce((a,b)=>a+b,0),
       resolveN: resolveVals.length,
-      avgResolveFmt: fmtMins(avg(resolveVals)),
+      avgResolveFmt: fmtMins(median(resolveVals)),
+      medianResolveFmt: fmtMins(median(resolveVals)),
       openCount: catRows.filter(r=>r.isOpen).length,
       escalatedCount: catRows.filter(r=>r.isEscalated).length,
       topAccount: topEntry ? { name: topEntry[0], count: topEntry[1] } : null,
@@ -765,8 +772,9 @@ export function processTickets(tickets, projectId) {
       isCallRequest:isCallRequest(t),
       category:classifyTicket(t),
       createdAt:created, updatedAt:updated, firstAssignAt:firstAssign, closeAt:closeTime,
+      handoverAt:getBotHandoverTime(t),
       assignMins:minsBetween(getBotHandoverTime(t), firstAssign),
-      firstResponseMins:minsBetween(created, getAgentResponseTime(t)),
+      firstResponseMins:minsBetween(getBotHandoverTime(t), getAgentResponseTime(t)),
       closeMins:minsBetween(created,closeTime),
       hasAgentReply:Boolean(t.hasAgentReply),
       slaBreached:Boolean(t.slaBreached),
@@ -794,11 +802,14 @@ export function computeStats(rows) {
   const closeVals=rows.map(r=>r.closeMins).filter(v=>v!==null);
   const firstRespVals=rows.map(r=>r.firstResponseMins).filter(v=>v!==null);
 
-  // Real avg first interaction — from latestComment.createdAt (when bot===false)
-  // or firstAgentReplyAt when Gleap provides it. No estimation.
-  const avgFirstInteractionMins = firstRespVals.length > 0 ? avg(firstRespVals) : null;
+  // Median first interaction — measured from bot handover (last bot message)
+  // to first human agent response, not from ticket creation (which includes bot time).
+  const medianFirstInteractionMins = firstRespVals.length > 0 ? median(firstRespVals) : null;
+  const medianCloseMins = closeVals.length > 0 ? median(closeVals) : null;
+  const medianAssignMins = assignVals.length > 0 ? median(assignVals) : null;
+  const avgFirstInteractionMins = medianFirstInteractionMins;
 
-  console.log(`📊 Stats calc: ${rows.length} rows | firstResp samples: ${firstRespVals.length} | avg first interaction: ${avgFirstInteractionMins} | close vals: ${closeVals.length}`);
+  console.log(`📊 Stats calc: ${rows.length} rows | firstResp samples: ${firstRespVals.length} | median first interaction: ${medianFirstInteractionMins} | close vals: ${closeVals.length}`);
 
   const daily={};
   for (const r of rows) daily[r.day]=(daily[r.day]||0)+1;
@@ -843,10 +854,14 @@ export function computeStats(rows) {
     name:a.name,handled:a.handled,open:a.open,closed:a.closed,archived:a.archived,
     replied:a.replied,responses:a.responses,slaBreached:a.sla,escalated:a.escalated,callRequests:a.callRequests,
     replyRate:a.handled?Math.round((a.replied/a.handled)*100):0,
-    avgAssign:avg(a.assignMins),avgFirstResponse:avg(a.firstResponseMins),avgClose:avg(a.closeMins),
-    avgAssignFmt:fmtMins(avg(a.assignMins)),
-    avgFirstRespFmt:fmtMins(avg(a.firstResponseMins)),
-    avgCloseFmt:fmtMins(avg(a.closeMins)),
+    avgAssign:median(a.assignMins),avgFirstResponse:median(a.firstResponseMins),avgClose:median(a.closeMins),
+    medianAssign:median(a.assignMins),medianFirstResponse:median(a.firstResponseMins),medianClose:median(a.closeMins),
+    avgAssignFmt:fmtMins(median(a.assignMins)),
+    avgFirstRespFmt:fmtMins(median(a.firstResponseMins)),
+    avgCloseFmt:fmtMins(median(a.closeMins)),
+    medianAssignFmt:fmtMins(median(a.assignMins)),
+    medianFirstRespFmt:fmtMins(median(a.firstResponseMins)),
+    medianCloseFmt:fmtMins(median(a.closeMins)),
   })).sort((a,b)=>b.handled-a.handled);
 
   const companyMap={};
@@ -877,7 +892,8 @@ export function computeStats(rows) {
       pct: total ? Math.round((cnt/total)*100) : 0,
       resolveRate: cnt ? Math.round((closedC/cnt)*100) : 0,
       slaBreachRate: cnt ? Math.round((slaC/cnt)*100) : 0,
-      avgCloseFmt: fmtMins(avg(closeValsC)),
+      avgCloseFmt: fmtMins(median(closeValsC)),
+      medianCloseFmt: fmtMins(median(closeValsC)),
       topCompany, topAgent,
     };
   }).sort((a,b)=>b.count-a.count);
@@ -907,8 +923,13 @@ export function computeStats(rows) {
     withCompany:rows.filter(r=>r.company).length,
     withPhone:rows.filter(r=>r.phone).length,
     withEmail:rows.filter(r=>r.email).length,
-    avgFirstInteraction:avgFirstInteractionMins,avgClose:avg(closeVals),
-    avgFirstInteractionFmt:fmtMins(avgFirstInteractionMins),avgCloseFmt:fmtMins(avg(closeVals)),
+    avgFirstInteraction:medianFirstInteractionMins,avgClose:medianCloseMins,
+    medianFirstInteraction:medianFirstInteractionMins,medianClose:medianCloseMins,
+    medianAssign:medianAssignMins,
+    avgFirstInteractionFmt:fmtMins(medianFirstInteractionMins),avgCloseFmt:fmtMins(medianCloseMins),
+    medianFirstInteractionFmt:fmtMins(medianFirstInteractionMins),medianCloseFmt:fmtMins(medianCloseMins),
+    medianAssignFmt:fmtMins(medianAssignMins),
+    avgAssign:medianAssignMins,avgAssignFmt:fmtMins(medianAssignMins),
     statusBreakdown, typeBreakdown, categoryBreakdown,categoryTrend,uncategorizedClusters,
     daily:Object.entries(daily).sort((a,b)=>a[0].localeCompare(b[0])).map(([day,count])=>({day,count})),
     dow:Object.entries(dow).map(([day,count])=>({day,count})),
@@ -919,9 +940,9 @@ export function computeStats(rows) {
 }
 
 export function buildAIPrompt(stats) {
-  const agentTable=(stats.agents||[]).map(a=>`${a.name}: ${a.handled} handled, ${a.open} open, reply rate ${a.replyRate}%, avg first response ${a.avgFirstRespFmt}, avg close ${a.avgCloseFmt}, escalated ${a.escalated}`).join('\n');
+  const agentTable=(stats.agents||[]).map(a=>`${a.name}: ${a.handled} handled, ${a.open} open, reply rate ${a.replyRate}%, median first response ${a.medianFirstRespFmt||a.avgFirstRespFmt}, median close ${a.medianCloseFmt||a.avgCloseFmt}, escalated ${a.escalated}`).join('\n');
   const openList=(stats.openTickets||[]).slice(0,10).map(t=>`• #${t.bugId} | ${t.contact} @ ${t.company||'?'} | Agent: ${t.agent} | SLA: ${t.slaBreached?'BREACHED':'OK'} | Escalated: ${t.isEscalated}`).join('\n');
-  return `You are a customer success team lead reviewing your inbox analytics.\n\nPERIOD OVERVIEW:\n- Total INQUIRY tickets: ${stats.total}\n- Open: ${stats.openCount} | Closed: ${stats.closedCount} | Archived: ${stats.archivedCount}\n- Escalated: ${stats.escalatedCount} | Unassigned: ${stats.unassignedCount} | SLA breached: ${stats.slaBreached}\n- Call requests: ${stats.callRequestCount}\n\nTIMING (benchmarks: assign <15min, first response <30min, close <4hrs):\n- Avg time to assign: ${stats.avgAssignFmt}\n- Avg first response: ${stats.avgFirstRespFmt}\n- Avg time to close: ${stats.avgCloseFmt}\n\nAGENT PERFORMANCE:\n${agentTable}\n\nOPEN TICKETS:\n${openList||'None'}\n\nTOP COMPANIES: ${(stats.topCompanies||[]).slice(0,5).map(c=>`${c.name}(${c.count})`).join(', ')}\n\nGive me a sharp team lead report:\n\n**1. INBOX HEALTH SCORE: X/10** — one sentence why.\n\n**2. TOP 3 URGENT ACTIONS** — most critical open/unassigned tickets to handle RIGHT NOW.\n\n**3. RESPONSE SPEED ANALYSIS** — vs benchmark. Who is fastest/slowest?\n\n**4. ESCALATION PATTERNS** — ${stats.escalatedCount} escalations. What does this signal?\n\n**5. AGENT COACHING NOTES** — specific feedback for each agent by name.\n\n**6. THIS WEEK'S 5-POINT ACTION PLAN** — exact steps to take now.\n\nBe direct, use real numbers, name names.`;
+  return `You are a customer success team lead reviewing your inbox analytics.\n\nPERIOD OVERVIEW:\n- Total INQUIRY tickets: ${stats.total}\n- Open: ${stats.openCount} | Closed: ${stats.closedCount} | Archived: ${stats.archivedCount}\n- Escalated: ${stats.escalatedCount} | Unassigned: ${stats.unassignedCount} | SLA breached: ${stats.slaBreached}\n- Call requests: ${stats.callRequestCount}\n\nTIMING (benchmarks: assign <15min, first response <30min, close <4hrs — medians, human time only from bot handover):\n- Median time to assign: ${stats.medianAssignFmt||stats.avgAssignFmt}\n- Median first response: ${stats.medianFirstInteractionFmt||stats.avgFirstInteractionFmt}\n- Median time to close: ${stats.medianCloseFmt||stats.avgCloseFmt}\n\nAGENT PERFORMANCE:\n${agentTable}\n\nOPEN TICKETS:\n${openList||'None'}\n\nTOP COMPANIES: ${(stats.topCompanies||[]).slice(0,5).map(c=>`${c.name}(${c.count})`).join(', ')}\n\nGive me a sharp team lead report:\n\n**1. INBOX HEALTH SCORE: X/10** — one sentence why.\n\n**2. TOP 3 URGENT ACTIONS** — most critical open/unassigned tickets to handle RIGHT NOW.\n\n**3. RESPONSE SPEED ANALYSIS** — vs benchmark. Who is fastest/slowest?\n\n**4. ESCALATION PATTERNS** — ${stats.escalatedCount} escalations. What does this signal?\n\n**5. AGENT COACHING NOTES** — specific feedback for each agent by name.\n\n**6. THIS WEEK'S 5-POINT ACTION PLAN** — exact steps to take now.\n\nBe direct, use real numbers, name names.`;
 }
 
 export function buildSlackDigest(stats, periodLabel) {
@@ -949,8 +970,8 @@ export function buildSlackDigest(stats, periodLabel) {
       {type:'mrkdwn',text:`*⚠️ SLA Breached*\n${stats.slaBreached}`},
     ]},
     {type:'section',fields:[
-      {type:'mrkdwn',text:`*⏱ Avg First Interaction*\n${stats.avgFirstInteractionFmt||'N/A'}`},
-      {type:'mrkdwn',text:`*🏁 Avg Time to Close*\n${stats.avgCloseFmt||'N/A'}`},
+      {type:'mrkdwn',text:`*⏱ Median First Response*\n${stats.medianFirstInteractionFmt||stats.avgFirstInteractionFmt||'N/A'}`},
+      {type:'mrkdwn',text:`*🏁 Median Time to Close*\n${stats.medianCloseFmt||stats.avgCloseFmt||'N/A'}`},
       {type:'mrkdwn',text:`*💬 Reply Rate*\n${stats.total?Math.round((stats.withReply/stats.total)*100):0}%`},
       {type:'mrkdwn',text:`*${healthBar} Resolve Rate*\n${healthPct}%`},
     ]},

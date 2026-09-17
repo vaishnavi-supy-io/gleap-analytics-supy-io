@@ -1008,18 +1008,18 @@ const METRIC_INFO = {
     example: 'If Reply Rate is 85%, that means 85 out of every 100 tickets got at least one agent response.'
   },
   avgFirstResponse: {
-    name: 'Avg First Response Time',
-    what: 'The average time between a customer opening a ticket and the first agent interaction (reply or action).',
-    how: 'Measured as the time gap between ticket creation and the first recorded agent reply timestamp.',
+    name: 'Median First Response Time',
+    what: 'The median time between the bot handover (when the bot moves the ticket to human support) and the first human agent interaction.',
+    how: 'Measured as the time gap between the last bot message timestamp and the first recorded human agent reply. If no bot messages are available, falls back to ticket creation time. Median is used (not average) to avoid skew from outliers.',
     healthy: 'Benchmark: under 30 minutes. Over 2 hours starts to negatively impact customer satisfaction.',
-    example: 'If this shows "45 min", it means on average agents respond to new tickets within 45 minutes of them being created.'
+    example: 'If this shows "45 min", it means half of tickets get a human response within 45 minutes after the bot hands over.'
   },
   avgCloseTime: {
-    name: 'Avg Time to Close',
-    what: 'The average time from when a ticket was opened to when it was marked as Closed or Resolved.',
-    how: 'Calculated as the difference between the ticket creation time and the close/resolve timestamp.',
+    name: 'Median Time to Close',
+    what: 'The median time from when a ticket was opened to when it was marked as Closed or Resolved.',
+    how: 'Calculated as the difference between the ticket creation time and the close/resolve timestamp. Median is used to avoid outliers skewing the average.',
     healthy: 'Benchmark: under 4 hours for support tickets. Under 24 hours is acceptable. Over 3 days is a red flag.',
-    example: 'If this shows "6.2 hrs", it means tickets take about 6 hours on average to get fully resolved.'
+    example: 'If this shows "6.2 hrs", it means half of tickets are resolved within about 6 hours.'
   },
   slaBreached: {
     name: 'SLA Breached',
@@ -1830,8 +1830,8 @@ function renderOverview(s) {
       <div class="chart-card">
         <div class="chart-title" style="display:flex;align-items:center;gap:5px"><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> Response Timings</div>
         <div style="display:flex;flex-direction:column;gap:12px;padding-top:4px">
-          ${metricRow('Avg Time to First Agent Interaction', s.avgFirstInteractionFmt, s.avgFirstInteraction, 240)}
-          ${metricRow('Avg Time to Close', s.avgCloseFmt, s.avgClose, 1440)}
+          ${metricRow('Median Time to First Human Response', s.avgFirstInteractionFmt || s.medianFirstInteractionFmt, s.avgFirstInteraction ?? s.medianFirstInteraction, 240)}
+          ${metricRow('Median Time to Close', s.avgCloseFmt || s.medianCloseFmt, s.avgClose ?? s.medianClose, 1440)}
         </div>
       </div>
       <div class="chart-card">
@@ -2137,16 +2137,16 @@ function renderAgents(s) {
       </div>
       <div style="display:flex;flex-direction:column;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
         <div style="display:flex;justify-content:space-between;font-size:11px">
-          <span style="color:var(--muted)">Avg Assign</span>
-          <span style="font-weight:600">${a.avgAssignFmt}</span>
+          <span style="color:var(--muted)">Median Assign</span>
+          <span style="font-weight:600">${a.medianAssignFmt || a.avgAssignFmt}</span>
         </div>
         <div style="display:flex;justify-content:space-between;font-size:11px;align-items:center">
-          <span style="color:var(--muted);display:flex;align-items:center;gap:2px">Avg 1st Response ${infoBtn('avgFirstResponse')}</span>
-          <span style="font-weight:600">${a.avgFirstRespFmt}</span>
+          <span style="color:var(--muted);display:flex;align-items:center;gap:2px">Median 1st Response ${infoBtn('avgFirstResponse')}</span>
+          <span style="font-weight:600">${a.medianFirstRespFmt || a.avgFirstRespFmt}</span>
         </div>
         <div style="display:flex;justify-content:space-between;font-size:11px;align-items:center">
-          <span style="color:var(--muted);display:flex;align-items:center;gap:2px">Avg Close Time ${infoBtn('avgCloseTime')}</span>
-          <span style="font-weight:600">${a.avgCloseFmt}</span>
+          <span style="color:var(--muted);display:flex;align-items:center;gap:2px">Median Close Time ${infoBtn('avgCloseTime')}</span>
+          <span style="font-weight:600">${a.medianCloseFmt || a.avgCloseFmt}</span>
         </div>
       </div>
       <div style="margin-top:10px">
@@ -3406,7 +3406,7 @@ function renderHubspotPipeline(key, p) {
       <div class="kpi-card">
         <div class="kpi-icon">⚡</div>
         <div class="kpi-value" style="font-size:20px">${p.avgCloseFmt}</div>
-        <div class="kpi-label">Avg Time to Close</div>
+        <div class="kpi-label">Median Time to Close</div>
         <div class="kpi-sub">Across ${p.closed - p.suspectTimestamps} closed ticket${p.closed - p.suspectTimestamps === 1 ? '' : 's'}${p.suspectTimestamps ? ` · ${p.suspectTimestamps} excluded` : ''}</div>
       </div>
     </div>
